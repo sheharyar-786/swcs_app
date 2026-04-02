@@ -26,6 +26,9 @@ class _AuthPageState extends State<AuthPage> {
   bool cnicUploaded = false;
   bool licenseUploaded = false;
 
+  // Controllers
+  final TextEditingController _nameController =
+      TextEditingController(); // Naya controller naam ke liye
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _confirmPasswordController =
@@ -83,14 +86,11 @@ class _AuthPageState extends State<AuthPage> {
         if (userCredential.user != null) {
           String uid = userCredential.user!.uid;
 
-          // --- NEW: DRIVER VERIFICATION CHECK (Issue Fix) ---
           if (selectedRole == 'Driver') {
             final snapshot = await FirebaseDatabase.instance
                 .ref('verified_drivers/$uid')
                 .get();
-
             if (!snapshot.exists) {
-              // Account exists in Auth, but not approved in Database
               await FirebaseAuth.instance.signOut();
               _showSnackBar(
                 "Access Denied: Profile not approved by Admin yet.",
@@ -100,7 +100,6 @@ class _AuthPageState extends State<AuthPage> {
             }
           }
 
-          // ADMIN SECURITY
           if (selectedRole == 'Admin') {
             if (email.contains("admin")) {
               _navigateBasedOnRole('admin');
@@ -109,7 +108,6 @@ class _AuthPageState extends State<AuthPage> {
               _showSnackBar("Access Denied: Use Admin email", Colors.redAccent);
             }
           } else {
-            // Check to prevent admin email from entering other portals
             if (email.contains("admin")) {
               await FirebaseAuth.instance.signOut();
               _showSnackBar("Admin must select Admin role", Colors.redAccent);
@@ -120,6 +118,10 @@ class _AuthPageState extends State<AuthPage> {
         }
       } else {
         // --- REGISTRATION PROCESS ---
+        if (_nameController.text.trim().isEmpty) {
+          _showSnackBar("Please enter your full name", Colors.redAccent);
+          return;
+        }
         if (email.contains("admin")) {
           _showSnackBar("Cannot register with 'admin' email", Colors.redAccent);
           return;
@@ -146,6 +148,7 @@ class _AuthPageState extends State<AuthPage> {
 
             await FirebaseDatabase.instance.ref('pending_drivers/$uid').set({
               "uid": uid,
+              "name": _nameController.text.trim(),
               "email": email,
               "cnic": _cnicController.text,
               "cnic_image_base64": cnicData,
@@ -154,10 +157,24 @@ class _AuthPageState extends State<AuthPage> {
               "role": "driver",
               "regDate": DateTime.now().toString(),
             });
-
-            _showApprovalPendingDialog();
+            _showStatusDialog(
+              "Profile submitted! Admin will verify your documents shortly.",
+            );
           } else {
-            _navigateBasedOnRole('civilian');
+            // Civilian Data Save
+            await FirebaseDatabase.instance.ref('users/$uid').set({
+              "uid": uid,
+              "name": _nameController.text.trim(),
+              "email": email,
+              "role": "civilian",
+              "regDate": DateTime.now().toString(),
+            });
+
+            // Redirect to Login instead of Dashboard
+            await FirebaseAuth.instance.signOut();
+            _showStatusDialog(
+              "Account created successfully! Please Sign In to continue.",
+            );
           }
         }
       }
@@ -170,7 +187,6 @@ class _AuthPageState extends State<AuthPage> {
     }
   }
 
-  // UI Helper functions remain the same as your design
   void _showSnackBar(String message, Color color) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -199,7 +215,8 @@ class _AuthPageState extends State<AuthPage> {
     );
   }
 
-  void _showApprovalPendingDialog() {
+  // Common Dialog for Driver Pending & Civilian Success
+  void _showStatusDialog(String message) {
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -209,15 +226,17 @@ class _AuthPageState extends State<AuthPage> {
           "Success",
           style: TextStyle(color: deepForest, fontWeight: FontWeight.bold),
         ),
-        content: const Text(
-          "Profile submitted! Admin will verify your documents shortly.",
-        ),
+        content: Text(message),
         actions: [
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context);
               setState(() {
-                isLogin = true;
+                isLogin = true; // Switch to login view
+                _emailController.clear();
+                _passwordController.clear();
+                _confirmPasswordController.clear();
+                _nameController.clear();
               });
             },
             style: ElevatedButton.styleFrom(backgroundColor: leafGreen),
@@ -273,7 +292,6 @@ class _AuthPageState extends State<AuthPage> {
                       ),
                     ),
                     const SizedBox(height: 25),
-
                     Container(
                       padding: const EdgeInsets.all(25),
                       decoration: BoxDecoration(
@@ -291,6 +309,17 @@ class _AuthPageState extends State<AuthPage> {
                             ),
                           ),
                           const SizedBox(height: 20),
+
+                          // Name Field (Only for Registration)
+                          if (!isLogin) ...[
+                            _buildTextField(
+                              controller: _nameController,
+                              label: "Full Name",
+                              icon: Icons.person_outline,
+                            ),
+                            const SizedBox(height: 15),
+                          ],
+
                           _buildTextField(
                             controller: _emailController,
                             label: "Email",
@@ -324,7 +353,6 @@ class _AuthPageState extends State<AuthPage> {
                           const SizedBox(height: 15),
                           _buildRoleDropdown(),
                           const SizedBox(height: 15),
-
                           if (!isLogin && selectedRole == 'Driver') ...[
                             _buildTextField(
                               controller: _cnicController,
@@ -347,7 +375,6 @@ class _AuthPageState extends State<AuthPage> {
                             ),
                             const SizedBox(height: 20),
                           ],
-
                           SizedBox(
                             width: double.infinity,
                             height: 55,
@@ -372,11 +399,8 @@ class _AuthPageState extends State<AuthPage> {
                                     ),
                             ),
                           ),
-
                           TextButton(
-                            onPressed: () => setState(() {
-                              isLogin = !isLogin;
-                            }),
+                            onPressed: () => setState(() => isLogin = !isLogin),
                             child: Text(
                               isLogin ? "New? Create Account" : "Back to Login",
                               style: const TextStyle(color: leafGreen),

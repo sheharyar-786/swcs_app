@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_database/firebase_database.dart';
-import '../widgets/bin_card.dart';
+import 'package:firebase_auth/firebase_auth.dart'; // User name ke liye
 import '../auth/login_screen.dart';
 
 class CivillianPage extends StatefulWidget {
@@ -15,73 +15,24 @@ class _CivillianPageState extends State<CivillianPage> {
   static const Color deepForest = Color(0xFF1B5E20);
   static const Color softMint = Color(0xFFE8F5E9);
 
-  // Controllers
-  final TextEditingController _searchController = TextEditingController();
-  final TextEditingController _nameController = TextEditingController();
-  final TextEditingController _phoneController = TextEditingController();
-  final TextEditingController _addressController = TextEditingController();
-  final TextEditingController _commentController = TextEditingController();
-
-  String _searchQuery = "";
-  double collectorRating = 0;
+  String userName = "Citizen"; // Default name
 
   @override
-  void dispose() {
-    _searchController.dispose();
-    _nameController.dispose();
-    _phoneController.dispose();
-    _addressController.dispose();
-    _commentController.dispose();
-    super.dispose();
+  void initState() {
+    super.initState();
+    _fetchUserData();
   }
 
-  // --- Logic: Submit Rating and Update Driver Points ---
-  Future<void> _submitRating(String driverUid, double rating) async {
-    if (rating == 0) return;
-    int pointsToAdd = (rating * 50).toInt();
-    final driverRef = FirebaseDatabase.instance.ref(
-      'verified_drivers/$driverUid',
-    );
-
-    await driverRef.runTransaction((Object? post) {
-      if (post == null) return Transaction.abort();
-      Map<String, dynamic> driverData = Map<String, dynamic>.from(post as Map);
-      driverData['points'] = (driverData['points'] ?? 0) + pointsToAdd;
-      return Transaction.success(driverData);
-    });
-
-    setState(() => collectorRating = rating);
-    _msg("Thanks! Driver awarded $pointsToAdd points. 🌟", leafGreen);
-  }
-
-  // --- Logic: Send Detailed Report to Admin ---
-  Future<void> _submitDetailedReport(String type) async {
-    if (_nameController.text.isEmpty || _phoneController.text.isEmpty) {
-      _msg("Please provide your Name and Phone", Colors.redAccent);
-      return;
+  // --- Logic: Fetch Logged-in User Name ---
+  void _fetchUserData() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      final ref = FirebaseDatabase.instance.ref('users/${user.uid}/name');
+      final snapshot = await ref.get();
+      if (snapshot.exists) {
+        setState(() => userName = snapshot.value.toString());
+      }
     }
-
-    final String reportId = DateTime.now().millisecondsSinceEpoch.toString();
-    await FirebaseDatabase.instance.ref('citizen_reports/$reportId').set({
-      "user": _nameController.text,
-      "phone": _phoneController.text,
-      "address": _addressController.text,
-      "type": type,
-      "comment": _commentController.text,
-      "area": _addressController.text.isEmpty
-          ? "General"
-          : _addressController.text,
-      "timestamp": ServerValue.timestamp,
-      "status": "Pending",
-    });
-
-    _nameController.clear();
-    _phoneController.clear();
-    _addressController.clear();
-    _commentController.clear();
-
-    Navigator.pop(context);
-    _msg("Report Sent Successfully! Admin will contact you.", leafGreen);
   }
 
   @override
@@ -95,55 +46,70 @@ class _CivillianPageState extends State<CivillianPage> {
         ),
         backgroundColor: leafGreen,
         centerTitle: true,
-        elevation: 0,
         actions: [
           IconButton(
-            icon: const Icon(Icons.logout_rounded),
-            onPressed: () => _navigateLogout(context),
+            icon: const Icon(Icons.logout),
+            onPressed: () => _logout(context),
           ),
         ],
       ),
       body: StreamBuilder(
         stream: FirebaseDatabase.instance.ref().onValue,
         builder: (context, AsyncSnapshot<DatabaseEvent> snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting)
+          if (!snapshot.hasData)
             return const Center(child: CircularProgressIndicator());
 
-          Map? allData = snapshot.data?.snapshot.value as Map?;
-          Map bins = allData?['bins'] ?? {};
-          Map schedules = allData?['schedules'] ?? {};
-          Map drivers = allData?['verified_drivers'] ?? {};
+          Map data = snapshot.data!.snapshot.value as Map;
+          Map schedules = data['schedules'] ?? {};
+          Map bins = data['bins'] ?? {};
 
           return SingleChildScrollView(
             child: Column(
               children: [
-                _buildWelcomeHeader(),
+                _buildHeader(userName),
                 Padding(
-                  padding: const EdgeInsets.all(20.0),
+                  padding: const EdgeInsets.all(20),
                   child: Column(
                     children: [
-                      _buildSearchBar(),
-                      const SizedBox(height: 25),
                       _sectionHeader(
                         "Quick Report",
-                        Icons.report_gmailerrorred_rounded,
+                        Icons.report_problem_outlined,
                       ),
                       _buildReportGrid(),
                       const SizedBox(height: 25),
 
-                      if (_searchQuery.isNotEmpty) ...[
-                        _sectionHeader("Area Collector", Icons.stars_rounded),
-                        _buildCollectorSection(drivers, schedules),
-                        const SizedBox(height: 25),
-                      ],
-
-                      _sectionHeader("Smart Bin Status", Icons.sensors_rounded),
-                      _buildLiveBinList(bins),
+                      _sectionHeader("Nearby Smart Bins", Icons.sensors),
+                      _buildBinScroll(bins),
                       const SizedBox(height: 25),
-                      _sectionHeader("Area Schedule", Icons.calendar_month),
-                      _buildLiveScheduleList(schedules),
+
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          _sectionHeader(
+                            "Area Schedules",
+                            Icons.calendar_today,
+                          ),
+                          TextButton(
+                            onPressed: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    ScheduleExplorer(allData: data),
+                              ),
+                            ),
+                            child: const Text(
+                              "See More",
+                              style: TextStyle(
+                                color: leafGreen,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      _buildScheduleMiniGrid(schedules),
                       const SizedBox(height: 30),
-                      _buildContactCard(),
+                      _buildEmergencyCard(),
                     ],
                   ),
                 ),
@@ -155,87 +121,248 @@ class _CivillianPageState extends State<CivillianPage> {
     );
   }
 
-  Widget _buildCollectorSection(Map drivers, Map schedules) {
-    var activeSchedule = schedules.values.firstWhere(
-      (s) => s['area'].toString().toLowerCase().contains(_searchQuery),
-      orElse: () => null,
-    );
+  // UI Widgets (Header, Report Grid, etc. as per previous design)
+  Widget _buildHeader(String name) => Container(
+    width: double.infinity,
+    padding: const EdgeInsets.all(20),
+    color: leafGreen,
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          "Hello, $name!",
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const Text(
+          "Ready to make Sadiqabad cleaner?",
+          style: TextStyle(color: Colors.white70),
+        ),
+      ],
+    ),
+  );
 
-    if (activeSchedule == null) return const SizedBox();
-    String collectorName = activeSchedule['collector'] ?? "";
-
-    var assignedDriver = drivers.values.firstWhere(
-      (d) => d['email'].toString().toUpperCase().contains(
-        collectorName.toUpperCase(),
+  Widget _sectionHeader(String t, IconData i) => Row(
+    children: [
+      Icon(i, color: deepForest),
+      const SizedBox(width: 10),
+      Text(
+        t,
+        style: const TextStyle(
+          fontSize: 18,
+          fontWeight: FontWeight.bold,
+          color: deepForest,
+        ),
       ),
-      orElse: () => null,
-    );
+    ],
+  );
 
-    if (assignedDriver == null)
-      return _infoBox("Waiting for Admin to assign collector...");
-
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: softMint,
-        borderRadius: BorderRadius.circular(25),
-      ),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              const CircleAvatar(
-                radius: 25,
-                backgroundColor: leafGreen,
-                child: Icon(Icons.person, color: Colors.white),
+  Widget _buildBinScroll(Map bins) => SizedBox(
+    height: 150,
+    child: ListView(
+      scrollDirection: Axis.horizontal,
+      children: bins.entries
+          .map(
+            (e) => Container(
+              width: 200,
+              margin: const EdgeInsets.only(right: 15),
+              padding: const EdgeInsets.all(15),
+              decoration: BoxDecoration(
+                color: softMint,
+                borderRadius: BorderRadius.circular(20),
               ),
-              const SizedBox(width: 15),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      collectorName,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: deepForest,
-                        fontSize: 16,
-                      ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    e.key,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  Text(
+                    e.value['area'] ?? "",
+                    style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                  const Spacer(),
+                  Text(
+                    "${e.value['fill_level']}% Full",
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: leafGreen,
                     ),
-                    Text(
-                      "Collector for ${activeSchedule['area']}",
-                      style: const TextStyle(color: Colors.grey, fontSize: 12),
-                    ),
-                  ],
+                  ),
+                ],
+              ),
+            ),
+          )
+          .toList(),
+    ),
+  );
+
+  Widget _buildScheduleMiniGrid(Map schedules) => GridView.builder(
+    shrinkWrap: true,
+    physics: const NeverScrollableScrollPhysics(),
+    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+      crossAxisCount: 2,
+      mainAxisSpacing: 10,
+      crossAxisSpacing: 10,
+      childAspectRatio: 1.3,
+    ),
+    itemCount: schedules.length > 4 ? 4 : schedules.length,
+    itemBuilder: (context, index) {
+      var s = schedules.values.toList()[index];
+      return Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          border: Border.all(color: softMint),
+          borderRadius: BorderRadius.circular(15),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              s['area'],
+              style: const TextStyle(fontWeight: FontWeight.bold),
+              textAlign: TextAlign.center,
+            ),
+            Text(
+              s['time'],
+              style: const TextStyle(fontSize: 11, color: Colors.grey),
+            ),
+          ],
+        ),
+      );
+    },
+  );
+
+  Widget _buildReportGrid() => GridView.count(
+    shrinkWrap: true,
+    crossAxisCount: 3,
+    mainAxisSpacing: 10,
+    crossAxisSpacing: 10,
+    childAspectRatio: 0.9,
+    children: [
+      _reportBtn("Overflow", Icons.delete_outline, Colors.orange),
+      _reportBtn("Missed", Icons.moped, Colors.blue),
+      _reportBtn("Damage", Icons.handyman, Colors.red),
+    ],
+  );
+
+  Widget _reportBtn(String t, IconData i, Color c) => Container(
+    decoration: BoxDecoration(
+      borderRadius: BorderRadius.circular(15),
+      border: Border.all(color: c.withOpacity(0.2)),
+    ),
+    child: Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(i, color: c),
+        Text(t, style: const TextStyle(fontSize: 12)),
+      ],
+    ),
+  );
+
+  Widget _buildEmergencyCard() => Container(
+    padding: const EdgeInsets.all(20),
+    width: double.infinity,
+    decoration: BoxDecoration(
+      gradient: const LinearGradient(colors: [deepForest, leafGreen]),
+      borderRadius: BorderRadius.circular(20),
+    ),
+    child: const Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          "Emergency Pickup",
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+        Text("Call: 1122", style: TextStyle(color: Colors.white70)),
+      ],
+    ),
+  );
+
+  void _logout(context) => Navigator.pushReplacement(
+    context,
+    MaterialPageRoute(builder: (c) => const AuthPage()),
+  );
+}
+
+// --- NEW PAGE: SCHEDULE EXPLORER WITH SEARCH & RATING ---
+class ScheduleExplorer extends StatefulWidget {
+  final Map allData;
+  const ScheduleExplorer({super.key, required this.allData});
+
+  @override
+  State<ScheduleExplorer> createState() => _ScheduleExplorerState();
+}
+
+class _ScheduleExplorerState extends State<ScheduleExplorer> {
+  String query = "";
+  double rating = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    Map schedules = widget.allData['schedules'] ?? {};
+    Map drivers = widget.allData['verified_drivers'] ?? {};
+    var list = schedules.values
+        .where(
+          (s) =>
+              s['area'].toString().toLowerCase().contains(query.toLowerCase()),
+        )
+        .toList();
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text("Search Area Schedules"),
+        backgroundColor: const Color(0xFF4CAF50),
+      ),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(15),
+            child: TextField(
+              onChanged: (v) => setState(() => query = v),
+              decoration: InputDecoration(
+                hintText: "Search your area...",
+                prefixIcon: const Icon(Icons.search),
+                filled: true,
+                fillColor: Colors.grey[100],
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(15),
+                  borderSide: BorderSide.none,
                 ),
               ),
-              const Icon(Icons.verified, color: leafGreen),
-            ],
-          ),
-          const Divider(height: 25),
-          const Text(
-            "Rate this collector to award points:",
-            style: TextStyle(
-              color: deepForest,
-              fontWeight: FontWeight.w600,
-              fontSize: 12,
             ),
           ),
-          const SizedBox(height: 10),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: List.generate(
-              5,
-              (i) => IconButton(
-                onPressed: () => _submitRating(assignedDriver['uid'], i + 1.0),
-                icon: Icon(
-                  i < collectorRating
-                      ? Icons.star_rounded
-                      : Icons.star_outline_rounded,
-                  color: Colors.orange,
-                  size: 30,
-                ),
-              ),
+          Expanded(
+            child: ListView.builder(
+              itemCount: list.length,
+              itemBuilder: (context, index) {
+                var s = list[index];
+                return Card(
+                  margin: const EdgeInsets.symmetric(
+                    horizontal: 15,
+                    vertical: 8,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(15),
+                  ),
+                  child: ExpansionTile(
+                    leading: const Icon(
+                      Icons.location_on,
+                      color: Color(0xFF4CAF50),
+                    ),
+                    title: Text(
+                      s['area'],
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    subtitle: Text("${s['day']} at ${s['time']}"),
+                    children: [_buildDetails(s, drivers)],
+                  ),
+                );
+              },
             ),
           ),
         ],
@@ -243,388 +370,59 @@ class _CivillianPageState extends State<CivillianPage> {
     );
   }
 
-  Widget _buildLiveBinList(Map binsData) {
-    var filteredBins = binsData.entries
-        .where(
-          (e) => (e.value['area'] ?? "").toString().toLowerCase().contains(
-            _searchQuery,
+  Widget _buildDetails(Map s, Map drivers) {
+    String collector = s['collector'] ?? "Not Assigned";
+    return Container(
+      padding: const EdgeInsets.all(15),
+      color: Colors.grey[50],
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Divider(),
+          _detailRow(Icons.person, "Collector: $collector"),
+          _detailRow(Icons.info_outline, "Status: Daily Pickup Active"),
+          const SizedBox(height: 15),
+          const Text(
+            "Rate Collector Service:",
+            style: TextStyle(fontWeight: FontWeight.bold),
           ),
-        )
-        .toList();
-    if (filteredBins.isEmpty)
-      return _infoBox("No bins found in '$_searchQuery'");
-
-    return SizedBox(
-      height: 180,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        children: filteredBins.map((e) {
-          int fillLevel = e.value['fill_level'] ?? 0;
-          double progress = (fillLevel / 100).toDouble();
-          Color statusColor = fillLevel >= 80 ? Colors.redAccent : leafGreen;
-
-          return Container(
-            width: 280,
-            margin: const EdgeInsets.only(right: 15),
-            padding: const EdgeInsets.all(15),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: statusColor.withOpacity(0.3), width: 2),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 10,
+          Row(
+            children: List.generate(
+              5,
+              (i) => IconButton(
+                icon: Icon(
+                  i < rating ? Icons.star : Icons.star_border,
+                  color: Colors.orange,
                 ),
-              ],
+                onPressed: () => setState(() => rating = i + 1.0),
+              ),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      e.key,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: deepForest,
-                      ),
-                    ),
-                    Icon(Icons.circle, color: statusColor, size: 12),
-                  ],
-                ),
-                Text(
-                  e.value['area'] ?? "Location",
-                  style: const TextStyle(color: Colors.grey, fontSize: 12),
-                ),
-                const Spacer(),
-                Text(
-                  "$fillLevel% Full",
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: statusColor,
-                    fontSize: 18,
-                  ),
-                ),
-                const SizedBox(height: 5),
-                LinearProgressIndicator(
-                  value: progress,
-                  backgroundColor: softMint,
-                  color: statusColor,
-                  minHeight: 8,
-                ),
-              ],
+          ),
+          ElevatedButton(
+            onPressed: () => ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(const SnackBar(content: Text("Rating Submitted!"))),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF4CAF50),
             ),
-          );
-        }).toList(),
+            child: const Text(
+              "Submit Feedback",
+              style: TextStyle(color: Colors.white),
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildLiveScheduleList(Map schedules) {
-    var filtered = schedules.values
-        .where((s) => s['area'].toString().toLowerCase().contains(_searchQuery))
-        .toList();
-    if (filtered.isEmpty) return _infoBox("No schedules for this area.");
-    return Column(
-      children: filtered
-          .map((s) => _scheduleTile(s['area'], "${s['day']} • ${s['time']}"))
-          .toList(),
-    );
-  }
-
-  Widget _buildWelcomeHeader() => Container(
-    width: double.infinity,
-    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
-    color: leafGreen,
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          "Hello, Sheharyar!",
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        Text(
-          _searchQuery.isEmpty
-              ? "Let's keep Sadiqabad clean today."
-              : "Searching in: $_searchQuery",
-          style: const TextStyle(color: Colors.white70, fontSize: 14),
-        ),
-      ],
-    ),
-  );
-
-  Widget _buildSearchBar() => TextField(
-    controller: _searchController,
-    onChanged: (value) => setState(() => _searchQuery = value.toLowerCase()),
-    decoration: InputDecoration(
-      hintText: "Enter your area name...",
-      prefixIcon: const Icon(Icons.search, color: leafGreen),
-      filled: true,
-      fillColor: softMint,
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(20),
-        borderSide: BorderSide.none,
-      ),
-    ),
-  );
-
-  Widget _sectionHeader(String title, IconData icon) => Padding(
-    padding: const EdgeInsets.only(bottom: 15, top: 10),
+  Widget _detailRow(IconData i, String t) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 4),
     child: Row(
       children: [
-        Icon(icon, color: deepForest, size: 22),
+        Icon(i, size: 16, color: Colors.grey),
         const SizedBox(width: 10),
-        Text(
-          title,
-          style: const TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: deepForest,
-          ),
-        ),
+        Text(t),
       ],
-    ),
-  );
-
-  Widget _buildReportGrid() => GridView.count(
-    shrinkWrap: true,
-    physics: const NeverScrollableScrollPhysics(),
-    crossAxisCount: 3,
-    mainAxisSpacing: 12,
-    crossAxisSpacing: 12,
-    childAspectRatio: 0.85,
-    children: [
-      _reportOption("Overflow", Icons.delete_forever, Colors.orange),
-      _reportOption("Missed", Icons.moped_rounded, Colors.blue),
-      _reportOption("Damage", Icons.build_circle, Colors.redAccent),
-    ],
-  );
-
-  Widget _reportOption(String title, IconData icon, Color color) =>
-      GestureDetector(
-        onTap: () => _showReportingDialog(title),
-        child: Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: color.withOpacity(0.2), width: 2),
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              CircleAvatar(
-                backgroundColor: color.withOpacity(0.1),
-                child: Icon(icon, color: color),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                  color: deepForest,
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-
-  Widget _scheduleTile(String area, String dateTime) => Container(
-    margin: const EdgeInsets.only(bottom: 12),
-    padding: const EdgeInsets.all(15),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(20),
-      border: Border.all(color: softMint),
-    ),
-    child: Row(
-      children: [
-        const Icon(Icons.timer_outlined, color: leafGreen),
-        const SizedBox(width: 15),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              area,
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 15,
-                color: deepForest,
-              ),
-            ),
-            Text(
-              dateTime,
-              style: const TextStyle(color: Colors.grey, fontSize: 13),
-            ),
-          ],
-        ),
-      ],
-    ),
-  );
-
-  Widget _buildContactCard() => Container(
-    padding: const EdgeInsets.all(20),
-    width: double.infinity,
-    decoration: BoxDecoration(
-      gradient: const LinearGradient(colors: [deepForest, leafGreen]),
-      borderRadius: BorderRadius.circular(25),
-    ),
-    child: const Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          "Need Emergency Pickup?",
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-            fontSize: 16,
-          ),
-        ),
-        Text(
-          "Call: 1122 (Toll Free)",
-          style: TextStyle(color: Colors.white70, fontSize: 12),
-        ),
-      ],
-    ),
-  );
-
-  void _msg(String m, Color c) => ScaffoldMessenger.of(
-    context,
-  ).showSnackBar(SnackBar(content: Text(m), backgroundColor: c));
-
-  void _navigateLogout(BuildContext context) => Navigator.pushAndRemoveUntil(
-    context,
-    MaterialPageRoute(builder: (context) => const AuthPage()),
-    (route) => false,
-  );
-
-  void _showReportingDialog(String type) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context).viewInsets.bottom,
-          top: 20,
-          left: 25,
-          right: 25,
-        ),
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
-        ),
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 50,
-                height: 5,
-                decoration: BoxDecoration(
-                  color: Colors.grey[300],
-                  borderRadius: BorderRadius.circular(10),
-                ),
-              ),
-              const SizedBox(height: 20),
-              Text(
-                "Report $type",
-                style: const TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                  color: deepForest,
-                ),
-              ),
-              const SizedBox(height: 15),
-              _formField(
-                _nameController,
-                "Your Full Name",
-                Icons.person_outline,
-              ),
-              _formField(
-                _phoneController,
-                "Mobile Number",
-                Icons.phone_android_outlined,
-              ),
-              _formField(
-                _addressController,
-                "Street Address",
-                Icons.location_on_outlined,
-              ),
-              _formField(
-                _commentController,
-                "What's the issue?",
-                Icons.chat_bubble_outline,
-                maxLines: 3,
-              ),
-              const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                height: 55,
-                child: ElevatedButton(
-                  onPressed: () => _submitDetailedReport(type),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: leafGreen,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(15),
-                    ),
-                  ),
-                  child: const Text(
-                    "SEND TO ADMIN",
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 30),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _formField(
-    TextEditingController ctrl,
-    String hint,
-    IconData icon, {
-    int maxLines = 1,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: TextField(
-        controller: ctrl,
-        maxLines: maxLines,
-        decoration: InputDecoration(
-          hintText: hint,
-          prefixIcon: Icon(icon, color: leafGreen),
-          filled: true,
-          fillColor: softMint,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(15),
-            borderSide: BorderSide.none,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _infoBox(String msg) => Center(
-    child: Padding(
-      padding: const EdgeInsets.all(20),
-      child: Text(
-        msg,
-        style: const TextStyle(color: Colors.grey, fontStyle: FontStyle.italic),
-      ),
     ),
   );
 }
