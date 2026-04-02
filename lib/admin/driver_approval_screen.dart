@@ -148,7 +148,6 @@ class _DriverApprovalScreenState extends State<DriverApprovalScreen> {
           driver['name'] ?? driver['email'] ?? "New Applicant",
           style: const TextStyle(fontWeight: FontWeight.bold),
         ),
-        subtitle: Text("Contact: ${driver['phone'] ?? 'No Number'}"),
         children: [
           Padding(
             padding: const EdgeInsets.all(20),

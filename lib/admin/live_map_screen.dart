@@ -1,8 +1,9 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart'; // Add to pubspec.yaml
-import 'package:latlong2/latlong.dart'; // Add to pubspec.yaml
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:firebase_database/firebase_database.dart';
+import 'package:geolocator/geolocator.dart';
 
 class LiveMapScreen extends StatefulWidget {
   const LiveMapScreen({super.key});
@@ -13,70 +14,108 @@ class LiveMapScreen extends StatefulWidget {
 
 class _LiveMapScreenState extends State<LiveMapScreen> {
   final MapController _mapController = MapController();
-  static const LatLng _sadiqabad = LatLng(28.3000, 70.1300);
 
-  // Markers List
+  // Rahim Yar Khan/Sadiqabad default, but updates instantly with GPS
+  LatLng _myLiveLocation = const LatLng(28.4212, 70.2989);
+
   List<Marker> _markers = [];
-
-  // Subscriptions
-  StreamSubscription? _dataSubscription;
+  List<Polyline> _polylines = [];
+  StreamSubscription? _dbSubscription;
+  StreamSubscription? _gpsSubscription;
 
   @override
   void initState() {
     super.initState();
-    _startLiveTracking();
+    _enableLiveTracking();
   }
 
-  void _startLiveTracking() {
-    // Pure database ko listen karna taake bins aur drivers dono update hon
-    _dataSubscription = FirebaseDatabase.instance.ref().onValue.listen((event) {
-      if (event.snapshot.value != null) {
-        Map allData = event.snapshot.value as Map;
-        _processMarkers(allData);
-      }
+  void _enableLiveTracking() async {
+    // 1. Permissions
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+    }
+
+    // 2. Continuous GPS Stream
+    _gpsSubscription =
+        Geolocator.getPositionStream(
+          locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.high,
+            distanceFilter: 2, // 2 meters movement par update
+          ),
+        ).listen((Position pos) {
+          if (mounted) {
+            setState(() {
+              _myLiveLocation = LatLng(pos.latitude, pos.longitude);
+            });
+            // Real-time camera follow
+            _mapController.move(_myLiveLocation, _mapController.camera.zoom);
+            _refreshMapData();
+          }
+        });
+
+    // 3. Firebase Listener
+    _dbSubscription = FirebaseDatabase.instance.ref().onValue.listen((event) {
+      _refreshMapData();
     });
   }
 
-  void _processMarkers(Map data) {
-    List<Marker> newMarkers = [];
+  Future<void> _refreshMapData() async {
+    final snapshot = await FirebaseDatabase.instance.ref().get();
+    if (snapshot.value == null) return;
 
-    // 1. Process Bins with 3-Level Fill & Gas Alert
+    Map data = snapshot.value as Map;
+    List<Marker> newMarkers = [];
+    LatLng? targetBin;
+    double highestFill = -1;
+
+    // Aapki Apni Location Marker
+    newMarkers.add(
+      Marker(
+        point: _myLiveLocation,
+        width: 50,
+        height: 50,
+        child: const Icon(Icons.navigation, color: Colors.blue, size: 40),
+      ),
+    );
+
+    // Bins Processing
     if (data['bins'] != null) {
       Map bins = data['bins'];
-      bins.forEach((key, val) {
-        int fill = val['fill_level'] ?? 0;
-        bool gasAlert =
-            (val['gas_level'] ?? 0) > 400; // Threshold for Gas Sensor
+      bins.forEach((id, val) {
+        // Data safety check
+        if (val['lat'] != null && val['lng'] != null) {
+          LatLng binPos = LatLng(
+            double.parse(val['lat'].toString()),
+            double.parse(val['lng'].toString()),
+          );
+          int fill = val['fill_level'] ?? 0;
+          int gas = val['gas_level'] ?? 0;
 
-        newMarkers.add(
-          Marker(
-            point: LatLng(val['lat'], val['lng']),
-            width: 80,
-            height: 80,
-            child: GestureDetector(
-              onTap: () => _showDetails(key, fill, val['gas_level'] ?? 0),
+          if (fill > highestFill && fill >= 50) {
+            highestFill = fill.toDouble();
+            targetBin = binPos;
+          }
+
+          newMarkers.add(
+            Marker(
+              point: binPos,
+              width: 80,
+              height: 80,
               child: Column(
                 children: [
                   Icon(
                     Icons.delete_rounded,
-                    size: 35,
-                    // 3 Levels + Gas Special Color
-                    color: gasAlert
-                        ? Colors
-                              .purple // Special Color for Gas/Hazard
-                        : (fill >= 90
+                    color: gas > 400
+                        ? Colors.purple
+                        : (fill >= 80
                               ? Colors.red
                               : (fill >= 50 ? Colors.orange : Colors.green)),
+                    size: 35,
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 4,
-                      vertical: 2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(5),
-                    ),
+                    padding: const EdgeInsets.all(2),
+                    color: Colors.white.withOpacity(0.7),
                     child: Text(
                       "$fill%",
                       style: const TextStyle(
@@ -88,70 +127,73 @@ class _LiveMapScreenState extends State<LiveMapScreen> {
                 ],
               ),
             ),
-          ),
-        );
+          );
+        }
       });
     }
 
-    // 2. Process Drivers
-    if (data['driver_locations'] != null) {
-      Map drivers = data['driver_locations'];
-      drivers.forEach((key, val) {
-        newMarkers.add(
-          Marker(
-            point: LatLng(val['lat'], val['lng']),
-            child: const Icon(
-              Icons.local_shipping,
-              color: Colors.blue,
-              size: 35,
-            ),
-          ),
-        );
+    if (mounted) {
+      setState(() {
+        _markers = newMarkers;
+        _polylines = targetBin != null
+            ? [
+                Polyline(
+                  points: [_myLiveLocation, targetBin!],
+                  strokeWidth: 5,
+                  color: Colors.blueAccent.withOpacity(0.6),
+                ),
+              ]
+            : [];
       });
     }
-
-    if (mounted) setState(() => _markers = newMarkers);
-  }
-
-  void _showDetails(String id, int fill, int gas) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text("Bin $id: Fill $fill% | Gas $gas ppm"),
-        backgroundColor: gas > 400 ? Colors.purple : Colors.black87,
-      ),
-    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("SWCS Live OSM Tracking"),
+        title: const Text("SWCS Live Tracking"),
         backgroundColor: const Color(0xFF4CAF50),
-        foregroundColor: Colors.white,
       ),
-      body: FlutterMap(
-        mapController: _mapController,
-        options: const MapOptions(initialCenter: _sadiqabad, initialZoom: 14.0),
+      body: Stack(
         children: [
-          TileLayer(
-            urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-            userAgentPackageName: 'com.example.swcs_app',
+          FlutterMap(
+            mapController: _mapController,
+            options: MapOptions(
+              initialCenter: _myLiveLocation,
+              initialZoom: 15.0,
+            ),
+            children: [
+              TileLayer(
+                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                // Updated User Agent to avoid 403 error
+                userAgentPackageName: 'com.shary.swcs_iot.v1',
+              ),
+              PolylineLayer(polylines: _polylines),
+              MarkerLayer(markers: _markers),
+            ],
           ),
-          MarkerLayer(markers: _markers),
+          // --- Floating Location Button ---
+          Positioned(
+            bottom: 20,
+            right: 20,
+            child: FloatingActionButton(
+              backgroundColor: const Color(0xFF4CAF50),
+              onPressed: () {
+                _mapController.move(_myLiveLocation, 17.0);
+              },
+              child: const Icon(Icons.my_location, color: Colors.white),
+            ),
+          ),
         ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: const Color(0xFF4CAF50),
-        child: const Icon(Icons.my_location, color: Colors.white),
-        onPressed: () => _mapController.move(_sadiqabad, 14.0),
       ),
     );
   }
 
   @override
   void dispose() {
-    _dataSubscription?.cancel();
+    _gpsSubscription?.cancel();
+    _dbSubscription?.cancel();
     super.dispose();
   }
 }
