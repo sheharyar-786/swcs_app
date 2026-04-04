@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:fl_chart/fl_chart.dart';
 
 class AnalyticsPage extends StatefulWidget {
@@ -9,277 +11,325 @@ class AnalyticsPage extends StatefulWidget {
 }
 
 class _AnalyticsPageState extends State<AnalyticsPage> {
-  // Eco-Friendly Green Theme
   static const Color leafGreen = Color(0xFF4CAF50);
   static const Color deepForest = Color(0xFF1B5E20);
+  static const Color alertRed = Color(0xFFE53935);
   static const Color softMint = Color(0xFFE8F5E9);
-  static const Color warningRed = Color(0xFFE53935);
+
+  Map<String, dynamic> binData = {};
+  late StreamSubscription _binsSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    // Listening to all bins real-time
+    _binsSubscription = FirebaseDatabase.instance.ref('bins').onValue.listen((
+      event,
+    ) {
+      if (event.snapshot.exists) {
+        setState(() {
+          binData = Map<String, dynamic>.from(event.snapshot.value as Map);
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _binsSubscription.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
+    int totalBins = binData.length;
+    int criticalBins = binData.values
+        .where((b) => (b['fill_level'] ?? 0) >= 80)
+        .length;
+    double avgFill = totalBins == 0
+        ? 0
+        : binData.values
+                  .map((b) => b['fill_level'] ?? 0)
+                  .reduce((a, b) => a + b) /
+              totalBins;
+
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color(0xFFF9FBF9),
       appBar: AppBar(
         title: const Text(
-          "📊 System Insights",
-          style: TextStyle(fontWeight: FontWeight.bold),
+          "📊 System Analytics",
+          style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18),
         ),
         backgroundColor: leafGreen,
         foregroundColor: Colors.white,
+        centerTitle: true,
         elevation: 0,
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20.0),
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // --- TOP CARTOON SUMMARY SECTION ---
-            _buildAnimatedSection(
-              title: "Daily Collection Summary",
-              child: _buildSummaryRow(),
-            ),
-
-            const SizedBox(height: 30),
-
-            // --- SECTION: INDIVIDUAL BIN PERFORMANCE ---
-            _buildAnimatedSection(
-              title: "Bin #01: Today's Fill Cycles",
-              child: _buildChartCard(
-                height: 250,
-                child: LineChart(_binSpecificLineData()),
-              ),
-            ),
-
-            const SizedBox(height: 30),
-
-            // --- SECTION: OVERALL WEEKLY EFFICIENCY ---
-            _buildAnimatedSection(
-              title: "Weekly Collection Rate",
-              child: _buildChartCard(
-                height: 200,
-                child: BarChart(_weeklyBarData()),
-              ),
-            ),
-
-            const SizedBox(height: 30),
-
-            // --- SECTION: DETAILED LOGS ---
-            _buildAnimatedSection(
-              title: "Live Bin Records",
-              child: _buildHistoryList(),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // Helper for bouncy entry animations
-  Widget _buildAnimatedSection({required String title, required Widget child}) {
-    return TweenAnimationBuilder(
-      duration: const Duration(milliseconds: 600),
-      tween: Tween<double>(begin: 0, end: 1),
-      builder: (context, double value, childWidget) {
-        return Opacity(
-          opacity: value,
-          child: Transform.translate(
-            offset: Offset(0, 30 * (1 - value)),
-            child: childWidget,
-          ),
-        );
-      },
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: deepForest,
-            ),
-          ),
-          const SizedBox(height: 12),
-          child,
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSummaryRow() {
-    return Row(
-      children: [
-        _buildStatBox("Total Bins", "12", "🗑️", leafGreen),
-        const SizedBox(width: 15),
-        _buildStatBox("Cleansed", "86%", "✨", Colors.blue),
-      ],
-    );
-  }
-
-  Widget _buildStatBox(String label, String value, String emoji, Color color) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(15),
-        decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: color.withOpacity(0.3), width: 2),
-        ),
-        child: Row(
-          children: [
-            Text(emoji, style: const TextStyle(fontSize: 24)),
-            const SizedBox(width: 10),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            // --- 1. PREMIUM SUMMARY CARDS ---
+            _sectionLabel("Overview Statistics"),
+            Row(
               children: [
-                Text(
-                  value,
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: color,
-                  ),
+                _buildStatCard(
+                  "Active Units",
+                  totalBins.toString(),
+                  Icons.sensors,
+                  Colors.blue,
                 ),
-                Text(
-                  label,
-                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                const SizedBox(width: 15),
+                _buildStatCard(
+                  "Critical",
+                  criticalBins.toString(),
+                  Icons.warning_amber_rounded,
+                  alertRed,
                 ),
               ],
             ),
+
+            const SizedBox(height: 30),
+
+            // --- 2. CIRCULAR MONITORING (TOP 3 BINS) ---
+            _sectionLabel("Live Bin Monitoring (Gauges)"),
+            _buildCircularSection(),
+
+            const SizedBox(height: 30),
+
+            // --- 3. BAR CHART: ALL BINS COMPARISON ---
+            _sectionLabel("Real-time Fill Comparison"),
+            _buildBarChartCard(),
+
+            const SizedBox(height: 30),
+
+            // --- 4. LIVE LOGS SECTION ---
+            _sectionLabel("Latest Activity Records"),
+            _buildLiveStatusList(),
+
+            const SizedBox(height: 50),
           ],
         ),
       ),
     );
   }
 
-  // --- INDIVIDUAL BIN CHART (Red/Green logic) ---
-  LineChartData _binSpecificLineData() {
-    return LineChartData(
-      gridData: const FlGridData(show: false),
-      titlesData: FlTitlesData(
-        show: true,
-        topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-        rightTitles: const AxisTitles(
-          sideTitles: SideTitles(showTitles: false),
+  // --- UI BUILDING BLOCKS ---
+
+  Widget _buildStatCard(
+    String label,
+    String value,
+    IconData icon,
+    Color color,
+  ) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(25),
+          boxShadow: [
+            BoxShadow(
+              color: color.withOpacity(0.05),
+              blurRadius: 20,
+              offset: const Offset(0, 10),
+            ),
+          ],
+          border: Border.all(color: color.withOpacity(0.1)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, color: color, size: 28),
+            const SizedBox(height: 15),
+            Text(
+              value,
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.w900,
+                color: color,
+              ),
+            ),
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey,
+              ),
+            ),
+          ],
         ),
       ),
-      borderData: FlBorderData(show: false),
-      lineBarsData: [
-        LineChartBarData(
-          spots: const [
-            FlSpot(0, 10), // 8 AM - Empty (Green)
-            FlSpot(2, 85), // 10 AM - Near Full (Red)
-            FlSpot(4, 20), // 12 PM - Emptied
-            FlSpot(6, 95), // 2 PM - Critical
-            FlSpot(8, 5), // 4 PM - Emptied
-          ],
-          isCurved: true,
-          color: leafGreen,
-          barWidth: 6,
-          belowBarData: BarAreaData(
+    );
+  }
+
+  Widget _buildCircularSection() {
+    var sortedBins = binData.entries.toList();
+    if (sortedBins.isEmpty)
+      return const Center(child: Text("Waiting for data..."));
+
+    return SizedBox(
+      height: 140,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        itemCount: sortedBins.length,
+        itemBuilder: (context, index) {
+          double level = (sortedBins[index].value['fill_level'] ?? 0)
+              .toDouble();
+          Color color = level > 80 ? alertRed : leafGreen;
+          return Container(
+            width: 110,
+            margin: const EdgeInsets.only(right: 15),
+            padding: const EdgeInsets.all(15),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Column(
+              children: [
+                Expanded(
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      CircularProgressIndicator(
+                        value: level / 100,
+                        strokeWidth: 6,
+                        backgroundColor: color.withOpacity(0.1),
+                        color: color,
+                        strokeCap: StrokeCap.round,
+                      ),
+                      Text(
+                        "${level.toInt()}%",
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w900,
+                          color: color,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  sortedBins[index].key.toUpperCase(),
+                  style: const TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildBarChartCard() {
+    return Container(
+      height: 250,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(30),
+      ),
+      child: BarChart(
+        BarChartData(
+          alignment: BarChartAlignment.spaceAround,
+          maxY: 100,
+          barTouchData: BarTouchData(enabled: true),
+          gridData: const FlGridData(show: false),
+          titlesData: FlTitlesData(
             show: true,
-            gradient: LinearGradient(
-              colors: [leafGreen.withOpacity(0.3), warningRed.withOpacity(0.3)],
-              begin: Alignment.bottomCenter,
-              end: Alignment.topCenter,
+            bottomTitles: AxisTitles(
+              sideTitles: SideTitles(
+                showTitles: true,
+                getTitlesWidget: (v, m) => Text(
+                  "B${v.toInt() + 1}",
+                  style: const TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey,
+                  ),
+                ),
+              ),
+            ),
+            leftTitles: AxisTitles(
+              sideTitles: SideTitles(
+                showTitles: true,
+                reservedSize: 30,
+                getTitlesWidget: (v, m) =>
+                    Text("${v.toInt()}%", style: const TextStyle(fontSize: 8)),
+              ),
+            ),
+            topTitles: const AxisTitles(
+              sideTitles: SideTitles(showTitles: false),
+            ),
+            rightTitles: const AxisTitles(
+              sideTitles: SideTitles(showTitles: false),
             ),
           ),
-          dotData: FlDotData(
-            show: true,
-            getDotPainter: (spot, percent, barData, index) {
-              return FlDotCirclePainter(
-                radius: 6,
-                color: spot.y > 70 ? warningRed : leafGreen,
-                strokeWidth: 2,
-                strokeColor: Colors.white,
-              );
-            },
-          ),
+          borderData: FlBorderData(show: false),
+          barGroups: binData.entries.map((e) {
+            int index = binData.keys.toList().indexOf(e.key);
+            double level = (e.value['fill_level'] ?? 0).toDouble();
+            return BarChartGroupData(
+              x: index,
+              barRods: [
+                BarChartRodData(
+                  toY: level,
+                  color: level > 80 ? alertRed : leafGreen,
+                  width: 12,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ],
+            );
+          }).toList(),
         ),
-      ],
-    );
-  }
-
-  BarChartData _weeklyBarData() {
-    return BarChartData(
-      gridData: const FlGridData(show: false),
-      borderData: FlBorderData(show: false),
-      barGroups: [
-        _buildBarGroup(0, 5, leafGreen),
-        _buildBarGroup(1, 8, leafGreen),
-        _buildBarGroup(2, 12, warningRed), // High activity day
-        _buildBarGroup(3, 7, leafGreen),
-        _buildBarGroup(4, 10, leafGreen),
-      ],
-    );
-  }
-
-  BarChartGroupData _buildBarGroup(int x, double y, Color color) {
-    return BarChartGroupData(
-      x: x,
-      barRods: [
-        BarChartRodData(
-          toY: y,
-          color: color,
-          width: 18,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(6)),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildChartCard({required double height, required Widget child}) {
-    return Container(
-      height: height,
-      padding: const EdgeInsets.all(15),
-      decoration: BoxDecoration(
-        color: softMint,
-        borderRadius: BorderRadius.circular(25),
       ),
-      child: child,
     );
   }
 
-  Widget _buildHistoryList() {
-    final List<Map<String, dynamic>> bins = [
-      {"id": "Bin #01", "refills": 4, "status": "Stable", "color": leafGreen},
-      {
-        "id": "Bin #04",
-        "refills": 7,
-        "status": "Overflowing",
-        "color": warningRed,
-      },
-    ];
-
+  Widget _buildLiveStatusList() {
+    var list = binData.entries.toList();
     return ListView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      itemCount: bins.length,
+      itemCount: list.length,
       itemBuilder: (context, index) {
+        var data = list[index].value;
+        bool isFull = (data['fill_level'] ?? 0) >= 80;
         return Container(
-          margin: const EdgeInsets.only(bottom: 12),
+          margin: const EdgeInsets.only(bottom: 10),
           decoration: BoxDecoration(
-            color: softMint,
-            borderRadius: BorderRadius.circular(20),
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(15),
           ),
           child: ListTile(
-            leading: Text(
-              bins[index]['color'] == warningRed ? "⚠️" : "✅",
-              style: const TextStyle(fontSize: 24),
-            ),
-            title: Text(
-              bins[index]['id'],
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-                color: deepForest,
+            leading: CircleAvatar(
+              backgroundColor: isFull
+                  ? alertRed.withOpacity(0.1)
+                  : leafGreen.withOpacity(0.1),
+              child: Icon(
+                isFull ? Icons.priority_high : Icons.check,
+                color: isFull ? alertRed : leafGreen,
+                size: 18,
               ),
             ),
-            subtitle: Text("Emptied ${bins[index]['refills']} times today"),
+            title: Text(
+              data['area'] ?? "Unknown Area",
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+            ),
+            subtitle: Text("Gas Level: ${data['gas_level'] ?? 0}"),
             trailing: Text(
-              bins[index]['status'],
+              "${data['fill_level']}%",
               style: TextStyle(
-                color: bins[index]['color'],
-                fontWeight: FontWeight.bold,
+                fontWeight: FontWeight.w900,
+                color: isFull ? alertRed : deepForest,
               ),
             ),
           ),
@@ -287,4 +337,17 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
       },
     );
   }
+
+  Widget _sectionLabel(String t) => Padding(
+    padding: const EdgeInsets.only(bottom: 15, top: 10),
+    child: Text(
+      t,
+      style: const TextStyle(
+        fontSize: 15,
+        fontWeight: FontWeight.w900,
+        color: deepForest,
+        letterSpacing: 0.5,
+      ),
+    ),
+  );
 }

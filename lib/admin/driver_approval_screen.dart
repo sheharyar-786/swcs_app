@@ -13,7 +13,7 @@ class DriverApprovalScreen extends StatefulWidget {
 class _DriverApprovalScreenState extends State<DriverApprovalScreen> {
   static const Color leafGreen = Color(0xFF4CAF50);
   static const Color deepForest = Color(0xFF1B5E20);
-  static const Color softMint = Color(0xFFE8F5E9);
+  static const Color softMint = Color(0xFFF1F8E9); // Lightened for cleaner look
 
   final Map<String, String> _selectedDuties = {};
   final Map<String, TextEditingController> _controllers = {};
@@ -53,8 +53,11 @@ class _DriverApprovalScreenState extends State<DriverApprovalScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             AppBar(
-              title: Text(title, style: const TextStyle(color: Colors.white)),
-              backgroundColor: Colors.black.withOpacity(0.5),
+              title: Text(
+                title,
+                style: const TextStyle(color: Colors.white, fontSize: 16),
+              ),
+              backgroundColor: Colors.black.withOpacity(0.7),
               elevation: 0,
               leading: IconButton(
                 icon: const Icon(Icons.close, color: Colors.white),
@@ -78,29 +81,48 @@ class _DriverApprovalScreenState extends State<DriverApprovalScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color(0xFFF9FBF9), // Premium Off-White
       appBar: AppBar(
         title: const Text(
           "🛡️ Verification Hub",
-          style: TextStyle(fontWeight: FontWeight.bold),
+          style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 0.5),
         ),
         backgroundColor: leafGreen,
         foregroundColor: Colors.white,
         centerTitle: true,
         elevation: 0,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(bottom: Radius.circular(25)),
+        ),
       ),
       body: StreamBuilder(
         stream: FirebaseDatabase.instance.ref('pending_drivers').onValue,
         builder: (context, AsyncSnapshot<DatabaseEvent> snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
+            return const Center(
+              child: CircularProgressIndicator(color: leafGreen),
+            );
           }
 
           if (!snapshot.hasData || snapshot.data?.snapshot.value == null) {
-            return const Center(
-              child: Text(
-                "No pending requests! ✅",
-                style: TextStyle(color: Colors.grey),
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.verified_user_outlined,
+                    size: 80,
+                    color: Colors.grey.shade300,
+                  ),
+                  const SizedBox(height: 15),
+                  const Text(
+                    "No pending requests! ✅",
+                    style: TextStyle(
+                      color: Colors.grey,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
               ),
             );
           }
@@ -110,7 +132,8 @@ class _DriverApprovalScreenState extends State<DriverApprovalScreen> {
           List<String> keys = drivers.keys.cast<String>().toList();
 
           return ListView.builder(
-            padding: const EdgeInsets.all(15),
+            padding: const EdgeInsets.fromLTRB(15, 20, 15, 80),
+            physics: const BouncingScrollPhysics(),
             itemCount: keys.length,
             itemBuilder: (context, index) {
               String driverKey = keys[index];
@@ -122,7 +145,7 @@ class _DriverApprovalScreenState extends State<DriverApprovalScreen> {
                 () => TextEditingController(),
               );
 
-              return _buildApprovalCard(driver, driverKey);
+              return _buildApprovalCard(driver, driverKey, index);
             },
           );
         },
@@ -130,129 +153,195 @@ class _DriverApprovalScreenState extends State<DriverApprovalScreen> {
     );
   }
 
-  Widget _buildApprovalCard(var driver, String key) {
-    return Container(
-      key: ValueKey(key),
-      margin: const EdgeInsets.only(bottom: 15),
-      decoration: BoxDecoration(
-        color: softMint,
-        borderRadius: BorderRadius.circular(25),
+  Widget _buildApprovalCard(var driver, String key, int index) {
+    return TweenAnimationBuilder(
+      duration: Duration(milliseconds: 400 + (index * 100)),
+      tween: Tween<double>(begin: 0, end: 1),
+      builder: (context, double anim, child) => Opacity(
+        opacity: anim,
+        child: Transform.translate(
+          offset: Offset(0, 20 * (1 - anim)),
+          child: child,
+        ),
       ),
-      child: ExpansionTile(
-        maintainState: true,
-        leading: const CircleAvatar(
-          backgroundColor: leafGreen,
-          child: Icon(Icons.person, color: Colors.white),
-        ),
-        title: Text(
-          driver['name'] ?? driver['email'] ?? "New Applicant",
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _infoBadge(
-                  Icons.email_outlined,
-                  "Email",
-                  driver['email'] ?? "N/A",
-                ),
-                const SizedBox(height: 8),
-                _infoBadge(
-                  Icons.badge_outlined,
-                  "CNIC",
-                  driver['cnic'] ?? "N/A",
-                ),
-                const SizedBox(height: 20),
-                const Text(
-                  "Documents Review (Tap to zoom):",
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    _docBox("CNIC Front", driver['cnic_image_base64']),
-                    const SizedBox(width: 10),
-                    _docBox("License", driver['license_image_base64']),
-                  ],
-                ),
-                const Divider(height: 40),
-                const Text(
-                  "Assignment Details:",
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: deepForest,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                DropdownButtonFormField<String>(
-                  decoration: _inputDeco("Select Duty Role"),
-                  value: _selectedDuties[key],
-                  items: dutyRoles
-                      .map((r) => DropdownMenuItem(value: r, child: Text(r)))
-                      .toList(),
-                  onChanged: (val) {
-                    setState(() {
-                      _selectedDuties[key] = val!;
-                    });
-                  },
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: _controllers[key],
-                  decoration: _inputDeco("Assign Vehicle ID (e.g. TRUCK-01)"),
-                ),
-                const SizedBox(height: 25),
-                // --- FIXED EQUAL BUTTONS ---
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        style: OutlinedButton.styleFrom(
-                          side: const BorderSide(color: Colors.redAccent),
-                          padding: const EdgeInsets.symmetric(vertical: 15),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(15),
-                          ),
-                        ),
-                        onPressed: () => _process(key, false, driver['email']),
-                        child: const Text(
-                          "REJECT",
-                          style: TextStyle(
-                            color: Colors.redAccent,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: leafGreen,
-                          padding: const EdgeInsets.symmetric(vertical: 15),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(15),
-                          ),
-                        ),
-                        onPressed: () => _process(key, true, driver['email']),
-                        child: const Text(
-                          "APPROVE",
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+      child: Container(
+        key: ValueKey(key),
+        margin: const EdgeInsets.only(bottom: 20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(30),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 20,
+              offset: const Offset(0, 10),
             ),
+          ],
+        ),
+        child: Theme(
+          data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+          child: ExpansionTile(
+            maintainState: true,
+            tilePadding: const EdgeInsets.symmetric(
+              horizontal: 20,
+              vertical: 8,
+            ),
+            leading: Container(
+              padding: const EdgeInsets.all(2),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: leafGreen.withOpacity(0.3), width: 2),
+              ),
+              child: const CircleAvatar(
+                backgroundColor: softMint,
+                child: Icon(Icons.person_outline, color: leafGreen),
+              ),
+            ),
+            title: Text(
+              (driver['name'] ?? "New Applicant").toString().toUpperCase(),
+              style: const TextStyle(
+                fontWeight: FontWeight.w900,
+                fontSize: 14,
+                color: deepForest,
+                letterSpacing: 0.5,
+              ),
+            ),
+            subtitle: Text(
+              driver['email'] ?? "Email not provided",
+              style: const TextStyle(fontSize: 11, color: Colors.grey),
+            ),
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 25),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Divider(height: 1, color: Color(0xFFF1F1F1)),
+                    const SizedBox(height: 20),
+                    _infoBadge(
+                      Icons.badge_outlined,
+                      "CNIC Number",
+                      driver['cnic'] ?? "N/A",
+                    ),
+                    const SizedBox(height: 25),
+                    const Text(
+                      "DOCUMENT VERIFICATION",
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 10,
+                        color: Colors.grey,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        _docBox("CNIC FRONT", driver['cnic_image_base64']),
+                        const SizedBox(width: 15),
+                        _docBox("LICENSE", driver['license_image_base64']),
+                      ],
+                    ),
+                    const SizedBox(height: 30),
+                    const Text(
+                      "ADMIN ASSIGNMENT",
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 10,
+                        color: Colors.grey,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      decoration: _inputDeco(
+                        "Select Duty Role",
+                        Icons.work_outline,
+                      ),
+                      value: _selectedDuties[key],
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: deepForest,
+                        fontSize: 13,
+                      ),
+                      items: dutyRoles
+                          .map(
+                            (r) => DropdownMenuItem(value: r, child: Text(r)),
+                          )
+                          .toList(),
+                      onChanged: (val) {
+                        setState(() {
+                          _selectedDuties[key] = val!;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 15),
+                    TextField(
+                      controller: _controllers[key],
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
+                      decoration: _inputDeco(
+                        "Assign Vehicle ID",
+                        Icons.local_shipping_outlined,
+                      ),
+                    ),
+                    const SizedBox(height: 30),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextButton(
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 18),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(18),
+                              ),
+                            ),
+                            onPressed: () =>
+                                _process(key, false, driver['email']),
+                            child: const Text(
+                              "REJECT",
+                              style: TextStyle(
+                                color: Colors.redAccent,
+                                fontWeight: FontWeight.w900,
+                                fontSize: 12,
+                                letterSpacing: 1,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 15),
+                        Expanded(
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: leafGreen,
+                              elevation: 0,
+                              padding: const EdgeInsets.symmetric(vertical: 18),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(18),
+                              ),
+                            ),
+                            onPressed: () =>
+                                _process(key, true, driver['email']),
+                            child: const Text(
+                              "APPROVE",
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w900,
+                                fontSize: 12,
+                                letterSpacing: 1,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -262,29 +351,40 @@ class _DriverApprovalScreenState extends State<DriverApprovalScreen> {
       child: GestureDetector(
         onTap: base64 != null ? () => _showImageFull(label, base64) : null,
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Container(
-              height: 120,
+              height: 100,
               width: double.infinity,
               decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(15),
-                border: Border.all(color: Colors.black12),
+                color: const Color(0xFFF5F5F5),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.black.withOpacity(0.03)),
               ),
               child: base64 != null
                   ? ClipRRect(
-                      borderRadius: BorderRadius.circular(15),
+                      borderRadius: BorderRadius.circular(20),
                       child: Image.memory(
                         base64Decode(base64),
                         fit: BoxFit.cover,
                       ),
                     )
-                  : const Icon(Icons.image_not_supported),
+                  : const Icon(
+                      Icons.image_not_supported_outlined,
+                      color: Colors.grey,
+                    ),
             ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
+            const SizedBox(height: 8),
+            Center(
+              child: Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 9,
+                  fontWeight: FontWeight.w900,
+                  color: Colors.blueGrey,
+                  letterSpacing: 0.5,
+                ),
+              ),
             ),
           ],
         ),
@@ -307,16 +407,15 @@ class _DriverApprovalScreenState extends State<DriverApprovalScreen> {
           "assignedDuty": _selectedDuties[uid],
           "vehicleId": vId,
           "status": "active",
+          "attendance": "Inactive",
           "points": 0,
           "approvalTimestamp": ServerValue.timestamp,
         });
-        _msg("Driver $email Approved!", leafGreen);
+        _msg("Driver Approved! 🚛", leafGreen);
       } else {
         _msg("Request Rejected", Colors.redAccent);
       }
-      // Removing from pending will automatically trigger StreamBuilder to refresh UI safely
       await FirebaseDatabase.instance.ref('pending_drivers/$uid').remove();
-
       _controllers.remove(uid);
       _selectedDuties.remove(uid);
     } catch (e) {
@@ -324,42 +423,71 @@ class _DriverApprovalScreenState extends State<DriverApprovalScreen> {
     }
   }
 
-  InputDecoration _inputDeco(String hint) => InputDecoration(
+  InputDecoration _inputDeco(String hint, IconData icon) => InputDecoration(
     hintText: hint,
+    hintStyle: const TextStyle(
+      fontSize: 12,
+      color: Colors.grey,
+      fontWeight: FontWeight.normal,
+    ),
+    prefixIcon: Icon(icon, color: leafGreen, size: 20),
     filled: true,
-    fillColor: Colors.white,
-    contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
+    fillColor: const Color(0xFFF8FBF8),
+    contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
     border: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(12),
-      borderSide: BorderSide.none,
+      borderRadius: BorderRadius.circular(18),
+      borderSide: BorderSide(color: Colors.grey.shade200),
+    ),
+    enabledBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(18),
+      borderSide: BorderSide(color: Colors.grey.shade100),
     ),
   );
 
-  Widget _infoBadge(IconData icon, String label, String val) => Row(
-    children: [
-      Icon(icon, size: 18, color: leafGreen),
-      const SizedBox(width: 10),
-      Text(
-        "$label: ",
-        style: const TextStyle(color: Colors.grey, fontSize: 13),
-      ),
-      Expanded(
-        child: Text(
-          val,
-          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-          overflow: TextOverflow.ellipsis,
+  Widget _infoBadge(IconData icon, String label, String val) => Container(
+    padding: const EdgeInsets.all(15),
+    decoration: BoxDecoration(
+      color: softMint.withOpacity(0.5),
+      borderRadius: BorderRadius.circular(15),
+    ),
+    child: Row(
+      children: [
+        Icon(icon, size: 20, color: leafGreen),
+        const SizedBox(width: 15),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 9,
+                color: Colors.grey,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            Text(
+              val,
+              style: const TextStyle(
+                fontWeight: FontWeight.w900,
+                fontSize: 13,
+                color: deepForest,
+              ),
+            ),
+          ],
         ),
-      ),
-    ],
+      ],
+    ),
   );
 
   void _msg(String m, Color c) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(m),
+        content: Text(m, style: const TextStyle(fontWeight: FontWeight.bold)),
         backgroundColor: c,
         behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+        margin: const EdgeInsets.all(20),
       ),
     );
   }

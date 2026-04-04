@@ -46,6 +46,9 @@ dependencies:
   latlong2: ^0.9.1
   flutter_map: ^8.2.2
   geolocator: ^14.0.2
+  url_launcher: ^6.3.2
+  confetti: ^0.8.0
+  flutter_staggered_animations: ^1.1.1
 
 
 dev_dependencies:

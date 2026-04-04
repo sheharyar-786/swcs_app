@@ -1,6 +1,15 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
-import '../widgets/bin_card.dart';
+import 'package:firebase_database/firebase_database.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
+import 'package:confetti/confetti.dart';
+import 'package:geolocator/geolocator.dart'; // Location tracking ke liye
 import '../auth/login_screen.dart';
+import '../admin/live_map_screen.dart';
+import 'assign_duties_page.dart';
+import 'leaderboard_page.dart';
 
 class DriverDashboard extends StatefulWidget {
   const DriverDashboard({super.key});
@@ -9,80 +18,664 @@ class DriverDashboard extends StatefulWidget {
   State<DriverDashboard> createState() => _DriverDashboardState();
 }
 
-class _DriverDashboardState extends State<DriverDashboard>
-    with SingleTickerProviderStateMixin {
-  // --- Unified Eco-Friendly Theme ---
+class _DriverDashboardState extends State<DriverDashboard> {
   static const Color leafGreen = Color(0xFF4CAF50);
   static const Color deepForest = Color(0xFF1B5E20);
-  static const Color softMint = Color(0xFFE8F5E9);
-  static const Color warningYellow = Color(0xFFFFD54F);
-  static const Color dangerRed = Color(0xFFE53935);
+  static const Color softMint = Color(0xFFF1F8E9);
 
-  final double averageRating = 4.8;
-  final int rankingPoints = 1250;
+  String driverName = "Commander";
+  int driverPoints = 0;
+  String attendanceStatus = "Inactive";
+  int dutyCount = 0;
+
+  List<String> _liveMessages = [
+    "🚀 Dashboard Active: Waiting for system updates...",
+    "🚛 Keep Sadiqabad Clean & Green!",
+  ];
+
+  late ConfettiController _confettiController;
+  late ScrollController _announcementController;
+  Timer? _marqueeTimer;
+  Timer? _locationTimer; // Background location timer
 
   @override
   void initState() {
     super.initState();
-    Future.delayed(const Duration(seconds: 4), () => _showNewDutyAlert());
+    _confettiController = ConfettiController(
+      duration: const Duration(seconds: 3),
+    );
+    _announcementController = ScrollController();
+    _initDriverEngine();
+    _startAnnouncementAnimation();
+    _startBackgroundLocationUpdates(); // Location update shuru karein
   }
 
-  void _showNewDutyAlert() {
-    showGeneralDialog(
-      context: context,
-      barrierDismissible: true,
-      barrierLabel: "Duty",
-      transitionDuration: const Duration(milliseconds: 500),
-      pageBuilder: (context, anim1, anim2) {
-        return Center(
-          child: Container(
-            margin: const EdgeInsets.symmetric(horizontal: 25),
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(30),
+  @override
+  void dispose() {
+    _confettiController.dispose();
+    _announcementController.dispose();
+    _marqueeTimer?.cancel();
+    _locationTimer?.cancel(); // Timer stop karein
+    super.dispose();
+  }
+
+  // --- NEW: Background Location Logic ---
+  void _startBackgroundLocationUpdates() async {
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      await Geolocator.requestPermission();
+    }
+
+    _locationTimer = Timer.periodic(const Duration(seconds: 15), (timer) async {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      try {
+        Position position = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.high,
+        );
+
+        // Admin ke liye coordinates update karein
+        await FirebaseDatabase.instance
+            .ref('verified_drivers/${user.uid}')
+            .update({
+              'lat': position.latitude,
+              'lng': position.longitude,
+              'last_seen': ServerValue.timestamp,
+            });
+      } catch (e) {
+        debugPrint("Location Error: $e");
+      }
+    });
+  }
+
+  void _startAnnouncementAnimation() {
+    _marqueeTimer = Timer.periodic(const Duration(milliseconds: 50), (timer) {
+      if (_announcementController.hasClients) {
+        double maxExtent = _announcementController.position.maxScrollExtent;
+        double currentOffset = _announcementController.offset;
+        if (currentOffset >= maxExtent) {
+          _announcementController.jumpTo(0);
+        } else {
+          _announcementController.animateTo(
+            currentOffset + 1,
+            duration: const Duration(milliseconds: 50),
+            curve: Curves.linear,
+          );
+        }
+      }
+    });
+  }
+
+  void _initDriverEngine() {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    FirebaseDatabase.instance
+        .ref('verified_drivers/${user.uid}')
+        .onValue
+        .listen((event) {
+          if (event.snapshot.exists && mounted) {
+            Map data = event.snapshot.value as Map;
+            int newPoints = data['points'] ?? 0;
+            String fetchedName = data['name'] ?? "";
+            if (fetchedName.isEmpty) {
+              String email = data['email'] ?? "Driver";
+              fetchedName = email.split('@')[0].toUpperCase();
+            }
+
+            if (newPoints > driverPoints && driverPoints != 0) {
+              setState(() {
+                _liveMessages.add(
+                  "⭐ BRAVO! A citizen awarded you points. Total: $newPoints",
+                );
+              });
+            }
+
+            setState(() {
+              driverName = fetchedName;
+              driverPoints = newPoints;
+              attendanceStatus = data['attendance'] ?? "Inactive";
+            });
+
+            if (data['last_rating_received'] == 5.0) {
+              _confettiController.play();
+              FirebaseDatabase.instance
+                  .ref('verified_drivers/${user.uid}')
+                  .update({'last_rating_received': 0});
+            }
+          }
+        });
+
+    FirebaseDatabase.instance.ref('bins').onValue.listen((event) {
+      if (event.snapshot.exists && mounted) {
+        Map bins = event.snapshot.value as Map;
+        int activeTasks = bins.entries
+            .where(
+              (e) =>
+                  e.value['assigned_to'] == user.uid &&
+                  (e.value['fill_level'] ?? 0) > 0,
+            )
+            .length;
+        setState(() => dutyCount = activeTasks);
+      }
+    });
+
+    FirebaseDatabase.instance.ref('latest_activity').onValue.listen((event) {
+      if (event.snapshot.exists && mounted) {
+        String activity = event.snapshot.value.toString();
+        if (activity.contains("Assigned") || activity.contains("Duty")) {
+          setState(() => _liveMessages.add("🆕 MISSION UPDATE: $activity"));
+        }
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF9FBF9),
+      body: Stack(
+        children: [
+          StreamBuilder(
+            stream: FirebaseDatabase.instance.ref().onValue,
+            builder: (context, AsyncSnapshot<DatabaseEvent> snapshot) {
+              if (!snapshot.hasData)
+                return const Center(
+                  child: CircularProgressIndicator(color: leafGreen),
+                );
+
+              Map data = snapshot.data!.snapshot.value as Map;
+              Map bins = data['bins'] ?? {};
+              final user = FirebaseAuth.instance.currentUser;
+              var myRouteBins = bins.entries
+                  .where(
+                    (e) =>
+                        e.value['assigned_to'] == user?.uid &&
+                        (e.value['fill_level'] ?? 0) > 0,
+                  )
+                  .toList();
+
+              return CustomScrollView(
+                physics: const BouncingScrollPhysics(),
+                slivers: [
+                  _buildModernHeader(),
+                  SliverToBoxAdapter(child: _buildMarqueeBar()),
+                  SliverPadding(
+                    padding: const EdgeInsets.all(20),
+                    sliver: SliverList(
+                      delegate: SliverChildListDelegate([
+                        _buildStatsRow(),
+                        const SizedBox(height: 25),
+                        _sectionLabel("LIVE BIN PLACEMENTS", "📍"),
+                        _buildMap(bins),
+                        const SizedBox(height: 25),
+                        _sectionLabel("MISSION CONTROL GRID", "🎮"),
+                        _buildFeatureGrid(context),
+                        const SizedBox(height: 25),
+                        _sectionLabel("ON-ROUTE PRIORITY (ACO)", "🚛"),
+                        _buildTaskListView(myRouteBins),
+                        const SizedBox(height: 100),
+                      ]),
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+          Align(
+            alignment: Alignment.topCenter,
+            child: ConfettiWidget(
+              confettiController: _confettiController,
+              blastDirectionality: BlastDirectionality.explosive,
             ),
-            child: Material(
-              color: Colors.transparent,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text(
-                    "🚛 New Duty Assigned!",
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: leafGreen,
-                    ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildModernHeader() => SliverAppBar(
+    expandedHeight: 220,
+    pinned: true,
+    backgroundColor: leafGreen,
+    elevation: 10,
+    actions: [
+      Padding(
+        padding: const EdgeInsets.only(right: 12, top: 12),
+        child: Center(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.white24,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.white30),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircleAvatar(
+                  radius: 4,
+                  backgroundColor: attendanceStatus == "Present"
+                      ? Colors.lightGreenAccent
+                      : Colors.orangeAccent,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  attendanceStatus.toUpperCase(),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
                   ),
-                  const SizedBox(height: 15),
-                  const Text(
-                    "Admin Faizan has assigned a new optimized route for Sadiqabad.",
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 20),
-                  ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: leafGreen,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(15),
-                      ),
-                    ),
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text(
-                      "Start Route",
-                      style: TextStyle(color: Colors.white),
-                    ),
-                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+      IconButton(
+        icon: const Icon(Icons.logout_rounded, color: Colors.white),
+        onPressed: _logout,
+      ),
+    ],
+    flexibleSpace: FlexibleSpaceBar(
+      titlePadding: const EdgeInsets.only(left: 20, bottom: 25),
+      title: Column(
+        mainAxisAlignment: MainAxisAlignment.end,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            "Hello, $driverName",
+            style: const TextStyle(
+              fontWeight: FontWeight.w900,
+              fontSize: 20,
+              color: Colors.white,
+            ),
+          ),
+          const Text(
+            "Let's the mission begin! 🚛✨",
+            style: TextStyle(
+              fontSize: 9,
+              color: Colors.white70,
+              fontWeight: FontWeight.w400,
+              letterSpacing: 1,
+            ),
+          ),
+        ],
+      ),
+      background: Stack(
+        fit: StackFit.expand,
+        children: [
+          Image.network(
+            'https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?q=80&w=2070&auto=format&fit=crop',
+            fit: BoxFit.cover,
+          ),
+          Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.black.withOpacity(0.4),
+                  Colors.transparent,
+                  deepForest.withOpacity(0.9),
                 ],
               ),
             ),
           ),
+        ],
+      ),
+    ),
+  );
+
+  Widget _buildMarqueeBar() => Container(
+    height: 38,
+    color: Colors.orange.withOpacity(0.12),
+    child: SingleChildScrollView(
+      controller: _announcementController,
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          const SizedBox(width: 400),
+          Text(
+            _liveMessages.reversed.join("    |    "),
+            style: const TextStyle(
+              color: Colors.orange,
+              fontWeight: FontWeight.w900,
+              fontSize: 11,
+            ),
+          ),
+          const SizedBox(width: 400),
+        ],
+      ),
+    ),
+  );
+
+  Widget _buildStatsRow() {
+    String rank = "#0${(driverPoints ~/ 500) + 1}";
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        _statItem("Rank", rank, Colors.blue),
+        _statItem("My Points", "$driverPoints", Colors.orange),
+        _statItem("Tasks Left", "$dutyCount", Colors.purple),
+      ],
+    );
+  }
+
+  Widget _statItem(String l, String v, Color c) => Container(
+    width: 105,
+    padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 10),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(22),
+      boxShadow: [
+        BoxShadow(
+          color: c.withOpacity(0.06),
+          blurRadius: 15,
+          offset: const Offset(0, 8),
+        ),
+      ],
+    ),
+    child: Column(
+      children: [
+        Text(
+          v,
+          style: TextStyle(fontWeight: FontWeight.w900, color: c, fontSize: 18),
+        ),
+        const SizedBox(height: 5),
+        Text(
+          l,
+          style: const TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.bold,
+            color: Colors.grey,
+          ),
+        ),
+      ],
+    ),
+  );
+
+  Widget _buildMap(Map bins) {
+    return Container(
+      height: 240,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(30),
+        border: Border.all(color: Colors.white, width: 4),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 20),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(26),
+        child: FlutterMap(
+          options: const MapOptions(
+            initialCenter: LatLng(28.3067, 70.1411),
+            initialZoom: 13.0,
+          ),
+          children: [
+            TileLayer(
+              urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+              userAgentPackageName: 'com.shary.swcs.driver_live_pro',
+            ),
+            MarkerLayer(
+              markers: bins.entries.map((e) {
+                var d = e.value;
+                double lat = double.tryParse(d['lat'].toString()) ?? 28.3067;
+                double lng = double.tryParse(d['lng'].toString()) ?? 70.1411;
+                int fill = d['fill_level'] ?? 0;
+                int gas = d['gas_level'] ?? 0;
+                Color col = gas > 400
+                    ? Colors.purple
+                    : (fill >= 80
+                          ? Colors.red
+                          : (fill >= 50 ? Colors.orange : leafGreen));
+
+                // FIX: Marker height/width adjusted for overflow
+                return Marker(
+                  point: LatLng(lat, lng),
+                  width: 60,
+                  height: 60,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(2),
+                        decoration: BoxDecoration(
+                          color: Colors.black87,
+                          borderRadius: BorderRadius.circular(5),
+                        ),
+                        child: Text(
+                          gas > 400 ? "GAS!" : "$fill%",
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 7,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      Icon(Icons.location_on, color: col, size: 30),
+                    ],
+                  ),
+                );
+              }).toList(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFeatureGrid(BuildContext context) => GridView.count(
+    shrinkWrap: true,
+    physics: const NeverScrollableScrollPhysics(),
+    crossAxisCount: 2,
+    crossAxisSpacing: 15,
+    mainAxisSpacing: 15,
+    childAspectRatio: 1.4,
+    children: [
+      _gridTile(
+        "Assign Duties",
+        Icons.assignment_turned_in_rounded,
+        Colors.blue,
+        badge: dutyCount,
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const AssignDutiesPage()),
+        ),
+      ),
+      _gridTile(
+        "Shortest Path",
+        Icons.alt_route_rounded,
+        Colors.red,
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const LiveMapScreen()),
+        ),
+      ),
+      _gridTile(
+        "LEADERBOARD",
+        Icons.emoji_events_rounded,
+        Colors.amber,
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const LeaderboardPage()),
+        ),
+      ),
+      _gridTile(
+        "Daily Attendance",
+        Icons.how_to_reg_rounded,
+        Colors.purple,
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (c) => const DriverAttendancePage()),
+        ),
+      ),
+    ],
+  );
+
+  Widget _gridTile(
+    String t,
+    IconData i,
+    Color c, {
+    int badge = 0,
+    VoidCallback? onTap,
+  }) => InkWell(
+    onTap: onTap,
+    borderRadius: BorderRadius.circular(25),
+    child: Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(25),
+        border: Border.all(color: c.withOpacity(0.1)),
+        boxShadow: [
+          BoxShadow(
+            color: c.withOpacity(0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(i, color: c, size: 32),
+              const SizedBox(height: 8),
+              Text(
+                t,
+                style: TextStyle(
+                  fontWeight: FontWeight.w900,
+                  color: c,
+                  fontSize: 11,
+                ),
+              ),
+            ],
+          ),
+          if (badge > 0)
+            Positioned(
+              top: 10,
+              right: 10,
+              child: CircleAvatar(
+                radius: 8,
+                backgroundColor: Colors.red,
+                child: Text(
+                  "$badge",
+                  style: const TextStyle(color: Colors.white, fontSize: 8),
+                ),
+              ),
+            ),
+        ],
+      ),
+    ),
+  );
+
+  Widget _buildTaskListView(List myBins) {
+    if (myBins.isEmpty)
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(30),
+          child: Text(
+            "No urgent bins detected. All clear!",
+            style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold),
+          ),
+        ),
+      );
+    return ListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: myBins.length,
+      itemBuilder: (context, index) {
+        var bin = myBins[index];
+        return Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(22),
+            boxShadow: [
+              BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10),
+            ],
+          ),
+          child: ListTile(
+            leading: const CircleAvatar(
+              backgroundColor: softMint,
+              child: Icon(Icons.delete_sweep_rounded, color: leafGreen),
+            ),
+            title: Text(
+              bin.value['area'] ?? "Unknown Sector",
+              style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14),
+            ),
+            subtitle: Text(
+              "Level: ${bin.value['fill_level']}% | Gas: ${bin.value['gas_level']}",
+            ),
+            trailing: const Icon(
+              Icons.arrow_forward_ios_rounded,
+              size: 14,
+              color: Colors.grey,
+            ),
+          ),
         );
       },
-      transitionBuilder: (context, anim1, anim2, child) =>
-          ScaleTransition(scale: anim1, child: child),
     );
+  }
+
+  void _logout() => Navigator.pushReplacement(
+    context,
+    MaterialPageRoute(builder: (c) => const AuthPage()),
+  );
+
+  Widget _sectionLabel(String t, String e) => Padding(
+    padding: const EdgeInsets.only(bottom: 15, top: 10),
+    child: Row(
+      children: [
+        Text(e, style: const TextStyle(fontSize: 18)),
+        const SizedBox(width: 10),
+        Text(
+          t,
+          style: const TextStyle(
+            fontWeight: FontWeight.w900,
+            fontSize: 12,
+            color: deepForest,
+            letterSpacing: 1.2,
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+// --- Attendance Page Logic ---
+class DriverAttendancePage extends StatefulWidget {
+  const DriverAttendancePage({super.key});
+  @override
+  State<DriverAttendancePage> createState() => _DriverAttendancePageState();
+}
+
+class _DriverAttendancePageState extends State<DriverAttendancePage> {
+  final TextEditingController _reasonController = TextEditingController();
+
+  Future<void> _updateStatus(String status, {String? reason}) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      await FirebaseDatabase.instance
+          .ref('verified_drivers/${user.uid}')
+          .update({
+            'attendance': status,
+            'leave_reason': reason ?? "",
+            'attendance_time': ServerValue.timestamp,
+          });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("🚀 Status Updated: $status"),
+          backgroundColor: status == "Present" ? Colors.green : Colors.orange,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      Navigator.pop(context);
+    }
   }
 
   @override
@@ -91,346 +684,114 @@ class _DriverDashboardState extends State<DriverDashboard>
       backgroundColor: Colors.white,
       appBar: AppBar(
         title: const Text(
-          "🚛 Driver Mission Control",
-          style: TextStyle(fontWeight: FontWeight.bold),
+          "Attendance Hub",
+          style: TextStyle(fontWeight: FontWeight.w900),
         ),
-        backgroundColor: leafGreen,
-        foregroundColor: Colors.white,
+        backgroundColor: const Color(0xFF4CAF50),
         centerTitle: true,
         elevation: 0,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout_rounded),
-            onPressed: () => _handleLogout(context),
-          ),
-        ],
       ),
-      body: Column(
-        children: [
-          _buildAnimatedHeader(),
-          Expanded(
-            child: Container(
-              decoration: const BoxDecoration(
-                color: softMint,
-                borderRadius: BorderRadius.only(
-                  topLeft: Radius.circular(30),
-                  topRight: Radius.circular(30),
-                ),
-              ),
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  children: [
-                    _buildRouteOptimizationBar(),
-                    const SizedBox(height: 20),
-                    _buildMapPreviewCard(), // Updated with Shortest Path Visuals
-                    const SizedBox(height: 20),
-                    _sectionTitle("Your Active Bin Route"),
-                    const SizedBox(height: 10),
-                    _buildBinList(), // Updated with "Collected" action
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAnimatedHeader() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      color: leafGreen,
-      child: Column(
-        children: [
-          const CircleAvatar(
-            radius: 40,
-            backgroundColor: Colors.white,
-            child: Text("🚛", style: TextStyle(fontSize: 40)),
-          ),
-          const SizedBox(height: 10),
-          const Text(
-            " Jawad",
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 15),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      body: SingleChildScrollView(
+        physics: const BouncingScrollPhysics(),
+        child: Padding(
+          padding: const EdgeInsets.all(25),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _headerStat("Rating", "$averageRating ⭐"),
-              _headerStat("Points", "$rankingPoints 🏆"),
-              _headerStat("Rank", "#04 🎖️"),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _headerStat(String label, String value) {
-    return Column(
-      children: [
-        Text(
-          value,
-          style: const TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-            fontSize: 16,
-          ),
-        ),
-        Text(
-          label,
-          style: const TextStyle(color: Colors.white70, fontSize: 11),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildRouteOptimizationBar() {
-    return Container(
-      padding: const EdgeInsets.all(15),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(color: leafGreen.withOpacity(0.1), blurRadius: 10),
-        ],
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.directions_run, color: leafGreen),
-          const SizedBox(width: 15),
-          const Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  "Shortest Path Active",
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: deepForest,
+              const Text(
+                "Daily Duty Status",
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 20),
+              _actionCard(
+                "Mark Present",
+                Icons.verified_user_rounded,
+                Colors.green,
+                () => _updateStatus("Present"),
+              ),
+              const SizedBox(height: 35),
+              const Divider(),
+              const SizedBox(height: 25),
+              const Text(
+                "Need a Leave?",
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 15),
+              TextField(
+                controller: _reasonController,
+                maxLines: 4,
+                decoration: InputDecoration(
+                  hintText: "Enter reason...",
+                  filled: true,
+                  fillColor: const Color(0xFFF8F9FA),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(20),
+                    borderSide: BorderSide.none,
                   ),
                 ),
-                Text(
-                  "Algorithm: ACO (Ant Colony Optimization)",
-                  style: TextStyle(fontSize: 10, color: Colors.grey),
-                ),
-              ],
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-            decoration: BoxDecoration(
-              color: softMint,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: const Text(
-              "4.2 km",
-              style: TextStyle(
-                color: deepForest,
-                fontWeight: FontWeight.bold,
-                fontSize: 12,
               ),
-            ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                height: 55,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.orange,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(15),
+                    ),
+                  ),
+                  onPressed: () =>
+                      _updateStatus("On Leave", reason: _reasonController.text),
+                  child: const Text(
+                    "Submit Leave Request",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
 
-  Widget _buildMapPreviewCard() {
-    return Container(
-      padding: const EdgeInsets.all(15),
-      decoration: BoxDecoration(
-        color: Colors.white,
+  Widget _actionCard(String t, IconData i, Color c, VoidCallback tap) =>
+      InkWell(
+        onTap: tap,
         borderRadius: BorderRadius.circular(25),
-        boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10)],
-      ),
-      child: Column(
-        children: [
-          const Row(
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: c.withOpacity(0.08),
+            borderRadius: BorderRadius.circular(25),
+            border: Border.all(color: c.withOpacity(0.3)),
+          ),
+          child: Row(
             children: [
-              Icon(Icons.map_rounded, color: leafGreen),
-              SizedBox(width: 10),
-              Text(
-                "Route: Navigate to BIN-X01",
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: deepForest,
+              Icon(i, color: c, size: 28),
+              const SizedBox(width: 20),
+              Expanded(
+                child: Text(
+                  t,
+                  style: TextStyle(
+                    color: c,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 18,
+                  ),
                 ),
+              ),
+              const Icon(
+                Icons.arrow_forward_ios_rounded,
+                size: 18,
+                color: Colors.grey,
               ),
             ],
           ),
-          const SizedBox(height: 10),
-          Container(
-            height: 180,
-            width: double.infinity,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(15),
-              image: const DecorationImage(
-                image: AssetImage('assets/background.jpeg'),
-                fit: BoxFit.cover,
-              ),
-            ),
-            child: Stack(
-              children: [
-                // Visualizing the path
-                Center(
-                  child: Icon(
-                    Icons.gesture,
-                    color: leafGreen.withOpacity(0.5),
-                    size: 100,
-                  ),
-                ),
-                _mapPulse(
-                  top: 20,
-                  left: 40,
-                  color: dangerRed,
-                  label: "X01 (Full)",
-                ),
-                _mapPulse(top: 100, left: 180, color: leafGreen, label: "You"),
-                // Navigation Arrow
-                const Positioned(
-                  bottom: 20,
-                  right: 20,
-                  child: CircleAvatar(
-                    backgroundColor: leafGreen,
-                    child: Icon(Icons.navigation, color: Colors.white),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 10),
-          const Text(
-            "ACO has prioritized BIN-X01 due to 95% fill level.",
-            style: TextStyle(
-              fontSize: 10,
-              color: Colors.redAccent,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _mapPulse({
-    required double top,
-    required double left,
-    required Color color,
-    required String label,
-  }) {
-    return Positioned(
-      top: top,
-      left: left,
-      child: Column(
-        children: [
-          Icon(Icons.location_on, color: color, size: 30),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(5),
-            ),
-            child: Text(
-              label,
-              style: TextStyle(
-                fontSize: 8,
-                color: color,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildBinList() {
-    return Column(
-      children: [
-        BinInfoCard(
-          binId: "BIN-X01",
-          fillLevel: 0.95,
-          status: "CRITICAL",
-          area: "Model Town - Block A",
-          actionLabel: "Mark as Collected", // FEATURE: Action Button
-          onActionPressed: () => _handleCollection("BIN-X01"),
         ),
-        const SizedBox(height: 10),
-        BinInfoCard(
-          binId: "BIN-Y04",
-          fillLevel: 0.65,
-          status: "RISING",
-          area: "Sadiqabad - Ghausia Chowk",
-          actionLabel: "Mark as Collected",
-          onActionPressed: () => _handleCollection("BIN-Y04"),
-        ),
-      ],
-    );
-  }
-
-  void _handleCollection(String id) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
-        title: const Text("Confirm Collection? 🗑️"),
-        content: Text(
-          "Marking $id as clean will update Admin Faizan and notify Sheharyar.",
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("Cancel"),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: leafGreen),
-            onPressed: () {
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    "$id Status: CLEANED ✅. Syncing with Admin Hub...",
-                  ),
-                ),
-              );
-            },
-            child: const Text("Confirm", style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _sectionTitle(String title) {
-    return Row(
-      children: [
-        const Icon(Icons.route, color: deepForest),
-        const SizedBox(width: 10),
-        Text(
-          title,
-          style: const TextStyle(
-            fontWeight: FontWeight.bold,
-            color: deepForest,
-          ),
-        ),
-      ],
-    );
-  }
-
-  void _handleLogout(BuildContext context) {
-    Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(builder: (context) => const AuthPage()),
-      (route) => false,
-    );
-  }
+      );
 }

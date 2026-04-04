@@ -4,7 +4,8 @@ class ScheduleCard extends StatelessWidget {
   final String area;
   final String day;
   final String time;
-  final String status; // --- NEW: To track if duty is done ---
+  final String status;
+  final String? assignedDriver; // NEW: Premium touch
   final VoidCallback? onEdit;
   final int index;
 
@@ -13,7 +14,8 @@ class ScheduleCard extends StatelessWidget {
     required this.area,
     required this.day,
     required this.time,
-    this.status = "Active", // Default status
+    this.status = "Active",
+    this.assignedDriver,
     required this.index,
     this.onEdit,
   });
@@ -21,161 +23,213 @@ class ScheduleCard extends StatelessWidget {
   static const Color leafGreen = Color(0xFF4CAF50);
   static const Color deepForest = Color(0xFF1B5E20);
   static const Color softMint = Color(0xFFE8F5E9);
-  static const Color alertBlue = Color(0xFF2196F3); // Color for completed tasks
+  static const Color alertBlue = Color(0xFF2196F3);
 
   @override
   Widget build(BuildContext context) {
-    // Dynamic color based on status
     bool isCompleted = status.toLowerCase() == "completed";
     Color themeColor = isCompleted ? alertBlue : leafGreen;
 
     return TweenAnimationBuilder(
-      duration: Duration(milliseconds: 400 + (index * 100)),
+      duration: Duration(milliseconds: 500 + (index * 100)),
+      curve: Curves.easeOutQuart,
       tween: Tween<double>(begin: 0, end: 1),
-      builder: (context, double value, child) {
+      builder: (context, double animValue, child) {
         return Opacity(
-          opacity: value,
-          child: Transform.scale(scale: value, child: child),
+          opacity: animValue,
+          child: Transform.translate(
+            offset: Offset(40 * (1 - animValue), 0), // Side slide-in effect
+            child: child,
+          ),
         );
       },
       child: Container(
-        margin: const EdgeInsets.only(bottom: 16),
+        margin: const EdgeInsets.only(bottom: 20),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(25),
+          borderRadius: BorderRadius.circular(30),
           boxShadow: [
             BoxShadow(
-              color: themeColor.withOpacity(0.08),
-              blurRadius: 12,
-              offset: const Offset(0, 5),
+              color: themeColor.withOpacity(0.06),
+              blurRadius: 20,
+              offset: const Offset(0, 10),
             ),
           ],
+          border: Border.all(color: themeColor.withOpacity(0.1), width: 1.5),
         ),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(25),
-          child: IntrinsicHeight(
-            child: Row(
-              children: [
-                // Side accent bar changes color based on status
-                Container(width: 10, color: themeColor),
+          borderRadius: BorderRadius.circular(30),
+          child: Stack(
+            children: [
+              // Premium Background Accent Bubble
+              Positioned(
+                right: -20,
+                top: -20,
+                child: CircleAvatar(
+                  radius: 50,
+                  backgroundColor: themeColor.withOpacity(0.03),
+                ),
+              ),
 
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: Column(
+              Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  children: [
+                    Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            // FIXED: Added Flexible for Area Name to prevent overflow
-                            Flexible(
-                              child: Text(
+                        // Dynamic Leading Icon with Glow
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: themeColor.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(18),
+                          ),
+                          child: Icon(
+                            isCompleted
+                                ? Icons.verified_rounded
+                                : Icons.pending_actions_rounded,
+                            color: themeColor,
+                            size: 24,
+                          ),
+                        ),
+                        const SizedBox(width: 15),
+
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
                                 area,
                                 style: const TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.w900,
                                   color: deepForest,
+                                  letterSpacing: 0.3,
                                 ),
-                                overflow: TextOverflow.ellipsis,
                                 maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
-                            ),
-                            const SizedBox(
-                              width: 8,
-                            ), // Gap between area and status
-                            // --- Status Chip ---
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 4,
-                              ),
-                              decoration: BoxDecoration(
-                                color: themeColor.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: Text(
-                                status.toUpperCase(),
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.bold,
-                                  color: themeColor,
-                                ),
-                              ),
-                            ),
-                          ],
+                              const SizedBox(height: 4),
+                              _statusBadge(status, themeColor),
+                            ],
+                          ),
                         ),
-                        const SizedBox(height: 12),
-                        // FIXED: Wrapped the Row in a Wrap or used Expanded inside to prevent text overflow
-                        Wrap(
-                          spacing: 15,
-                          runSpacing: 8,
+
+                        // Premium Edit Button
+                        if (onEdit != null && !isCompleted)
+                          IconButton(
+                            onPressed: onEdit,
+                            icon: Icon(
+                              Icons.more_vert_rounded,
+                              color: Colors.grey.shade400,
+                            ),
+                          ),
+                      ],
+                    ),
+
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 15),
+                      child: Divider(height: 1, color: Color(0xFFF1F1F1)),
+                    ),
+
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        // Time & Day Info with Icons
+                        Row(
                           children: [
-                            _buildInfoRow(
-                              Icons.calendar_today_rounded,
+                            _miniInfo(
+                              Icons.calendar_month_outlined,
                               day,
                               themeColor,
                             ),
-                            _buildInfoRow(
-                              Icons.access_time_filled_rounded,
+                            const SizedBox(width: 15),
+                            _miniInfo(
+                              Icons.access_time_rounded,
                               time,
                               themeColor,
                             ),
                           ],
                         ),
+
+                        // Assigned Driver (Mini Profile)
+                        if (assignedDriver != null)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 5,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.grey.shade50,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.grey.shade100),
+                            ),
+                            child: Row(
+                              children: [
+                                CircleAvatar(
+                                  radius: 8,
+                                  backgroundColor: themeColor,
+                                  child: const Icon(
+                                    Icons.person,
+                                    size: 10,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  assignedDriver!,
+                                  style: const TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.blueGrey,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                       ],
                     ),
-                  ),
+                  ],
                 ),
-
-                if (onEdit != null && !isCompleted)
-                  Padding(
-                    padding: const EdgeInsets.only(right: 8.0),
-                    child: CircleAvatar(
-                      backgroundColor: softMint,
-                      radius: 18, // Slightly smaller to save space
-                      child: IconButton(
-                        iconSize: 20,
-                        icon: Icon(Icons.edit_note_rounded, color: themeColor),
-                        onPressed: onEdit,
-                      ),
-                    ),
-                  ),
-
-                // Show a checkmark if completed
-                if (isCompleted)
-                  Padding(
-                    padding: const EdgeInsets.only(right: 15.0),
-                    child: Icon(
-                      Icons.check_circle_rounded,
-                      color: alertBlue,
-                      size: 28,
-                    ),
-                  ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
     );
   }
 
-  Widget _buildInfoRow(IconData icon, String text, Color color) {
-    // FIXED: Added Row with mainAxisSize.min to allow Wrap to work correctly
+  Widget _statusBadge(String label, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        label.toUpperCase(),
+        style: TextStyle(
+          color: color,
+          fontSize: 9,
+          fontWeight: FontWeight.w900,
+          letterSpacing: 1,
+        ),
+      ),
+    );
+  }
+
+  Widget _miniInfo(IconData icon, String text, Color color) {
     return Row(
-      mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 16, color: color),
-        const SizedBox(width: 6),
-        // Flexible allows long strings like "Monday, Tuesday, Saturday" to stay safe
-        Flexible(
-          child: Text(
-            text,
-            style: const TextStyle(
-              color: Colors.black54,
-              fontWeight: FontWeight.w600,
-              fontSize: 13,
-            ),
+        Icon(icon, size: 14, color: Colors.grey.shade400),
+        const SizedBox(width: 5),
+        Text(
+          text,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            color: Colors.blueGrey.shade600,
           ),
         ),
       ],
