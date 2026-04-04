@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../auth/login_screen.dart';
+import 'nearby_bins_page.dart'; // Naya page import kiya
 
 class CivillianPage extends StatefulWidget {
   const CivillianPage({super.key});
@@ -150,9 +151,75 @@ class _CivillianPageState extends State<CivillianPage> {
                       _buildReportGrid(),
                       const SizedBox(height: 35),
 
+                      // --- UPDATED NEARBY BINS SECTION ---
                       _sectionHeader("Nearby Smart Bins", "📡"),
                       const SizedBox(height: 12),
-                      _buildBinScroll(bins),
+                      InkWell(
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const NearbyBinsPage(),
+                          ),
+                        ),
+                        child: Container(
+                          padding: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(22),
+                            border: Border.all(
+                              color: leafGreen.withOpacity(0.2),
+                              width: 1.5,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.03),
+                                blurRadius: 10,
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: softMint,
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: const Icon(
+                                  Icons.analytics_outlined,
+                                  color: leafGreen,
+                                ),
+                              ),
+                              const SizedBox(width: 15),
+                              const Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    "Track Area Bins",
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                    ),
+                                  ),
+                                  Text(
+                                    "Real-time sensor monitoring",
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      color: Colors.grey,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const Spacer(),
+                              const Icon(
+                                Icons.arrow_forward_ios_rounded,
+                                size: 16,
+                                color: Colors.grey,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
                       const SizedBox(height: 35),
 
                       Row(
@@ -347,67 +414,6 @@ class _CivillianPageState extends State<CivillianPage> {
     ),
   );
 
-  Widget _buildBinScroll(Map bins) => SizedBox(
-    height: 170,
-    child: ListView(
-      scrollDirection: Axis.horizontal,
-      physics: const BouncingScrollPhysics(),
-      children: bins.entries.map((e) {
-        int fill = e.value['fill_level'] ?? 0;
-        return Container(
-          width: 220,
-          margin: const EdgeInsets.only(right: 15, bottom: 8),
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(25),
-            boxShadow: [
-              BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                "📍 ${e.key}",
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 15,
-                ),
-              ),
-              Text(
-                e.value['area'] ?? "Unknown",
-                style: const TextStyle(fontSize: 11, color: Colors.grey),
-                maxLines: 1,
-              ),
-              const Spacer(),
-              Text(
-                fill == 0 ? "✅ Cleaned" : "$fill% Full",
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: fill == 0
-                      ? leafGreen
-                      : (fill > 80 ? Colors.red : leafGreen),
-                  fontSize: 20,
-                ),
-              ),
-              const SizedBox(height: 8),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: LinearProgressIndicator(
-                  value: fill / 100,
-                  backgroundColor: softMint,
-                  color: fill > 80 ? Colors.red : leafGreen,
-                  minHeight: 8,
-                ),
-              ),
-            ],
-          ),
-        );
-      }).toList(),
-    ),
-  );
-
   Widget _buildScheduleMiniGrid(Map schedules) => GridView.builder(
     shrinkWrap: true,
     physics: const NeverScrollableScrollPhysics(),
@@ -489,7 +495,7 @@ class _CivillianPageState extends State<CivillianPage> {
   );
 }
 
-// --- EXPLORER PAGE (FULLY SYNCED) ---
+// --- EXPLORER PAGE (STABLE RATING VERSION) ---
 class ScheduleExplorer extends StatefulWidget {
   final Map allData;
   const ScheduleExplorer({super.key, required this.allData});
@@ -500,7 +506,7 @@ class ScheduleExplorer extends StatefulWidget {
 
 class _ScheduleExplorerState extends State<ScheduleExplorer> {
   String query = "";
-  double rating = 0;
+  double rating = 0; // Global current rating
 
   @override
   Widget build(BuildContext context) {
@@ -566,8 +572,9 @@ class _ScheduleExplorerState extends State<ScheduleExplorer> {
                       context,
                     ).copyWith(dividerColor: Colors.transparent),
                     child: ExpansionTile(
-                      shape: const Border(),
-                      collapsedShape: const Border(),
+                      onExpansionChanged: (bool expanded) {
+                        if (expanded) setState(() => rating = 0);
+                      },
                       tilePadding: const EdgeInsets.symmetric(
                         horizontal: 20,
                         vertical: 8,
@@ -632,9 +639,13 @@ class _ScheduleExplorerState extends State<ScheduleExplorer> {
                 icon: Icon(
                   i < rating ? Icons.star_rounded : Icons.star_outline_rounded,
                   color: Colors.orange,
-                  size: 28,
+                  size: 32,
                 ),
-                onPressed: () => setState(() => rating = i + 1.0),
+                onPressed: () {
+                  setState(() {
+                    rating = i + 1.0;
+                  });
+                },
               ),
             ),
           ),
@@ -648,7 +659,12 @@ class _ScheduleExplorerState extends State<ScheduleExplorer> {
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
-              onPressed: () => _updatePoints(driverEntry.key, rating),
+              onPressed: () {
+                _updatePoints(
+                  driverEntry.key,
+                  this.rating,
+                ); // FIX: Stable rating passing
+              },
               child: const Text(
                 "Submit Feedback",
                 style: TextStyle(
@@ -663,11 +679,13 @@ class _ScheduleExplorerState extends State<ScheduleExplorer> {
     );
   }
 
-  // --- UPDATED SYNC LOGIC: TRIGGERS DRIVER & ADMIN ---
   Future<void> _updatePoints(String uid, double r) async {
     if (uid.isEmpty || r == 0) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please select a star rating first! ⚠️")),
+        const SnackBar(
+          content: Text("Please select a star rating first! ⚠️"),
+          behavior: SnackBarBehavior.floating,
+        ),
       );
       return;
     }
@@ -675,17 +693,14 @@ class _ScheduleExplorerState extends State<ScheduleExplorer> {
     int pts = (r * 50).toInt();
 
     try {
-      // 1. Notify Driver for Confetti (Trigger)
       await FirebaseDatabase.instance
           .ref('verified_drivers/$uid/last_rating_received')
           .set(r);
 
-      // 2. Notify Admin Activity Bar
       await FirebaseDatabase.instance
           .ref('latest_activity')
           .set("Citizen gave $r stars to a collector! ⭐");
 
-      // 3. Update Points in Firebase (Transaction for Safety)
       await FirebaseDatabase.instance
           .ref('verified_drivers/$uid')
           .runTransaction((Object? post) {
@@ -695,7 +710,6 @@ class _ScheduleExplorerState extends State<ScheduleExplorer> {
             return Transaction.success(d);
           });
 
-      // 4. SUCCESS FEEDBACK
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text("Awesome! Feedback sent and Driver rewarded. 🌟🏆"),
@@ -704,7 +718,7 @@ class _ScheduleExplorerState extends State<ScheduleExplorer> {
         ),
       );
 
-      setState(() => rating = 0); // Reset UI stars
+      setState(() => rating = 0);
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Sync Error: $e"), backgroundColor: Colors.red),
