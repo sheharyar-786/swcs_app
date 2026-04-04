@@ -24,6 +24,12 @@ class _AssignDutiesPageState extends State<AssignDutiesPage>
   }
 
   @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF4F7F4),
@@ -62,7 +68,12 @@ class _AssignDutiesPageState extends State<AssignDutiesPage>
   // --- 1. Collection Tab (Routine Schedules) ---
   Widget _buildCollectionTab() {
     return StreamBuilder(
-      stream: FirebaseDatabase.instance.ref().child('schedules').onValue,
+      // .asBroadcastStream() add kiya hai taake red screen error na aaye
+      stream: FirebaseDatabase.instance
+          .ref()
+          .child('schedules')
+          .onValue
+          .asBroadcastStream(),
       builder: (context, AsyncSnapshot<DatabaseEvent> snapshot) {
         if (!snapshot.hasData || snapshot.data!.snapshot.value == null) {
           return _emptyState(
@@ -105,7 +116,12 @@ class _AssignDutiesPageState extends State<AssignDutiesPage>
   // --- 2. Emergency Tab (IoT Critical Bins) ---
   Widget _buildEmergencyTab() {
     return StreamBuilder(
-      stream: FirebaseDatabase.instance.ref().child('bins').onValue,
+      // .asBroadcastStream() yahan bhi zaroori hai switching ke liye
+      stream: FirebaseDatabase.instance
+          .ref()
+          .child('bins')
+          .onValue
+          .asBroadcastStream(),
       builder: (context, AsyncSnapshot<DatabaseEvent> snapshot) {
         if (!snapshot.hasData || snapshot.data!.snapshot.value == null) {
           return _emptyState(
@@ -155,7 +171,6 @@ class _AssignDutiesPageState extends State<AssignDutiesPage>
     );
   }
 
-  // --- Premium Duty Card UI ---
   Widget _dutyCard({
     required String title,
     required String subtitle,
@@ -266,7 +281,6 @@ class _AssignDutiesPageState extends State<AssignDutiesPage>
     );
   }
 
-  // --- Updated Confirmation Dialog with Live Navigation ---
   void _showStartDialog(String area) {
     showDialog(
       context: context,
@@ -306,8 +320,6 @@ class _AssignDutiesPageState extends State<AssignDutiesPage>
             onPressed: () {
               Navigator.pop(c); // Close Dialog
 
-              // --- 🚀 LIVE NAVIGATION TRIGGER ---
-              // Yeh line driver ko direct map screen par le jayegi
               Navigator.push(
                 context,
                 MaterialPageRoute(builder: (context) => const LiveMapScreen()),

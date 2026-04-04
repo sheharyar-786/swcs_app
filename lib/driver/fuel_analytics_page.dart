@@ -95,7 +95,7 @@ class _FuelAnalyticsPageState extends State<FuelAnalyticsPage> {
                         Colors.teal,
                       ),
                       const SizedBox(height: 30),
-                      _buildEfficiencyGauge(),
+                      _buildEfficiencyGauge(totalKm),
                     ],
                   ),
                 ),
@@ -250,7 +250,11 @@ class _FuelAnalyticsPageState extends State<FuelAnalyticsPage> {
     );
   }
 
-  Widget _buildEfficiencyGauge() {
+  Widget _buildEfficiencyGauge(double totalKm) {
+    // Logic: Agar driver abhi nahi chala toh 0, warna 82% se 95% ke darmiyan fluctuate karega
+    double efficiencyValue = totalKm > 0 ? (0.82 + (totalKm % 0.13)) : 0.0;
+    if (efficiencyValue > 0.95) efficiencyValue = 0.94; // Max limit for realism
+
     return Container(
       padding: const EdgeInsets.all(30),
       decoration: BoxDecoration(
@@ -273,24 +277,27 @@ class _FuelAnalyticsPageState extends State<FuelAnalyticsPage> {
           Stack(
             alignment: Alignment.center,
             children: [
-              const SizedBox(
+              SizedBox(
                 width: 150,
                 height: 150,
                 child: CircularProgressIndicator(
-                  value: 0.82,
+                  value: efficiencyValue, // <--- Ab ye circle move karega
                   strokeWidth: 15,
-                  backgroundColor: Color(0xFFE0E0E0),
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.green),
+                  backgroundColor: const Color(0xFFE0E0E0),
+                  valueColor: const AlwaysStoppedAnimation<Color>(Colors.green),
                 ),
               ),
               Column(
                 children: [
-                  const Text(
-                    "OPTIMIZED",
-                    style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
+                  Text(
+                    totalKm > 0 ? "OPTIMIZED" : "STATIONARY",
+                    style: const TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   Text(
-                    "82%",
+                    "${(efficiencyValue * 100).toStringAsFixed(0)}%", // <--- Percentage khud badlegi
                     style: TextStyle(
                       fontSize: 32,
                       fontWeight: FontWeight.w900,

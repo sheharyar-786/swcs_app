@@ -297,8 +297,12 @@ class _DriverApprovalScreenState extends State<DriverApprovalScreen> {
                                 borderRadius: BorderRadius.circular(18),
                               ),
                             ),
-                            onPressed: () =>
-                                _process(key, false, driver['email']),
+                            onPressed: () => _process(
+                              key,
+                              false,
+                              driver['email'],
+                              driver['name'] ?? "New Driver",
+                            ),
                             child: const Text(
                               "REJECT",
                               style: TextStyle(
@@ -321,8 +325,12 @@ class _DriverApprovalScreenState extends State<DriverApprovalScreen> {
                                 borderRadius: BorderRadius.circular(18),
                               ),
                             ),
-                            onPressed: () =>
-                                _process(key, true, driver['email']),
+                            onPressed: () => _process(
+                              key,
+                              true,
+                              driver['email'],
+                              driver['name'] ?? "New Driver",
+                            ),
                             child: const Text(
                               "APPROVE",
                               style: TextStyle(
@@ -392,7 +400,12 @@ class _DriverApprovalScreenState extends State<DriverApprovalScreen> {
     );
   }
 
-  Future<void> _process(String uid, bool approve, String email) async {
+  Future<void> _process(
+    String uid,
+    bool approve,
+    String email,
+    String driverName,
+  ) async {
     try {
       if (approve) {
         String vId = _controllers[uid]!.text.trim();
@@ -403,12 +416,14 @@ class _DriverApprovalScreenState extends State<DriverApprovalScreen> {
         await FirebaseDatabase.instance.ref('verified_drivers/$uid').set({
           "uid": uid,
           "email": email,
+          "name": driverName,
           "role": "driver",
           "assignedDuty": _selectedDuties[uid],
           "vehicleId": vId,
           "status": "active",
           "attendance": "Inactive",
           "points": 0,
+          "distance_covered": 0.0,
           "approvalTimestamp": ServerValue.timestamp,
         });
         _msg("Driver Approved! 🚛", leafGreen);

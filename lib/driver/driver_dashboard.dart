@@ -10,7 +10,8 @@ import '../auth/login_screen.dart';
 import '../admin/live_map_screen.dart';
 import 'assign_duties_page.dart';
 import 'leaderboard_page.dart';
-import 'fuel_analytics_page.dart'; // Naya Page Link
+import 'fuel_analytics_page.dart';
+import 'collection_history_page.dart'; // Naya Page Link
 
 class DriverDashboard extends StatefulWidget {
   const DriverDashboard({super.key});
@@ -536,6 +537,18 @@ class _DriverDashboardState extends State<DriverDashboard> {
         onTap: () => Navigator.push(
           context,
           MaterialPageRoute(builder: (c) => const DriverAttendancePage()),
+        ),
+      ),
+      _gridTile(
+        "Collection Status",
+        Icons.history_edu_rounded, // Premium History Icon
+        Colors.teal, // Theme Color
+        badge: 0, // Is mein badge ki zaroorat nahi kyunke ye history hai
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const CollectionHistoryPage(),
+          ),
         ),
       ),
     ],

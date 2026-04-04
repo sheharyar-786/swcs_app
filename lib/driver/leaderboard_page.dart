@@ -32,7 +32,6 @@ class LeaderboardPage extends StatelessWidget {
           }
 
           Map data = snapshot.data!.snapshot.value as Map;
-          // Convert Map to List and Sort by Points (Descending)
           List<MapEntry> drivers = data.entries.toList();
           drivers.sort(
             (a, b) =>
@@ -41,49 +40,53 @@ class LeaderboardPage extends StatelessWidget {
 
           if (drivers.isEmpty) return _emptyState();
 
-          return Column(
-            children: [
-              _buildTopPodium(drivers), // Top 3 Drivers Stylish Podium
-              Expanded(
-                child: AnimationLimiter(
-                  child: ListView.builder(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 15,
-                      vertical: 10,
-                    ),
-                    itemCount:
-                        drivers.length -
-                        (drivers.length > 3 ? 3 : drivers.length),
-                    itemBuilder: (context, index) {
-                      // Adjusting index to skip top 3
-                      int actualIndex = index + 3;
-                      if (actualIndex >= drivers.length)
-                        return const SizedBox.shrink();
-
-                      var driver = drivers[actualIndex].value;
-                      int rank = actualIndex + 1;
-                      String displayName = _getDisplayName(driver);
-
-                      return AnimationConfiguration.staggeredList(
-                        position: index,
-                        duration: const Duration(milliseconds: 500),
-                        child: SlideAnimation(
-                          verticalOffset: 50.0,
-                          child: FadeInAnimation(
-                            child: _buildRankCard(
-                              displayName,
-                              rank,
-                              driver['points'] ?? 0,
-                              driver['vehicleId'] ?? "N/A",
-                            ),
-                          ),
+          return LayoutBuilder(
+            builder: (context, constraints) {
+              return SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                child: Column(
+                  children: [
+                    _buildTopPodium(drivers), // Top 3 Drivers Stylish Podium
+                    // Neeche wali list ko limit karne ke liye aur overflow se bachne ke liye
+                    AnimationLimiter(
+                      child: ListView.builder(
+                        shrinkWrap:
+                            true, // Zaroori hai kyunke ye ScrollView ke andar hai
+                        physics: const NeverScrollableScrollPhysics(),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 15,
+                          vertical: 10,
                         ),
-                      );
-                    },
-                  ),
+                        itemCount: drivers.length > 3 ? drivers.length - 3 : 0,
+                        itemBuilder: (context, index) {
+                          int actualIndex = index + 3;
+                          var driver = drivers[actualIndex].value;
+                          int rank = actualIndex + 1;
+                          String displayName = _getDisplayName(driver);
+
+                          return AnimationConfiguration.staggeredList(
+                            position: index,
+                            duration: const Duration(milliseconds: 500),
+                            child: SlideAnimation(
+                              verticalOffset: 50.0,
+                              child: FadeInAnimation(
+                                child: _buildRankCard(
+                                  displayName,
+                                  rank,
+                                  driver['points'] ?? 0,
+                                  driver['vehicleId'] ?? "N/A",
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                  ],
                 ),
-              ),
-            ],
+              );
+            },
           );
         },
       ),
@@ -94,7 +97,6 @@ class LeaderboardPage extends StatelessWidget {
   Widget _buildTopPodium(List drivers) {
     if (drivers.isEmpty) return const SizedBox.shrink();
 
-    // Safety check for indices
     var first = drivers.length > 0 ? drivers[0].value : null;
     var second = drivers.length > 1 ? drivers[1].value : null;
     var third = drivers.length > 2 ? drivers[2].value : null;
@@ -108,43 +110,48 @@ class LeaderboardPage extends StatelessWidget {
           bottomRight: Radius.circular(40),
         ),
       ),
-      child: Stack(
-        alignment: Alignment.bottomCenter,
-        children: [
-          // Silver (Rank 2) - Left
-          if (second != null)
-            Positioned(
-              left: 0,
-              child: _podiumItem(
-                _getDisplayName(second),
-                "2",
-                Colors.grey.shade400,
-                second['points'] ?? 0,
-                110,
+      child: SizedBox(
+        height: 200, // Podium ki height fix kar di taake overlap na ho
+        child: Stack(
+          alignment: Alignment.bottomCenter,
+          children: [
+            if (second != null)
+              Positioned(
+                left: 0,
+                bottom: 0,
+                child: _podiumItem(
+                  _getDisplayName(second),
+                  "2",
+                  Colors.grey.shade400,
+                  second['points'] ?? 0,
+                  110,
+                ),
               ),
-            ),
-          // Bronze (Rank 3) - Right
-          if (third != null)
-            Positioned(
-              right: 0,
-              child: _podiumItem(
-                _getDisplayName(third),
-                "3",
-                Colors.orangeAccent.shade200,
-                third['points'] ?? 0,
-                100,
+            if (third != null)
+              Positioned(
+                right: 0,
+                bottom: 0,
+                child: _podiumItem(
+                  _getDisplayName(third),
+                  "3",
+                  Colors.orangeAccent.shade200,
+                  third['points'] ?? 0,
+                  100,
+                ),
               ),
-            ),
-          // Gold (Rank 1) - Center
-          if (first != null)
-            _podiumItem(
-              _getDisplayName(first),
-              "1",
-              Colors.amberAccent,
-              first['points'] ?? 0,
-              150,
-            ),
-        ],
+            if (first != null)
+              Positioned(
+                bottom: 0,
+                child: _podiumItem(
+                  _getDisplayName(first),
+                  "1",
+                  Colors.amberAccent,
+                  first['points'] ?? 0,
+                  150,
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -157,10 +164,10 @@ class LeaderboardPage extends StatelessWidget {
     double height,
   ) {
     return Container(
-      width: 100,
+      width: 95,
       height: height,
       decoration: BoxDecoration(
-        color: Colors.white10, // Semi-transparent glass look
+        color: Colors.white10,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: Colors.white24),
       ),
@@ -185,10 +192,11 @@ class LeaderboardPage extends StatelessWidget {
             style: const TextStyle(
               color: Colors.white,
               fontWeight: FontWeight.bold,
-              fontSize: 11,
+              fontSize: 10,
             ),
             textAlign: TextAlign.center,
             maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
           Text(
             "${pts} XP",
@@ -200,7 +208,6 @@ class LeaderboardPage extends StatelessWidget {
     );
   }
 
-  // --- GLASS-MORPHISM RANK CARD UI ---
   Widget _buildRankCard(String name, int rank, int pts, String vehicle) {
     return Container(
       margin: const EdgeInsets.only(bottom: 15),
