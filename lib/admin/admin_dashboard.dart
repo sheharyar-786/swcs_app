@@ -1,11 +1,14 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' show cos, sqrt, asin;
 import 'package:flutter/material.dart';
 import 'package:firebase_database/firebase_database.dart';
+import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import 'analytics_screen.dart';
 import 'schedule_list_screen.dart';
 import 'driver_approval_screen.dart';
 import 'live_map_screen.dart';
+import 'simulation_screen.dart';
 import '../auth/login_screen.dart';
 import '../widgets/summary_card.dart';
 
@@ -17,53 +20,12 @@ class AdminPage extends StatefulWidget {
 }
 
 class _AdminPageState extends State<AdminPage> {
-  // --- Master Theme Colors ---
   static const Color leafGreen = Color(0xFF4CAF50);
   static const Color deepForest = Color(0xFF1B5E20);
   static const Color softMint = Color(0xFFE8F5E9);
   static const Color alertRed = Color(0xFFE53935);
-  static const Color starGold = Color(0xFFFFB300);
 
   late Stream<DatabaseEvent> _globalStream;
-
-  // --- Sadiqabad Precise Coordinates for Simulation ---
-  final List<Map<String, dynamic>> sadiqabadGrid = [
-    {
-      "id": "bin_01",
-      "area": "Model Town Block A",
-      "lat": 28.3067,
-      "lng": 70.1411,
-    },
-    {
-      "id": "bin_02",
-      "area": "Main Bazar Sadiqabad",
-      "lat": 28.3082,
-      "lng": 70.1430,
-    },
-    {"id": "bin_03", "area": "Hospital Road", "lat": 28.3055, "lng": 70.1398},
-    {"id": "bin_04", "area": "Railway Road", "lat": 28.3031, "lng": 70.1402},
-    {
-      "id": "bin_05",
-      "area": "Gulshan Iqbal Park",
-      "lat": 28.3110,
-      "lng": 70.1425,
-    },
-    {"id": "bin_06", "area": "Siddique Chowk", "lat": 28.3075, "lng": 70.1455},
-    {
-      "id": "bin_07",
-      "area": "Degree College Road",
-      "lat": 28.3099,
-      "lng": 70.1375,
-    },
-    {"id": "bin_08", "area": "Fawara Chowk", "lat": 28.3040, "lng": 70.1448},
-    {"id": "bin_09", "area": "Civil Line", "lat": 28.3061, "lng": 70.1369},
-    {
-      "id": "bin_10",
-      "area": "Zaka Center Market",
-      "lat": 28.3125,
-      "lng": 70.1399,
-    },
-  ];
 
   @override
   void initState() {
@@ -71,8 +33,29 @@ class _AdminPageState extends State<AdminPage> {
     _globalStream = FirebaseDatabase.instance.ref().onValue.asBroadcastStream();
   }
 
-  // --- LOGIC: Assign Duty to Active Drivers ---
-  void _openAssignmentSheet(String binId, String area) {
+  // --- LOGIC: Haversine Formula (Distance Calculation) ---
+  double _calculateDistance(
+    double lat1,
+    double lon1,
+    double lat2,
+    double lon2,
+  ) {
+    var p = 0.017453292519943295;
+    var c = cos;
+    var a =
+        0.5 -
+        c((lat2 - lat1) * p) / 2 +
+        c(lat1 * p) * c(lat2 * p) * (1 - c((lon2 - lon1) * p)) / 2;
+    return 12742 * asin(sqrt(a));
+  }
+
+  // --- LOGIC: Nearest Driver Assignment Logic ---
+  void _openAssignmentSheet(
+    String binId,
+    String area,
+    double binLat,
+    double binLng,
+  ) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -84,52 +67,63 @@ class _AdminPageState extends State<AdminPage> {
         builder: (context, snapshot) {
           if (!snapshot.hasData)
             return const Center(child: CircularProgressIndicator());
-          Map drivers = snapshot.data!.snapshot.value as Map? ?? {};
-          var activeDrivers = drivers.entries
+          Map driversData = snapshot.data!.snapshot.value as Map? ?? {};
+
+          var activeDrivers = driversData.entries
               .where((d) => d.value['attendance'] == 'Present')
+              .map((d) {
+                double dLat = double.tryParse(d.value['lat'].toString()) ?? 0.0;
+                double dLng = double.tryParse(d.value['lng'].toString()) ?? 0.0;
+                return {
+                  'uid': d.key,
+                  'name': d.value['name'] ?? "Driver",
+                  'points': d.value['points'] ?? 0,
+                  'distance': _calculateDistance(binLat, binLng, dLat, dLng),
+                };
+              })
               .toList();
+
+          activeDrivers.sort(
+            (a, b) =>
+                (a['distance'] as double).compareTo(b['distance'] as double),
+          );
 
           return Container(
             padding: const EdgeInsets.all(25),
             height: MediaQuery.of(context).size.height * 0.7,
             child: Column(
               children: [
-                _sectionTitle(
-                  "Assign Active Driver to $area",
-                  Icons.person_add_alt_1,
-                ),
+                _sectionTitle("Assign Nearest Driver", Icons.gps_fixed_rounded),
                 const Divider(),
-                if (activeDrivers.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.all(30),
-                    child: Text("No drivers are currently Present! 🛑"),
-                  ),
                 Expanded(
                   child: ListView.builder(
                     itemCount: activeDrivers.length,
                     itemBuilder: (context, index) {
                       var driver = activeDrivers[index];
+                      bool isNearest = index == 0;
                       return Card(
-                        elevation: 0,
-                        color: softMint.withOpacity(0.5),
-                        margin: const EdgeInsets.only(bottom: 12),
+                        color: isNearest
+                            ? Colors.blue.shade50
+                            : softMint.withOpacity(0.5),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(15),
                         ),
                         child: ListTile(
-                          leading: const CircleAvatar(
-                            backgroundColor: leafGreen,
-                            child: Icon(
+                          leading: CircleAvatar(
+                            backgroundColor: isNearest
+                                ? Colors.blue
+                                : leafGreen,
+                            child: const Icon(
                               Icons.delivery_dining,
                               color: Colors.white,
                             ),
                           ),
                           title: Text(
-                            driver.value['name'] ?? "Driver",
+                            driver['name'].toString(),
                             style: const TextStyle(fontWeight: FontWeight.bold),
                           ),
                           subtitle: Text(
-                            "Points: ${driver.value['points'] ?? 0}",
+                            "${driver['distance'].toStringAsFixed(2)} km away",
                           ),
                           trailing: const Icon(
                             Icons.send_rounded,
@@ -137,8 +131,8 @@ class _AdminPageState extends State<AdminPage> {
                           ),
                           onTap: () => _finalizeDuty(
                             binId,
-                            driver.key,
-                            driver.value['name'],
+                            driver['uid'].toString(),
+                            driver['name'].toString(),
                           ),
                         ),
                       );
@@ -160,7 +154,7 @@ class _AdminPageState extends State<AdminPage> {
     });
     await FirebaseDatabase.instance
         .ref('latest_activity')
-        .set("Mission Assigned: $name is on route! 🚛");
+        .set("Mission: $name assigned to Emergency Duty! 🚨");
     Navigator.pop(context);
     _msg("Duty Assigned to $name Successfully!", leafGreen);
   }
@@ -172,69 +166,76 @@ class _AdminPageState extends State<AdminPage> {
       body: StreamBuilder(
         stream: _globalStream,
         builder: (context, AsyncSnapshot<DatabaseEvent> snapshot) {
-          if (!snapshot.hasData)
+          if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(
               child: CircularProgressIndicator(color: leafGreen),
             );
+          }
 
-          Map data = snapshot.data!.snapshot.value as Map? ?? {};
-          Map bins = data['bins'] ?? {};
-          Map reports = data['citizen_reports'] ?? {};
-          Map pending = data['drivers_pending_approval'] ?? {};
-          Map verifiedDrivers = data['verified_drivers'] ?? {};
+          final snapshotValue = snapshot.data?.snapshot.value as Map? ?? {};
+          Map bins = snapshotValue['bins'] as Map? ?? {};
+          Map reports = snapshotValue['citizen_reports'] as Map? ?? {};
+          Map pending = snapshotValue['drivers_pending_approval'] as Map? ?? {};
+          Map verifiedDrivers = snapshotValue['verified_drivers'] as Map? ?? {};
+
+          // SMART RADAR LOGIC
+          String activityMsg =
+              snapshotValue['latest_activity']?.toString() ??
+              "System Monitoring... 🟢";
+          if (reports.isNotEmpty)
+            activityMsg = "New Reports Pending in Inbox! 📬";
+          int leaveCount = verifiedDrivers.values
+              .where((d) => d['attendance'] == 'On Leave')
+              .length;
+          if (leaveCount > 0)
+            activityMsg = "Notice: $leaveCount Drivers are On Leave.";
 
           return CustomScrollView(
             physics: const BouncingScrollPhysics(),
             slivers: [
-              _buildParallaxHeader(data['latest_activity']?.toString()),
+              _buildCompactHeader(activityMsg),
               SliverToBoxAdapter(
-                child: Stack(
-                  children: [
-                    Positioned.fill(
-                      child: Opacity(
-                        opacity: 0.05,
-                        child: Image.network(
-                          'https://www.transparenttextures.com/patterns/leaf.png',
-                          repeat: ImageRepeat.repeat,
-                        ),
+                child: AnimationLimiter(
+                  child: Column(
+                    children: AnimationConfiguration.toStaggeredList(
+                      duration: const Duration(milliseconds: 500),
+                      childAnimationBuilder: (widget) => SlideAnimation(
+                        verticalOffset: 30.0,
+                        child: FadeInAnimation(child: widget),
                       ),
-                    ),
-                    Column(
                       children: [
-                        _buildSummarySection(bins, reports),
+                        _buildSummarySection(
+                          bins,
+                          reports,
+                        ), // FIXED OVERFLOW SECTION
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 16),
                           decoration: const BoxDecoration(
                             color: softMint,
                             borderRadius: BorderRadius.vertical(
-                              top: Radius.circular(40),
+                              top: Radius.circular(35),
                             ),
                           ),
                           child: Column(
                             children: [
-                              const SizedBox(height: 25),
+                              const SizedBox(height: 20),
                               _build8GridMenu(
                                 pending.length,
                                 verifiedDrivers,
                                 bins,
                               ),
                               _sectionTitle(
-                                "Sadiqabad Live Test Simulator",
-                                Icons.tune_rounded,
-                              ),
-                              _buildSimulatorPanel(bins),
-                              _sectionTitle(
                                 "Urgent Duty Assignments",
                                 Icons.priority_high_rounded,
                               ),
                               _buildCriticalList(bins),
-                              const SizedBox(height: 100),
+                              const SizedBox(height: 80),
                             ],
                           ),
                         ),
                       ],
                     ),
-                  ],
+                  ),
                 ),
               ),
             ],
@@ -244,31 +245,35 @@ class _AdminPageState extends State<AdminPage> {
     );
   }
 
-  // --- UI COMPONENTS ---
-
-  Widget _buildParallaxHeader(String? msg) {
+  // --- UI: Compact Header ---
+  Widget _buildCompactHeader(String msg) {
     return SliverAppBar(
-      expandedHeight: 220.0,
+      expandedHeight: 160.0,
       pinned: true,
       elevation: 0,
       backgroundColor: leafGreen,
       actions: [
         IconButton(
-          icon: const Icon(Icons.logout_rounded),
+          icon: const Icon(Icons.logout_rounded, size: 20),
           onPressed: () => _handleLogout(context),
         ),
       ],
       flexibleSpace: FlexibleSpaceBar(
         centerTitle: true,
+        titlePadding: const EdgeInsets.only(bottom: 50),
         title: const Text(
-          "🌿 Admin Control Hub",
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+          "ADMIN HUB",
+          style: TextStyle(
+            fontWeight: FontWeight.w900,
+            fontSize: 15,
+            letterSpacing: 1.5,
+          ),
         ),
         background: Stack(
           fit: StackFit.expand,
           children: [
             Image.network(
-              'https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?q=80&w=1000',
+              'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?q=80&w=1000',
               fit: BoxFit.cover,
             ),
             Container(
@@ -277,7 +282,7 @@ class _AdminPageState extends State<AdminPage> {
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: [
-                    Colors.black.withOpacity(0.5),
+                    Colors.black.withOpacity(0.4),
                     Colors.transparent,
                     leafGreen.withOpacity(0.9),
                   ],
@@ -285,31 +290,32 @@ class _AdminPageState extends State<AdminPage> {
               ),
             ),
             Positioned(
-              bottom: 60,
+              bottom: 12,
               left: 20,
               right: 20,
               child: Container(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 15,
-                  vertical: 10,
+                  horizontal: 12,
+                  vertical: 8,
                 ),
                 decoration: BoxDecoration(
                   color: Colors.white.withOpacity(0.9),
-                  borderRadius: BorderRadius.circular(15),
+                  borderRadius: BorderRadius.circular(12),
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.radar, color: Colors.blue, size: 18),
-                    const SizedBox(width: 10),
+                    const Icon(Icons.radar, color: Colors.blue, size: 14),
+                    const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        msg ?? "Monitoring Sensors...",
+                        msg,
                         style: const TextStyle(
-                          fontSize: 10,
+                          fontSize: 9,
                           fontWeight: FontWeight.bold,
                           color: deepForest,
                         ),
                         maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                   ],
@@ -322,24 +328,26 @@ class _AdminPageState extends State<AdminPage> {
     );
   }
 
+  // --- UI: Summary Section (FIXED OVERFLOW) ---
   Widget _buildSummarySection(Map bins, Map reports) {
     int critical = bins.values
         .where((b) => (b['fill_level'] ?? 0) >= 80)
         .length;
-    return Padding(
-      padding: const EdgeInsets.all(15),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 15),
+      height: 110, // Explicit height to prevent internal overflow
       child: Row(
         children: [
           Expanded(
             child: SummaryCard(
               index: 0,
-              title: "Active Bins",
+              title: "Bins",
               value: bins.length.toString(),
               icon: Icons.delete,
               iconColor: leafGreen,
             ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 5),
           Expanded(
             child: SummaryCard(
               index: 1,
@@ -349,7 +357,7 @@ class _AdminPageState extends State<AdminPage> {
               iconColor: alertRed,
             ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 5),
           Expanded(
             child: InkWell(
               onTap: () => Navigator.push(
@@ -370,8 +378,8 @@ class _AdminPageState extends State<AdminPage> {
                   ),
                   if (reports.isNotEmpty)
                     Positioned(
-                      right: -5,
-                      top: -5,
+                      right: -2,
+                      top: -2,
                       child: _badge(reports.length.toString()),
                     ),
                 ],
@@ -383,13 +391,14 @@ class _AdminPageState extends State<AdminPage> {
     );
   }
 
+  // --- UI: 8-Grid Menu ---
   Widget _build8GridMenu(int pCount, Map drivers, Map bins) => GridView.count(
     shrinkWrap: true,
     physics: const NeverScrollableScrollPhysics(),
     crossAxisCount: 2,
-    mainAxisSpacing: 12,
-    crossAxisSpacing: 12,
-    childAspectRatio: 1.3,
+    mainAxisSpacing: 10,
+    crossAxisSpacing: 10,
+    childAspectRatio: 1.4,
     children: [
       _gridItem("City Map", "📍", Colors.blue.shade100, const LiveMapScreen()),
       _gridItem(
@@ -411,8 +420,13 @@ class _AdminPageState extends State<AdminPage> {
         const DriverApprovalScreen(),
         badge: pCount,
       ),
-      _gridItem("Simulation", "🎮", Colors.teal.shade100, null),
-      _gridItem("Duty Assign", "📝", Colors.indigo.shade100, null),
+      _gridItem(
+        "Simulation",
+        "🎮",
+        Colors.teal.shade100,
+        const SimulationScreen(),
+      ),
+      _gridItem("Duty Logs", "📝", Colors.indigo.shade100, null),
       _gridItem(
         "Drivers",
         "👤",
@@ -420,7 +434,7 @@ class _AdminPageState extends State<AdminPage> {
         DriversStatusPage(drivers: drivers),
       ),
       _gridItem(
-        "Collection",
+        "Photos",
         "📸",
         Colors.red.shade100,
         CollectionStatusPage(bins: bins),
@@ -428,108 +442,57 @@ class _AdminPageState extends State<AdminPage> {
     ],
   );
 
-  Widget _buildSimulatorPanel(Map bins) {
-    return SizedBox(
-      height: 230,
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        physics: const BouncingScrollPhysics(),
-        itemCount: sadiqabadGrid.length,
-        itemBuilder: (context, index) {
-          var config = sadiqabadGrid[index];
-          var bData = bins[config['id']] ?? {'fill_level': 0, 'gas_level': 0};
-          return Container(
-            width: 190,
-            margin: const EdgeInsets.only(right: 15, bottom: 10),
-            padding: const EdgeInsets.all(15),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(25),
-              boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10)],
-            ),
-            child: Column(
-              children: [
-                Text(
-                  config['id'].toUpperCase(),
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                const Spacer(),
-                _sliderLabel("Fill: ${bData['fill_level']}%"),
-                Slider(
-                  value: (bData['fill_level'] ?? 0).toDouble(),
-                  min: 0,
-                  max: 100,
-                  activeColor: leafGreen,
-                  onChanged: (v) => _updateFB(config, 'fill_level', v.toInt()),
-                ),
-                _sliderLabel("Gas: ${bData['gas_level']}"),
-                Slider(
-                  value: (bData['gas_level'] ?? 0).toDouble(),
-                  min: 0,
-                  max: 1000,
-                  activeColor: Colors.orange,
-                  onChanged: (v) => _updateFB(config, 'gas_level', v.toInt()),
-                ),
-                Text(
-                  config['area'],
-                  style: const TextStyle(fontSize: 10, color: Colors.grey),
-                  maxLines: 1,
-                ),
-              ],
-            ),
-          );
-        },
-      ),
-    );
-  }
-
   Widget _buildCriticalList(Map bins) {
     var list = bins.entries
         .where((e) => (e.value['fill_level'] ?? 0) >= 75)
         .toList();
     if (list.isEmpty)
-      return const Center(child: Text("No critical bins right now. ✨"));
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(20),
+          child: Text(
+            "No critical bins. ✨",
+            style: TextStyle(fontSize: 12, color: Colors.grey),
+          ),
+        ),
+      );
     return Column(
-      children: list
-          .map(
-            (e) => Card(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
+      children: list.map((e) {
+        double bLat = double.tryParse(e.value['lat'].toString()) ?? 0.0;
+        double bLng = double.tryParse(e.value['lng'].toString()) ?? 0.0;
+        return Card(
+          margin: const EdgeInsets.only(bottom: 8),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(15),
+          ),
+          child: ListTile(
+            dense: true,
+            leading: const Icon(Icons.error_outline, color: alertRed, size: 24),
+            title: Text(
+              e.value['area'] ?? "Sector",
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+            ),
+            subtitle: Text(
+              "Level: ${e.value['fill_level']}%",
+              style: const TextStyle(fontSize: 11),
+            ),
+            trailing: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: deepForest,
+                shape: const StadiumBorder(),
+                padding: const EdgeInsets.symmetric(horizontal: 12),
               ),
-              child: ListTile(
-                leading: Icon(Icons.error, color: alertRed),
-                title: Text(e.value['area'] ?? "Sector"),
-                subtitle: Text("Level: ${e.value['fill_level']}%"),
-                trailing: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: deepForest,
-                    shape: const StadiumBorder(),
-                  ),
-                  onPressed: () => _openAssignmentSheet(e.key, e.value['area']),
-                  child: const Text(
-                    "Assign",
-                    style: TextStyle(color: Colors.white, fontSize: 11),
-                  ),
-                ),
+              onPressed: () =>
+                  _openAssignmentSheet(e.key, e.value['area'], bLat, bLng),
+              child: const Text(
+                "Assign",
+                style: TextStyle(color: Colors.white, fontSize: 10),
               ),
             ),
-          )
-          .toList(),
+          ),
+        );
+      }).toList(),
     );
-  }
-
-  void _updateFB(Map loc, String field, int val) {
-    FirebaseDatabase.instance.ref('bins/${loc['id']}').update({
-      field: val,
-      'lat': loc['lat'],
-      'lng': loc['lng'],
-      'area': loc['area'],
-    });
-    if (field == 'fill_level' && val > 95) {
-      FirebaseDatabase.instance
-          .ref('latest_activity')
-          .set("CRITICAL: Overflow at ${loc['area']}! 🚨");
-    }
   }
 
   Widget _gridItem(String t, String e, Color c, Widget? p, {int badge = 0}) =>
@@ -545,30 +508,24 @@ class _AdminPageState extends State<AdminPage> {
               width: double.infinity,
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(30),
+                borderRadius: BorderRadius.circular(25),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.04),
-                    blurRadius: 15,
+                    color: Colors.black.withOpacity(0.03),
+                    blurRadius: 10,
                   ),
                 ],
               ),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Container(
-                    height: 55,
-                    width: 55,
-                    decoration: BoxDecoration(color: c, shape: BoxShape.circle),
-                    alignment: Alignment.center,
-                    child: Text(e, style: const TextStyle(fontSize: 28)),
-                  ),
-                  const SizedBox(height: 10),
+                  Text(e, style: const TextStyle(fontSize: 24)),
+                  const SizedBox(height: 5),
                   Text(
                     t,
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
-                      fontSize: 13,
+                      fontSize: 12,
                       color: deepForest,
                     ),
                   ),
@@ -576,23 +533,24 @@ class _AdminPageState extends State<AdminPage> {
               ),
             ),
             if (badge > 0)
-              Positioned(right: 15, top: 15, child: _badge(badge.toString())),
+              Positioned(right: 12, top: 12, child: _badge(badge.toString())),
           ],
         ),
       );
 
   Widget _badge(String count) => Container(
-    padding: const EdgeInsets.all(6),
+    padding: const EdgeInsets.all(5),
     decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
     child: Text(
       count,
       style: const TextStyle(
         color: Colors.white,
-        fontSize: 10,
+        fontSize: 9,
         fontWeight: FontWeight.bold,
       ),
     ),
   );
+
   void _handleLogout(context) => Navigator.pushAndRemoveUntil(
     context,
     MaterialPageRoute(builder: (c) => const AuthPage()),
@@ -606,42 +564,171 @@ class _AdminPageState extends State<AdminPage> {
     ),
   );
   Widget _sectionTitle(String t, IconData i) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 20),
+    padding: const EdgeInsets.symmetric(vertical: 15),
     child: Row(
       children: [
-        Icon(i, color: leafGreen, size: 24),
-        const SizedBox(width: 10),
+        Icon(i, color: leafGreen, size: 20),
+        const SizedBox(width: 8),
         Text(
           t,
           style: const TextStyle(
             fontWeight: FontWeight.bold,
-            fontSize: 17,
+            fontSize: 15,
             color: deepForest,
           ),
         ),
       ],
     ),
   );
-  Widget _sliderLabel(String t) => Align(
-    alignment: Alignment.centerLeft,
-    child: Text(
-      t,
-      style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
-    ),
-  );
 }
 
-// --- NEW SYNCED PAGES ---
-
-class DriversStatusPage extends StatelessWidget {
-  final Map drivers;
-  const DriversStatusPage({super.key, required this.drivers});
+// --- UPDATED: Detailed Citizen Reports Inbox ---
+class CitizenReportsPage extends StatelessWidget {
+  final Map reports;
+  const CitizenReportsPage({super.key, required this.reports});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFF9FBF9),
       appBar: AppBar(
-        title: const Text("Drivers Live Tracking"),
+        title: const Text("Citizen Inbox"),
+        backgroundColor: const Color(0xFF4CAF50),
+        centerTitle: true,
+      ),
+      body: reports.isEmpty
+          ? const Center(child: Text("No Pending Complaints. ✨"))
+          : ListView.builder(
+              padding: const EdgeInsets.all(15),
+              itemCount: reports.length,
+              itemBuilder: (context, index) {
+                var r = reports.values.toList()[index];
+                var key = reports.keys.toList()[index];
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 15),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  elevation: 3,
+                  child: Padding(
+                    padding: const EdgeInsets.all(18),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              r['type']?.toString().toUpperCase() ?? "ISSUE",
+                              style: const TextStyle(
+                                color: Colors.red,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                              ),
+                            ),
+                            const Icon(
+                              Icons.mark_as_unread,
+                              color: Colors.amber,
+                              size: 18,
+                            ),
+                          ],
+                        ),
+                        const Divider(height: 25),
+                        _reportInfo(
+                          Icons.person,
+                          "Citizen: ",
+                          r['user'] ?? "Guest",
+                        ),
+                        _reportInfo(
+                          Icons.phone,
+                          "Contact: ",
+                          r['phone'] ?? "N/A",
+                        ),
+                        _reportInfo(
+                          Icons.location_on,
+                          "Area: ",
+                          r['area'] ?? "N/A",
+                        ),
+                        const SizedBox(height: 12),
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          width: double.infinity,
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade100,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.grey.shade300),
+                          ),
+                          child: Text(
+                            "\"${r['comment'] ?? 'No comment provided'}\"",
+                            style: const TextStyle(
+                              fontStyle: FontStyle.italic,
+                              color: Colors.black87,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 15),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.green,
+                              shape: const StadiumBorder(),
+                            ),
+                            icon: const Icon(
+                              Icons.done_all,
+                              color: Colors.white,
+                            ),
+                            label: const Text(
+                              "RESOLVE",
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            onPressed: () {
+                              FirebaseDatabase.instance
+                                  .ref('citizen_reports/$key')
+                                  .remove();
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text("Case Resolved!")),
+                              );
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+    );
+  }
+
+  Widget _reportInfo(IconData icon, String label, String value) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 3),
+    child: Row(
+      children: [
+        Icon(icon, size: 16, color: Colors.green),
+        const SizedBox(width: 8),
+        Text(
+          label,
+          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+        ),
+        Text(value, style: const TextStyle(fontSize: 13)),
+      ],
+    ),
+  );
+}
+
+// --- Driver Tracking & Photos ---
+class DriversStatusPage extends StatelessWidget {
+  final Map drivers;
+  const DriversStatusPage({super.key, required this.drivers});
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text("Drivers Status"),
         backgroundColor: const Color(0xFF4CAF50),
       ),
       body: SingleChildScrollView(
@@ -651,7 +738,6 @@ class DriversStatusPage extends StatelessWidget {
             DataColumn(label: Text("Name")),
             DataColumn(label: Text("Status")),
             DataColumn(label: Text("Points")),
-            DataColumn(label: Text("Leave/Reason")),
           ],
           rows: drivers.values.map((d) {
             bool isActive = d['attendance'] == "Present";
@@ -677,12 +763,6 @@ class DriversStatusPage extends StatelessWidget {
                   ),
                 ),
                 DataCell(Text("${d['points'] ?? 0} ⭐")),
-                DataCell(
-                  Text(
-                    d['leave_reason'] ?? "N/A",
-                    style: const TextStyle(fontSize: 10),
-                  ),
-                ),
               ],
             );
           }).toList(),
@@ -695,80 +775,25 @@ class DriversStatusPage extends StatelessWidget {
 class CollectionStatusPage extends StatelessWidget {
   final Map bins;
   const CollectionStatusPage({super.key, required this.bins});
-
   @override
   Widget build(BuildContext context) {
-    var collectionList = bins.entries
-        .where((e) => e.value['status'] == "Cleaned")
-        .toList();
+    var list = bins.entries.where((e) => e.value['fill_level'] == 0).toList();
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Collection Proofs"),
+        title: const Text("Collection Photos"),
         backgroundColor: const Color(0xFF4CAF50),
       ),
-      body: collectionList.isEmpty
-          ? const Center(child: Text("No proofs yet today."))
+      body: list.isEmpty
+          ? const Center(child: Text("No records."))
           : ListView.builder(
               padding: const EdgeInsets.all(15),
-              itemCount: collectionList.length,
+              itemCount: list.length,
               itemBuilder: (context, index) {
-                var bin = collectionList[index].value;
-                return Card(
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Column(
-                    children: [
-                      ListTile(
-                        title: Text(bin['area'] ?? "Area"),
-                        subtitle: Text(
-                          "By: ${bin['last_cleaned_by'] ?? 'Driver'}",
-                        ),
-                      ),
-                      if (bin['last_evidence'] != null)
-                        Image.memory(
-                          base64Decode(bin['last_evidence']),
-                          height: 200,
-                          width: double.infinity,
-                          fit: BoxFit.cover,
-                        ),
-                    ],
-                  ),
-                );
-              },
-            ),
-    );
-  }
-}
-
-class CitizenReportsPage extends StatelessWidget {
-  final Map reports;
-  const CitizenReportsPage({super.key, required this.reports});
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text("Reports Center"),
-        backgroundColor: const Color(0xFF4CAF50),
-      ),
-      body: reports.isEmpty
-          ? const Center(child: Text("Clear! ✨"))
-          : ListView.builder(
-              padding: const EdgeInsets.all(15),
-              itemCount: reports.length,
-              itemBuilder: (context, index) {
-                var r = reports.values.toList()[index];
-                var key = reports.keys.toList()[index];
+                var bin = list[index].value;
                 return Card(
                   child: ListTile(
-                    title: Text(r['user'] ?? "Guest"),
-                    subtitle: Text(r['area'] ?? "Location"),
-                    trailing: IconButton(
-                      icon: const Icon(Icons.check, color: Colors.green),
-                      onPressed: () => FirebaseDatabase.instance
-                          .ref('citizen_reports/$key')
-                          .remove(),
-                    ),
+                    title: Text(bin['area'] ?? "Area"),
+                    subtitle: const Text("Cleaned ✅"),
                   ),
                 );
               },
