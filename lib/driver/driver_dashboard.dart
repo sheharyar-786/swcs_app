@@ -5,11 +5,12 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:confetti/confetti.dart';
-import 'package:geolocator/geolocator.dart'; // Location tracking ke liye
+import 'package:geolocator/geolocator.dart';
 import '../auth/login_screen.dart';
 import '../admin/live_map_screen.dart';
 import 'assign_duties_page.dart';
 import 'leaderboard_page.dart';
+import 'fuel_analytics_page.dart'; // Naya Page Link
 
 class DriverDashboard extends StatefulWidget {
   const DriverDashboard({super.key});
@@ -36,7 +37,7 @@ class _DriverDashboardState extends State<DriverDashboard> {
   late ConfettiController _confettiController;
   late ScrollController _announcementController;
   Timer? _marqueeTimer;
-  Timer? _locationTimer; // Background location timer
+  Timer? _locationTimer;
 
   @override
   void initState() {
@@ -47,7 +48,7 @@ class _DriverDashboardState extends State<DriverDashboard> {
     _announcementController = ScrollController();
     _initDriverEngine();
     _startAnnouncementAnimation();
-    _startBackgroundLocationUpdates(); // Location update shuru karein
+    _startBackgroundLocationUpdates();
   }
 
   @override
@@ -55,17 +56,36 @@ class _DriverDashboardState extends State<DriverDashboard> {
     _confettiController.dispose();
     _announcementController.dispose();
     _marqueeTimer?.cancel();
-    _locationTimer?.cancel(); // Timer stop karein
+    _locationTimer?.cancel();
     super.dispose();
   }
 
-  // --- NEW: Background Location Logic ---
+  // --- Logic: Location Permission & Background Update ---
   void _startBackgroundLocationUpdates() async {
-    LocationPermission permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied) {
-      await Geolocator.requestPermission();
+    bool serviceEnabled;
+    LocationPermission permission;
+
+    // Check if location services are enabled
+    serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      _msg("Please enable GPS/Location services.");
     }
 
+    permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) {
+        _msg("Location permission denied.");
+        return;
+      }
+    }
+
+    if (permission == LocationPermission.deniedForever) {
+      _msg("Location permissions are permanently denied.");
+      return;
+    }
+
+    // Har 15 seconds baad location update
     _locationTimer = Timer.periodic(const Duration(seconds: 15), (timer) async {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
@@ -75,7 +95,6 @@ class _DriverDashboardState extends State<DriverDashboard> {
           desiredAccuracy: LocationAccuracy.high,
         );
 
-        // Admin ke liye coordinates update karein
         await FirebaseDatabase.instance
             .ref('verified_drivers/${user.uid}')
             .update({
@@ -431,8 +450,6 @@ class _DriverDashboardState extends State<DriverDashboard> {
                     : (fill >= 80
                           ? Colors.red
                           : (fill >= 50 ? Colors.orange : leafGreen));
-
-                // FIX: Marker height/width adjusted for overflow
                 return Marker(
                   point: LatLng(lat, lng),
                   width: 60,
@@ -501,6 +518,15 @@ class _DriverDashboardState extends State<DriverDashboard> {
         onTap: () => Navigator.push(
           context,
           MaterialPageRoute(builder: (context) => const LeaderboardPage()),
+        ),
+      ),
+      _gridTile(
+        "Fuel Analytics",
+        Icons.analytics_rounded,
+        Colors.teal,
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const FuelAnalyticsPage()),
         ),
       ),
       _gridTile(
@@ -625,6 +651,9 @@ class _DriverDashboardState extends State<DriverDashboard> {
   void _logout() => Navigator.pushReplacement(
     context,
     MaterialPageRoute(builder: (c) => const AuthPage()),
+  );
+  void _msg(String m) => ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(content: Text(m), behavior: SnackBarBehavior.floating),
   );
 
   Widget _sectionLabel(String t, String e) => Padding(
