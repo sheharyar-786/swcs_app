@@ -7,7 +7,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:geolocator/geolocator.dart';
 
 class LiveMapScreen extends StatefulWidget {
-  final String? targetArea; // <--- ADDED: To filter bins by area
+  final String? targetArea;
   const LiveMapScreen({super.key, this.targetArea});
 
   @override
@@ -40,21 +40,19 @@ class _LiveMapScreenState extends State<LiveMapScreen>
     _enableLiveTracking();
   }
 
-  // --- NEW: Function to handle collection automation ---
+  // --- LOGIC: Mark Bin as Collected (Points & History) ---
   void _markBinAsCollected(String binId, String areaName) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
     final String now = DateTime.now().toString().split('.')[0];
 
-    // 1. Update Bin (Make it empty)
     await FirebaseDatabase.instance.ref('bins/$binId').update({
       'fill_level': 0,
       'gas_level': 0,
       'assigned_to': "",
     });
 
-    // 2. Add to Collection History (6th Grid logic)
     await FirebaseDatabase.instance
         .ref('driver_history/${user.uid}')
         .push()
@@ -65,7 +63,6 @@ class _LiveMapScreenState extends State<LiveMapScreen>
           'points': 10,
         });
 
-    // 3. Update Global Points for Leaderboard
     final driverRef = FirebaseDatabase.instance.ref(
       'verified_drivers/${user.uid}/points',
     );
@@ -150,8 +147,6 @@ class _LiveMapScreenState extends State<LiveMapScreen>
 
     bins.forEach((id, val) {
       if (val['lat'] != null && val['lng'] != null) {
-        // --- ADDED: AREA FILTER LOGIC ---
-        // Agar targetArea set hai, toh sirf usi area ki bins dikhao
         if (widget.targetArea != null && val['area'] != widget.targetArea)
           return;
 
@@ -247,7 +242,6 @@ class _LiveMapScreenState extends State<LiveMapScreen>
     }
   }
 
-  // --- NEW: Bin Details Popup with Collection Action ---
   void _showBinDetails(String id, String area, int fill, int gas) {
     showModalBottomSheet(
       context: context,
@@ -397,15 +391,17 @@ class _LiveMapScreenState extends State<LiveMapScreen>
     return Scaffold(
       body: Stack(
         children: [
+          // --- UPDATED: Google Hybrid View for Clear Streets ---
           FlutterMap(
             mapController: _mapController,
             options: MapOptions(
               initialCenter: _myLiveLocation,
-              initialZoom: 15.0,
+              initialZoom: 16.0, // High zoom for better visibility
             ),
             children: [
               TileLayer(
-                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                urlTemplate:
+                    'https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',
                 userAgentPackageName: 'com.shary.swcs',
               ),
               PolylineLayer(polylines: _polylines),

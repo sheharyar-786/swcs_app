@@ -1,16 +1,26 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:math' show cos, sqrt, asin;
 import 'package:flutter/material.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
+
+// Your existing imports
 import 'analytics_screen.dart';
 import 'schedule_list_screen.dart';
 import 'driver_approval_screen.dart';
 import 'live_map_screen.dart';
 import 'simulation_screen.dart';
+import 'bin_details.dart';
+import 'drivers_status_screen.dart';
+import 'collection_history_screen.dart'; // Added this import
 import '../auth/login_screen.dart';
 import '../widgets/summary_card.dart';
+
+// GLOBAL CONSTANTS FOR COLOR UNIFORMITY
+const Color leafGreen = Color(0xFF4CAF50);
+const Color deepForest = Color(0xFF1B5E20);
+const Color softMint = Color(0xFFE8F5E9);
+const Color alertRed = Color(0xFFE53935);
 
 class AdminPage extends StatefulWidget {
   const AdminPage({super.key});
@@ -20,12 +30,11 @@ class AdminPage extends StatefulWidget {
 }
 
 class _AdminPageState extends State<AdminPage> {
-  static const Color leafGreen = Color(0xFF4CAF50);
-  static const Color deepForest = Color(0xFF1B5E20);
-  static const Color softMint = Color(0xFFE8F5E9);
-  static const Color alertRed = Color(0xFFE53935);
-
   late Stream<DatabaseEvent> _globalStream;
+  final ScrollController _scrollController = ScrollController();
+
+  // ADDED: Scaffold key to control the drawer from a custom button
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   @override
   void initState() {
@@ -33,7 +42,7 @@ class _AdminPageState extends State<AdminPage> {
     _globalStream = FirebaseDatabase.instance.ref().onValue.asBroadcastStream();
   }
 
-  // --- LOGIC: Haversine Formula (Distance Calculation) ---
+  // --- LOGIC: Distance Calculation ---
   double _calculateDistance(
     double lat1,
     double lon1,
@@ -49,7 +58,7 @@ class _AdminPageState extends State<AdminPage> {
     return 12742 * asin(sqrt(a));
   }
 
-  // --- LOGIC: Nearest Driver Assignment Logic ---
+  // --- LOGIC: Driver Assignment Sheet ---
   void _openAssignmentSheet(
     String binId,
     String area,
@@ -60,24 +69,27 @@ class _AdminPageState extends State<AdminPage> {
       context: context,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(35)),
       ),
       builder: (context) => StreamBuilder(
         stream: FirebaseDatabase.instance.ref('verified_drivers').onValue,
         builder: (context, snapshot) {
           if (!snapshot.hasData)
-            return const Center(child: CircularProgressIndicator());
+            return const Center(
+              child: CircularProgressIndicator(color: leafGreen),
+            );
           Map driversData = snapshot.data!.snapshot.value as Map? ?? {};
 
           var activeDrivers = driversData.entries
               .where((d) => d.value['attendance'] == 'Present')
               .map((d) {
-                double dLat = double.tryParse(d.value['lat'].toString()) ?? 0.0;
-                double dLng = double.tryParse(d.value['lng'].toString()) ?? 0.0;
+                double dLat =
+                    double.tryParse(d.value['lat']?.toString() ?? "0.0") ?? 0.0;
+                double dLng =
+                    double.tryParse(d.value['lng']?.toString() ?? "0.0") ?? 0.0;
                 return {
                   'uid': d.key,
                   'name': d.value['name'] ?? "Driver",
-                  'points': d.value['points'] ?? 0,
                   'distance': _calculateDistance(binLat, binLng, dLat, dLng),
                 };
               })
@@ -96,48 +108,58 @@ class _AdminPageState extends State<AdminPage> {
                 _sectionTitle("Assign Nearest Driver", Icons.gps_fixed_rounded),
                 const Divider(),
                 Expanded(
-                  child: ListView.builder(
-                    itemCount: activeDrivers.length,
-                    itemBuilder: (context, index) {
-                      var driver = activeDrivers[index];
-                      bool isNearest = index == 0;
-                      return Card(
-                        color: isNearest
-                            ? Colors.blue.shade50
-                            : softMint.withOpacity(0.5),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(15),
+                  child: activeDrivers.isEmpty
+                      ? const Center(
+                          child: Text(
+                            "No active drivers on duty.",
+                            style: TextStyle(color: Colors.grey),
+                          ),
+                        )
+                      : ListView.builder(
+                          itemCount: activeDrivers.length,
+                          itemBuilder: (context, index) {
+                            var driver = activeDrivers[index];
+                            bool isNearest = index == 0;
+                            return Card(
+                              elevation: 0,
+                              color: isNearest
+                                  ? Colors.blue.withOpacity(0.1)
+                                  : softMint.withOpacity(0.5),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(15),
+                              ),
+                              child: ListTile(
+                                leading: CircleAvatar(
+                                  backgroundColor: isNearest
+                                      ? Colors.blue
+                                      : leafGreen,
+                                  child: const Icon(
+                                    Icons.delivery_dining,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                title: Text(
+                                  driver['name'].toString(),
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                subtitle: Text(
+                                  "${driver['distance'].toStringAsFixed(2)} km away",
+                                ),
+                                trailing: const Icon(
+                                  Icons.send_rounded,
+                                  color: leafGreen,
+                                ),
+                                onTap: () => _finalizeDuty(
+                                  binId,
+                                  driver['uid'].toString(),
+                                  driver['name'].toString(),
+                                ),
+                              ),
+                            );
+                          },
                         ),
-                        child: ListTile(
-                          leading: CircleAvatar(
-                            backgroundColor: isNearest
-                                ? Colors.blue
-                                : leafGreen,
-                            child: const Icon(
-                              Icons.delivery_dining,
-                              color: Colors.white,
-                            ),
-                          ),
-                          title: Text(
-                            driver['name'].toString(),
-                            style: const TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                          subtitle: Text(
-                            "${driver['distance'].toStringAsFixed(2)} km away",
-                          ),
-                          trailing: const Icon(
-                            Icons.send_rounded,
-                            color: leafGreen,
-                          ),
-                          onTap: () => _finalizeDuty(
-                            binId,
-                            driver['uid'].toString(),
-                            driver['name'].toString(),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
                 ),
               ],
             ),
@@ -162,7 +184,60 @@ class _AdminPageState extends State<AdminPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      key: _scaffoldKey, // Link key for drawer control
       backgroundColor: Colors.white,
+      // --- ADDED: DRAWER FOR SIMULATION ACCESS ---
+      drawer: Drawer(
+        child: Column(
+          children: [
+            DrawerHeader(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(colors: [deepForest, leafGreen]),
+              ),
+              child: const Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.admin_panel_settings,
+                      size: 50,
+                      color: Colors.white,
+                    ),
+                    SizedBox(height: 10),
+                    Text(
+                      "SYSTEM MENU",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.settings_remote, color: leafGreen),
+              title: const Text("IoT Simulation"),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (c) => const SimulationScreen()),
+                );
+              },
+            ),
+            const Divider(),
+            const Spacer(),
+            ListTile(
+              leading: const Icon(Icons.logout, color: alertRed),
+              title: const Text("Logout"),
+              onTap: () => _handleLogout(context),
+            ),
+            const SizedBox(height: 20),
+          ],
+        ),
+      ),
       body: StreamBuilder(
         stream: _globalStream,
         builder: (context, AsyncSnapshot<DatabaseEvent> snapshot) {
@@ -175,67 +250,91 @@ class _AdminPageState extends State<AdminPage> {
           final snapshotValue = snapshot.data?.snapshot.value as Map? ?? {};
           Map bins = snapshotValue['bins'] as Map? ?? {};
           Map reports = snapshotValue['citizen_reports'] as Map? ?? {};
-          Map pending = snapshotValue['drivers_pending_approval'] as Map? ?? {};
+          Map pending = snapshotValue['pending_drivers'] as Map? ?? {};
           Map verifiedDrivers = snapshotValue['verified_drivers'] as Map? ?? {};
 
-          // SMART RADAR LOGIC
+          var unassignedCritical = bins.entries.where((e) {
+            double level = (e.value['fill_level'] ?? 0).toDouble();
+            String status = e.value['status'] ?? "";
+            return level >= 75 && status != 'Assigned' && status != 'On Route';
+          }).toList();
+
           String activityMsg =
               snapshotValue['latest_activity']?.toString() ??
               "System Monitoring... 🟢";
-          if (reports.isNotEmpty)
-            activityMsg = "New Reports Pending in Inbox! 📬";
-          int leaveCount = verifiedDrivers.values
-              .where((d) => d['attendance'] == 'On Leave')
-              .length;
-          if (leaveCount > 0)
-            activityMsg = "Notice: $leaveCount Drivers are On Leave.";
 
-          return CustomScrollView(
-            physics: const BouncingScrollPhysics(),
-            slivers: [
-              _buildCompactHeader(activityMsg),
-              SliverToBoxAdapter(
-                child: AnimationLimiter(
-                  child: Column(
-                    children: AnimationConfiguration.toStaggeredList(
-                      duration: const Duration(milliseconds: 500),
-                      childAnimationBuilder: (widget) => SlideAnimation(
-                        verticalOffset: 30.0,
-                        child: FadeInAnimation(child: widget),
-                      ),
-                      children: [
-                        _buildSummarySection(
-                          bins,
-                          reports,
-                        ), // FIXED OVERFLOW SECTION
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          decoration: const BoxDecoration(
-                            color: softMint,
-                            borderRadius: BorderRadius.vertical(
-                              top: Radius.circular(35),
+          return Column(
+            children: [
+              if (unassignedCritical.isNotEmpty)
+                _buildTopNotificationBar(unassignedCritical.length),
+              Expanded(
+                child: CustomScrollView(
+                  controller: _scrollController,
+                  physics: const BouncingScrollPhysics(),
+                  slivers: [
+                    _buildCompactHeader(activityMsg),
+                    SliverToBoxAdapter(
+                      child: Stack(
+                        children: [
+                          // SOFT FADED BACKGROUND IMAGE BEHIND GRID
+                          Positioned.fill(
+                            child: Opacity(
+                              opacity: 0.08,
+                              child: Image.network(
+                                'https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?q=80&w=1000',
+                                fit: BoxFit.cover,
+                              ),
                             ),
                           ),
-                          child: Column(
-                            children: [
-                              const SizedBox(height: 20),
-                              _build8GridMenu(
-                                pending.length,
-                                verifiedDrivers,
-                                bins,
+                          AnimationLimiter(
+                            child: Column(
+                              children: AnimationConfiguration.toStaggeredList(
+                                duration: const Duration(milliseconds: 600),
+                                childAnimationBuilder: (widget) =>
+                                    FadeInAnimation(
+                                      child: SlideAnimation(
+                                        verticalOffset: 50.0,
+                                        child: widget,
+                                      ),
+                                    ),
+                                children: [
+                                  _buildSummarySection(bins, reports),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: softMint.withOpacity(0.92),
+                                      borderRadius: const BorderRadius.vertical(
+                                        top: Radius.circular(40),
+                                      ),
+                                    ),
+                                    child: Column(
+                                      children: [
+                                        const SizedBox(height: 25),
+                                        // UPDATED 6-GRID MENU
+                                        _build6GridMenu(
+                                          pending.length,
+                                          verifiedDrivers,
+                                          bins,
+                                        ),
+                                        _sectionTitle(
+                                          "Urgent Duty Assignments",
+                                          Icons.priority_high_rounded,
+                                        ),
+                                        _buildSmartCriticalList(bins),
+                                        const SizedBox(height: 100),
+                                      ],
+                                    ),
+                                  ),
+                                ],
                               ),
-                              _sectionTitle(
-                                "Urgent Duty Assignments",
-                                Icons.priority_high_rounded,
-                              ),
-                              _buildCriticalList(bins),
-                              const SizedBox(height: 80),
-                            ],
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
+                  ],
                 ),
               ),
             ],
@@ -245,28 +344,66 @@ class _AdminPageState extends State<AdminPage> {
     );
   }
 
-  // --- UI: Compact Header ---
+  Widget _buildTopNotificationBar(int count) {
+    return Container(
+      width: double.infinity,
+      color: alertRed,
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 20),
+      child: SafeArea(
+        bottom: false,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(
+              Icons.warning_amber_rounded,
+              color: Colors.white,
+              size: 16,
+            ),
+            const SizedBox(width: 10),
+            Text(
+              "CRITICAL ALERT: $count Bins require immediate assignment!",
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildCompactHeader(String msg) {
     return SliverAppBar(
-      expandedHeight: 160.0,
+      expandedHeight: 180.0,
       pinned: true,
       elevation: 0,
       backgroundColor: leafGreen,
+      // OPEN DRAWER BUTTON
+      leading: IconButton(
+        icon: const Icon(
+          Icons.menu_open_rounded,
+          color: Colors.white,
+          size: 28,
+        ),
+        onPressed: () => _scaffoldKey.currentState?.openDrawer(),
+      ),
       actions: [
         IconButton(
-          icon: const Icon(Icons.logout_rounded, size: 20),
+          icon: const Icon(Icons.logout_rounded, size: 22, color: Colors.white),
           onPressed: () => _handleLogout(context),
         ),
       ],
       flexibleSpace: FlexibleSpaceBar(
         centerTitle: true,
-        titlePadding: const EdgeInsets.only(bottom: 50),
         title: const Text(
           "ADMIN HUB",
           style: TextStyle(
             fontWeight: FontWeight.w900,
-            fontSize: 15,
-            letterSpacing: 1.5,
+            fontSize: 18,
+            letterSpacing: 2,
+            color: Colors.white,
           ),
         ),
         background: Stack(
@@ -290,27 +427,29 @@ class _AdminPageState extends State<AdminPage> {
               ),
             ),
             Positioned(
-              bottom: 12,
+              bottom: 15,
               left: 20,
               right: 20,
               child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
+                padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
                   color: Colors.white.withOpacity(0.9),
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(15),
+                  boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10)],
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.radar, color: Colors.blue, size: 14),
-                    const SizedBox(width: 8),
+                    const Icon(
+                      Icons.radar_rounded,
+                      color: Colors.blue,
+                      size: 16,
+                    ),
+                    const SizedBox(width: 10),
                     Expanded(
                       child: Text(
                         msg,
                         style: const TextStyle(
-                          fontSize: 9,
+                          fontSize: 11,
                           fontWeight: FontWeight.bold,
                           color: deepForest,
                         ),
@@ -328,14 +467,13 @@ class _AdminPageState extends State<AdminPage> {
     );
   }
 
-  // --- UI: Summary Section (FIXED OVERFLOW) ---
   Widget _buildSummarySection(Map bins, Map reports) {
     int critical = bins.values
         .where((b) => (b['fill_level'] ?? 0) >= 80)
         .length;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 15),
-      height: 110, // Explicit height to prevent internal overflow
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 20),
+      height: 160,
       child: Row(
         children: [
           Expanded(
@@ -343,21 +481,28 @@ class _AdminPageState extends State<AdminPage> {
               index: 0,
               title: "Bins",
               value: bins.length.toString(),
-              icon: Icons.delete,
+              icon: Icons.delete_outline,
               iconColor: leafGreen,
             ),
           ),
-          const SizedBox(width: 5),
+          const SizedBox(width: 8),
           Expanded(
-            child: SummaryCard(
-              index: 1,
-              title: "Critical",
-              value: critical.toString(),
-              icon: Icons.warning,
-              iconColor: alertRed,
+            child: InkWell(
+              onTap: () => _scrollController.animateTo(
+                500,
+                duration: const Duration(milliseconds: 800),
+                curve: Curves.easeInOut,
+              ),
+              child: SummaryCard(
+                index: 1,
+                title: "Critical",
+                value: critical.toString(),
+                icon: Icons.error_outline,
+                iconColor: alertRed,
+              ),
             ),
           ),
-          const SizedBox(width: 5),
+          const SizedBox(width: 8),
           Expanded(
             child: InkWell(
               onTap: () => Navigator.push(
@@ -373,13 +518,13 @@ class _AdminPageState extends State<AdminPage> {
                     index: 2,
                     title: "Reports",
                     value: reports.length.toString(),
-                    icon: Icons.chat_bubble,
+                    icon: Icons.chat_bubble_outline,
                     iconColor: Colors.orange,
                   ),
                   if (reports.isNotEmpty)
                     Positioned(
-                      right: -2,
-                      top: -2,
+                      right: 0,
+                      top: 0,
                       child: _badge(reports.length.toString()),
                     ),
                 ],
@@ -391,109 +536,45 @@ class _AdminPageState extends State<AdminPage> {
     );
   }
 
-  // --- UI: 8-Grid Menu ---
-  Widget _build8GridMenu(int pCount, Map drivers, Map bins) => GridView.count(
+  // UPDATED: CORE 6 GRID MENU
+  Widget _build6GridMenu(int pCount, Map drivers, Map bins) => GridView.count(
     shrinkWrap: true,
     physics: const NeverScrollableScrollPhysics(),
     crossAxisCount: 2,
-    mainAxisSpacing: 10,
-    crossAxisSpacing: 10,
-    childAspectRatio: 1.4,
+    mainAxisSpacing: 15,
+    crossAxisSpacing: 15,
+    childAspectRatio: 1.3,
     children: [
-      _gridItem("City Map", "📍", Colors.blue.shade100, const LiveMapScreen()),
-      _gridItem(
-        "Analytics",
-        "📊",
-        Colors.purple.shade100,
-        const AnalyticsPage(),
-      ),
+      _gridItem("City Map", "📍", Colors.blue, const LiveMapScreen()),
+      _gridItem("Analytics", "📊", Colors.purple, const AnalyticsPage()),
       _gridItem(
         "Schedule",
         "📅",
-        Colors.orange.shade100,
+        Colors.orange,
         const ScheduleManagementPage(),
       ),
       _gridItem(
         "Approvals",
         "✅",
-        Colors.green.shade200,
+        leafGreen,
         const DriverApprovalScreen(),
         badge: pCount,
       ),
+      // COMBINED COLLECTION HISTORY GRID
       _gridItem(
-        "Simulation",
-        "🎮",
-        Colors.teal.shade100,
-        const SimulationScreen(),
+        "History",
+        "📂",
+        Colors.indigo,
+        CollectionHistoryPage(bins: bins),
       ),
-      _gridItem("Duty Logs", "📝", Colors.indigo.shade100, null),
       _gridItem(
         "Drivers",
         "👤",
-        Colors.brown.shade100,
+        Colors.brown,
         DriversStatusPage(drivers: drivers),
-      ),
-      _gridItem(
-        "Photos",
-        "📸",
-        Colors.red.shade100,
-        CollectionStatusPage(bins: bins),
       ),
     ],
   );
-
-  Widget _buildCriticalList(Map bins) {
-    var list = bins.entries
-        .where((e) => (e.value['fill_level'] ?? 0) >= 75)
-        .toList();
-    if (list.isEmpty)
-      return const Center(
-        child: Padding(
-          padding: EdgeInsets.all(20),
-          child: Text(
-            "No critical bins. ✨",
-            style: TextStyle(fontSize: 12, color: Colors.grey),
-          ),
-        ),
-      );
-    return Column(
-      children: list.map((e) {
-        double bLat = double.tryParse(e.value['lat'].toString()) ?? 0.0;
-        double bLng = double.tryParse(e.value['lng'].toString()) ?? 0.0;
-        return Card(
-          margin: const EdgeInsets.only(bottom: 8),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(15),
-          ),
-          child: ListTile(
-            dense: true,
-            leading: const Icon(Icons.error_outline, color: alertRed, size: 24),
-            title: Text(
-              e.value['area'] ?? "Sector",
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-            ),
-            subtitle: Text(
-              "Level: ${e.value['fill_level']}%",
-              style: const TextStyle(fontSize: 11),
-            ),
-            trailing: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: deepForest,
-                shape: const StadiumBorder(),
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-              ),
-              onPressed: () =>
-                  _openAssignmentSheet(e.key, e.value['area'], bLat, bLng),
-              child: const Text(
-                "Assign",
-                style: TextStyle(color: Colors.white, fontSize: 10),
-              ),
-            ),
-          ),
-        );
-      }).toList(),
-    );
-  }
 
   Widget _gridItem(String t, String e, Color c, Widget? p, {int badge = 0}) =>
       InkWell(
@@ -501,6 +582,7 @@ class _AdminPageState extends State<AdminPage> {
             ? null
             : () =>
                   Navigator.push(context, MaterialPageRoute(builder: (c) => p)),
+        borderRadius: BorderRadius.circular(25),
         child: Stack(
           clipBehavior: Clip.none,
           children: [
@@ -511,42 +593,144 @@ class _AdminPageState extends State<AdminPage> {
                 borderRadius: BorderRadius.circular(25),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.03),
-                    blurRadius: 10,
+                    color: c.withOpacity(0.12),
+                    blurRadius: 15,
+                    offset: const Offset(0, 8),
                   ),
                 ],
+                border: Border.all(color: Colors.white.withOpacity(0.5)),
               ),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text(e, style: const TextStyle(fontSize: 24)),
-                  const SizedBox(height: 5),
+                  Text(e, style: const TextStyle(fontSize: 32)),
+                  const SizedBox(height: 8),
                   Text(
                     t,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 12,
-                      color: deepForest,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w900,
+                      fontSize: 13,
+                      color: c.withOpacity(0.8),
+                      letterSpacing: 0.5,
                     ),
                   ),
                 ],
               ),
             ),
             if (badge > 0)
-              Positioned(right: 12, top: 12, child: _badge(badge.toString())),
+              Positioned(right: 15, top: 15, child: _badge(badge.toString())),
           ],
         ),
       );
 
+  Widget _buildSmartCriticalList(Map bins) {
+    var list = bins.entries.where((e) {
+      double level = (e.value['fill_level'] ?? 0).toDouble();
+      String status = e.value['status'] ?? "";
+      return level >= 75 && status != "Assigned" && status != "On Route";
+    }).toList();
+
+    if (list.isEmpty)
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(40),
+          child: Text(
+            "All bins are under control. ✨",
+            style: TextStyle(
+              fontSize: 13,
+              color: Colors.grey,
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+        ),
+      );
+
+    return Column(
+      children: list.map((e) {
+        double bLat =
+            double.tryParse(e.value['lat']?.toString() ?? "0.0") ?? 0.0;
+        double bLng =
+            double.tryParse(e.value['lng']?.toString() ?? "0.0") ?? 0.0;
+        return AnimationConfiguration.staggeredList(
+          position: list.indexOf(e),
+          duration: const Duration(milliseconds: 400),
+          child: SlideAnimation(
+            horizontalOffset: 50,
+            child: Card(
+              margin: const EdgeInsets.only(bottom: 12),
+              elevation: 4,
+              shadowColor: Colors.black.withOpacity(0.05),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(22),
+              ),
+              child: ListTile(
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (c) => BinDetailsPage(binId: e.key),
+                  ),
+                ),
+                leading: const CircleAvatar(
+                  backgroundColor: Color(0xFFFFEBEE),
+                  child: Icon(
+                    Icons.warning_amber_rounded,
+                    color: alertRed,
+                    size: 20,
+                  ),
+                ),
+                title: Text(
+                  e.value['area'] ?? "Sector",
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 14,
+                  ),
+                ),
+                subtitle: Text(
+                  "Level: ${e.value['fill_level']}% • Action Needed",
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: alertRed,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                trailing: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: deepForest,
+                    shape: const StadiumBorder(),
+                    elevation: 0,
+                  ),
+                  onPressed: () =>
+                      _openAssignmentSheet(e.key, e.value['area'], bLat, bLng),
+                  child: const Text(
+                    "Assign",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
   Widget _badge(String count) => Container(
-    padding: const EdgeInsets.all(5),
-    decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
+    padding: const EdgeInsets.all(6),
+    decoration: BoxDecoration(
+      color: alertRed,
+      shape: BoxShape.circle,
+      border: Border.all(color: Colors.white, width: 2),
+    ),
     child: Text(
       count,
       style: const TextStyle(
         color: Colors.white,
-        fontSize: 9,
-        fontWeight: FontWeight.bold,
+        fontSize: 10,
+        fontWeight: FontWeight.w900,
       ),
     ),
   );
@@ -561,19 +745,20 @@ class _AdminPageState extends State<AdminPage> {
       content: Text(m),
       backgroundColor: c,
       behavior: SnackBarBehavior.floating,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
     ),
   );
   Widget _sectionTitle(String t, IconData i) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 15),
+    padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 5),
     child: Row(
       children: [
-        Icon(i, color: leafGreen, size: 20),
-        const SizedBox(width: 8),
+        Icon(i, color: leafGreen, size: 22),
+        const SizedBox(width: 10),
         Text(
           t,
           style: const TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 15,
+            fontWeight: FontWeight.w900,
+            fontSize: 17,
             color: deepForest,
           ),
         ),
@@ -582,19 +767,24 @@ class _AdminPageState extends State<AdminPage> {
   );
 }
 
-// --- UPDATED: Detailed Citizen Reports Inbox ---
+// --- SUB PAGES (Citizen Inbox & Photo Logic kept as provided) ---
+
 class CitizenReportsPage extends StatelessWidget {
   final Map reports;
   const CitizenReportsPage({super.key, required this.reports});
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF9FBF9),
       appBar: AppBar(
-        title: const Text("Citizen Inbox"),
-        backgroundColor: const Color(0xFF4CAF50),
+        title: const Text(
+          "Citizen Inbox",
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        backgroundColor: leafGreen,
+        foregroundColor: Colors.white,
         centerTitle: true,
+        elevation: 0,
       ),
       body: reports.isEmpty
           ? const Center(child: Text("No Pending Complaints. ✨"))
@@ -677,6 +867,7 @@ class CitizenReportsPage extends StatelessWidget {
                             icon: const Icon(
                               Icons.done_all,
                               color: Colors.white,
+                              size: 18,
                             ),
                             label: const Text(
                               "RESOLVE",
@@ -720,58 +911,7 @@ class CitizenReportsPage extends StatelessWidget {
   );
 }
 
-// --- Driver Tracking & Photos ---
-class DriversStatusPage extends StatelessWidget {
-  final Map drivers;
-  const DriversStatusPage({super.key, required this.drivers});
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text("Drivers Status"),
-        backgroundColor: const Color(0xFF4CAF50),
-      ),
-      body: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: DataTable(
-          columns: const [
-            DataColumn(label: Text("Name")),
-            DataColumn(label: Text("Status")),
-            DataColumn(label: Text("Points")),
-          ],
-          rows: drivers.values.map((d) {
-            bool isActive = d['attendance'] == "Present";
-            return DataRow(
-              cells: [
-                DataCell(
-                  Text(
-                    d['name'] ?? "Driver",
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ),
-                DataCell(
-                  Container(
-                    padding: const EdgeInsets.all(5),
-                    decoration: BoxDecoration(
-                      color: isActive ? Colors.green : Colors.red,
-                      borderRadius: BorderRadius.circular(5),
-                    ),
-                    child: Text(
-                      isActive ? "Active" : "Inactive",
-                      style: const TextStyle(color: Colors.white, fontSize: 10),
-                    ),
-                  ),
-                ),
-                DataCell(Text("${d['points'] ?? 0} ⭐")),
-              ],
-            );
-          }).toList(),
-        ),
-      ),
-    );
-  }
-}
-
+// NOTE: CollectionStatusPage is kept here for reference but the Dashboard now uses CollectionHistoryPage which you have in a separate file.
 class CollectionStatusPage extends StatelessWidget {
   final Map bins;
   const CollectionStatusPage({super.key, required this.bins});
@@ -780,20 +920,42 @@ class CollectionStatusPage extends StatelessWidget {
     var list = bins.entries.where((e) => e.value['fill_level'] == 0).toList();
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Collection Photos"),
-        backgroundColor: const Color(0xFF4CAF50),
+        title: const Text(
+          "Collection Photos",
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        backgroundColor: leafGreen,
+        foregroundColor: Colors.white,
+        elevation: 0,
       ),
       body: list.isEmpty
-          ? const Center(child: Text("No records."))
+          ? const Center(child: Text("No recent collections recorded."))
           : ListView.builder(
               padding: const EdgeInsets.all(15),
               itemCount: list.length,
               itemBuilder: (context, index) {
                 var bin = list[index].value;
                 return Card(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(15),
+                  ),
                   child: ListTile(
-                    title: Text(bin['area'] ?? "Area"),
-                    subtitle: const Text("Cleaned ✅"),
+                    leading: const CircleAvatar(
+                      backgroundColor: softMint,
+                      child: Icon(Icons.photo_library, color: leafGreen),
+                    ),
+                    title: Text(
+                      bin['area'] ?? "Area",
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    subtitle: const Text(
+                      "Verified Cleaned ✅",
+                      style: TextStyle(
+                        color: leafGreen,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ),
                 );
               },

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_database/firebase_database.dart';
+import 'package:latlong2/latlong.dart';
+import 'map_picker_screen.dart';
 
 class AddScheduleScreen extends StatefulWidget {
   final dynamic existingData;
@@ -10,16 +12,21 @@ class AddScheduleScreen extends StatefulWidget {
 }
 
 class _AddScheduleScreenState extends State<AddScheduleScreen> {
-  static const Color leafGreen = Color(0xFF4CAF50);
+  static const Color leafGreen = Color(0xFF2E7D32);
   static const Color deepForest = Color(0xFF1B5E20);
   static const Color softMint = Color(0xFFF1F8E9);
+  static const Color premiumNavy = Color(0xFF0D47A1);
 
   final TextEditingController _areaController = TextEditingController();
+  final TextEditingController _latController = TextEditingController();
+  final TextEditingController _lngController = TextEditingController();
+
   String? _selectedDriverEmail;
   String? _selectedDriverName;
+  String? _selectedDriverUid;
   List<String> _selectedDays = [];
   TimeOfDay _selectedTime = const TimeOfDay(hour: 8, minute: 0);
-  bool _isSaving = false; // Loading state for sync fix
+  bool _isSaving = false;
 
   final List<String> _days = [
     'Monday',
@@ -36,8 +43,11 @@ class _AddScheduleScreenState extends State<AddScheduleScreen> {
     super.initState();
     if (widget.existingData != null) {
       _areaController.text = widget.existingData['area'] ?? "";
+      _latController.text = widget.existingData['lat']?.toString() ?? "";
+      _lngController.text = widget.existingData['lng']?.toString() ?? "";
       _selectedDriverEmail = widget.existingData['driver_email'];
       _selectedDriverName = widget.existingData['collector'];
+      _selectedDriverUid = widget.existingData['assigned_to'];
 
       String daysStr = widget.existingData['day'] ?? "";
       if (daysStr.isNotEmpty) {
@@ -62,15 +72,32 @@ class _AddScheduleScreenState extends State<AddScheduleScreen> {
     }
   }
 
+  void _openMapPicker() async {
+    final LatLng? result = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const MapPickerScreen()),
+    );
+
+    if (result != null) {
+      setState(() {
+        _latController.text = result.latitude.toStringAsFixed(6);
+        _lngController.text = result.longitude.toStringAsFixed(6);
+      });
+      _showMsg("Location Locked 📍", Colors.blue);
+    }
+  }
+
   Future<void> _saveToFirebase() async {
     if (_areaController.text.isEmpty ||
         _selectedDriverEmail == null ||
+        _latController.text.isEmpty ||
+        _lngController.text.isEmpty ||
         _selectedDays.isEmpty) {
-      _showMsg("Please fill all fields!", Colors.orange);
+      _showMsg("Please complete all mission details!", Colors.orange);
       return;
     }
 
-    setState(() => _isSaving = true); // Start loading
+    setState(() => _isSaving = true);
 
     final String scheduleId = widget.existingData != null
         ? widget.existingData['id']
@@ -79,12 +106,14 @@ class _AddScheduleScreenState extends State<AddScheduleScreen> {
     String daysString = _selectedDays.join(", ");
 
     try {
-      // Async update ensures Firebase handles the request properly before UI pops
       await FirebaseDatabase.instance.ref('schedules/$scheduleId').update({
         "id": scheduleId,
         "area": _areaController.text.trim(),
+        "lat": double.tryParse(_latController.text.trim()) ?? 0.0,
+        "lng": double.tryParse(_lngController.text.trim()) ?? 0.0,
         "driver_email": _selectedDriverEmail,
         "collector": _selectedDriverName,
+        "assigned_to": _selectedDriverUid,
         "day": daysString,
         "time": _selectedTime.format(context),
         "status": widget.existingData != null
@@ -93,17 +122,19 @@ class _AddScheduleScreenState extends State<AddScheduleScreen> {
         "updatedAt": ServerValue.timestamp,
       });
 
+      await FirebaseDatabase.instance
+          .ref('latest_activity')
+          .set("Schedule Configured: ${_areaController.text}");
+
       if (mounted) {
-        Navigator.pop(context); // Close sheet
+        Navigator.pop(context);
         _showMsg(
-          widget.existingData != null
-              ? "Duty Updated! ✨"
-              : "Schedule Created! ✅",
+          widget.existingData != null ? "Duty Updated! ✨" : "Schedule Live! ✅",
           leafGreen,
         );
       }
     } catch (e) {
-      _showMsg("Error saving data: $e", Colors.red);
+      _showMsg("Error syncing mission: $e", Colors.red);
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
@@ -112,9 +143,13 @@ class _AddScheduleScreenState extends State<AddScheduleScreen> {
   void _showMsg(String m, Color c) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(m, style: const TextStyle(fontWeight: FontWeight.bold)),
+        content: Text(
+          m,
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+        ),
         backgroundColor: c,
         behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
   }
@@ -124,9 +159,13 @@ class _AddScheduleScreenState extends State<AddScheduleScreen> {
       context: context,
       initialTime: _selectedTime,
       builder: (context, child) => Theme(
-        data: Theme.of(
-          context,
-        ).copyWith(colorScheme: const ColorScheme.light(primary: leafGreen)),
+        data: Theme.of(context).copyWith(
+          colorScheme: const ColorScheme.light(
+            primary: leafGreen,
+            onPrimary: Colors.white,
+            surface: Colors.white,
+          ),
+        ),
         child: child!,
       ),
     );
@@ -139,45 +178,74 @@ class _AddScheduleScreenState extends State<AddScheduleScreen> {
       decoration: const BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.vertical(top: Radius.circular(35)),
+        boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 20)],
       ),
       padding: EdgeInsets.only(
         bottom: MediaQuery.of(context).viewInsets.bottom,
       ),
       child: SingleChildScrollView(
-        padding: const EdgeInsets.all(30),
+        padding: const EdgeInsets.all(25),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Center(
               child: Container(
-                width: 50,
-                height: 5,
+                width: 40,
+                height: 4,
                 decoration: BoxDecoration(
                   color: Colors.grey[300],
                   borderRadius: BorderRadius.circular(10),
                 ),
               ),
             ),
-            const SizedBox(height: 25),
+            const SizedBox(height: 20),
             Text(
               widget.existingData != null
-                  ? "Update Schedule"
-                  : "Create New Schedule",
+                  ? "Modify Schedule"
+                  : "New Duty Setup",
               style: const TextStyle(
-                fontSize: 24,
+                fontSize: 22,
                 fontWeight: FontWeight.w900,
                 color: deepForest,
+                letterSpacing: -0.5,
               ),
             ),
-            const SizedBox(height: 30),
+            const SizedBox(height: 25),
 
             _inputLabel("ZONE / AREA NAME"),
             TextField(
               controller: _areaController,
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
               decoration: _inputStyle(
-                "Enter street or block name",
-                Icons.map_rounded,
+                "e.g. Sadiqabad Block-5",
+                Icons.location_on_rounded,
               ),
+            ),
+
+            const SizedBox(height: 20),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [_inputLabel("GPS COORDINATES"), _buildMapPickerLink()],
+            ),
+            const SizedBox(height: 5),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _latController,
+                    keyboardType: TextInputType.number,
+                    decoration: _inputStyle("Latitude", Icons.gps_fixed),
+                  ),
+                ),
+                const SizedBox(width: 15),
+                Expanded(
+                  child: TextField(
+                    controller: _lngController,
+                    keyboardType: TextInputType.number,
+                    decoration: _inputStyle("Longitude", Icons.gps_fixed),
+                  ),
+                ),
+              ],
             ),
 
             const SizedBox(height: 25),
@@ -185,7 +253,7 @@ class _AddScheduleScreenState extends State<AddScheduleScreen> {
             _buildDriverDropdown(),
 
             const SizedBox(height: 25),
-            _inputLabel("SELECT OPERATIONAL DAYS"),
+            _inputLabel("OPERATIONAL DAYS"),
             _buildDaysWrap(),
 
             const SizedBox(height: 25),
@@ -201,13 +269,42 @@ class _AddScheduleScreenState extends State<AddScheduleScreen> {
     );
   }
 
+  Widget _buildMapPickerLink() {
+    return InkWell(
+      onTap: _openMapPicker,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        decoration: BoxDecoration(
+          color: Colors.blue.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: const Row(
+          children: [
+            Icon(Icons.map_rounded, size: 14, color: Colors.blue),
+            SizedBox(width: 6),
+            Text(
+              "OPEN MAP",
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+                color: Colors.blue,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildDriverDropdown() {
     return StreamBuilder(
       stream: FirebaseDatabase.instance.ref('verified_drivers').onValue,
       builder: (context, AsyncSnapshot<DatabaseEvent> snapshot) {
+        if (!snapshot.hasData)
+          return const LinearProgressIndicator(color: leafGreen);
         Map drivers = (snapshot.data?.snapshot.value as Map?) ?? {};
         return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 5),
+          padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 4),
           decoration: BoxDecoration(
             color: softMint,
             borderRadius: BorderRadius.circular(18),
@@ -215,23 +312,25 @@ class _AddScheduleScreenState extends State<AddScheduleScreen> {
           child: DropdownButtonHideUnderline(
             child: DropdownButton<String>(
               hint: const Text(
-                "Choose an Active Driver",
-                style: TextStyle(fontSize: 14),
+                "Select Field Officer",
+                style: TextStyle(fontSize: 14, color: Colors.grey),
               ),
               value: _selectedDriverEmail,
               isExpanded: true,
-              items: drivers.values.map((d) {
-                String name =
-                    d['name'] ??
-                    d['email'].toString().split('@')[0].toUpperCase();
+              items: drivers.entries.map((e) {
+                var d = e.value;
                 return DropdownMenuItem<String>(
                   value: d['email'],
-                  onTap: () => _selectedDriverName = name,
+                  onTap: () {
+                    _selectedDriverName = d['name'];
+                    _selectedDriverUid = e.key;
+                  },
                   child: Text(
-                    name,
+                    d['name'] ?? "Driver",
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 14,
+                      color: deepForest,
                     ),
                   ),
                 );
@@ -255,16 +354,19 @@ class _AddScheduleScreenState extends State<AddScheduleScreen> {
             day,
             style: TextStyle(
               fontSize: 11,
-              fontWeight: isSelected ? FontWeight.w900 : FontWeight.normal,
+              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
               color: isSelected ? Colors.white : Colors.black87,
             ),
           ),
           selected: isSelected,
           selectedColor: leafGreen,
           checkmarkColor: Colors.white,
-          backgroundColor: softMint,
+          backgroundColor: Colors.white,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
+            side: BorderSide(
+              color: isSelected ? leafGreen : Colors.grey.shade300,
+            ),
           ),
           onSelected: (bool selected) {
             setState(() {
@@ -284,22 +386,27 @@ class _AddScheduleScreenState extends State<AddScheduleScreen> {
         decoration: BoxDecoration(
           color: softMint,
           borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: leafGreen.withOpacity(0.1)),
         ),
         child: Row(
           children: [
-            const Icon(Icons.alarm_rounded, color: leafGreen),
+            const Icon(Icons.access_time_filled_rounded, color: leafGreen),
             const SizedBox(width: 15),
             Text(
               _selectedTime.format(context),
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w900,
+                color: deepForest,
+              ),
             ),
             const Spacer(),
             const Text(
-              "EDIT",
+              "SET TIME",
               style: TextStyle(
                 color: leafGreen,
-                fontWeight: FontWeight.bold,
-                fontSize: 12,
+                fontWeight: FontWeight.w900,
+                fontSize: 11,
               ),
             ),
           ],
@@ -311,26 +418,34 @@ class _AddScheduleScreenState extends State<AddScheduleScreen> {
   Widget _buildSaveButton() {
     return SizedBox(
       width: double.infinity,
-      height: 60,
+      height: 55,
       child: ElevatedButton(
         style: ElevatedButton.styleFrom(
           backgroundColor: deepForest,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(18),
           ),
-          elevation: 5,
+          elevation: 4,
+          shadowColor: deepForest.withOpacity(0.4),
         ),
         onPressed: _isSaving ? null : _saveToFirebase,
         child: _isSaving
-            ? const CircularProgressIndicator(color: Colors.white)
+            ? const SizedBox(
+                height: 20,
+                width: 20,
+                child: CircularProgressIndicator(
+                  color: Colors.white,
+                  strokeWidth: 3,
+                ),
+              )
             : Text(
                 widget.existingData != null
                     ? "UPDATE MISSION"
-                    : "CONFIRM MISSION",
+                    : "ACTIVATE MISSION",
                 style: const TextStyle(
                   color: Colors.white,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 1.5,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1,
                 ),
               ),
       ),
@@ -338,7 +453,7 @@ class _AddScheduleScreenState extends State<AddScheduleScreen> {
   }
 
   Widget _inputLabel(String text) => Padding(
-    padding: const EdgeInsets.only(bottom: 10, left: 5),
+    padding: const EdgeInsets.only(bottom: 8, left: 4),
     child: Text(
       text,
       style: const TextStyle(
@@ -352,12 +467,14 @@ class _AddScheduleScreenState extends State<AddScheduleScreen> {
 
   InputDecoration _inputStyle(String hint, IconData icon) => InputDecoration(
     hintText: hint,
-    prefixIcon: Icon(icon, color: leafGreen),
+    hintStyle: const TextStyle(fontSize: 13, color: Colors.grey),
+    prefixIcon: Icon(icon, color: leafGreen, size: 20),
     filled: true,
     fillColor: softMint,
     border: OutlineInputBorder(
       borderRadius: BorderRadius.circular(18),
       borderSide: BorderSide.none,
     ),
+    contentPadding: const EdgeInsets.symmetric(vertical: 15),
   );
 }

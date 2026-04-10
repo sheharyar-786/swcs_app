@@ -13,10 +13,12 @@ class DriverApprovalScreen extends StatefulWidget {
 class _DriverApprovalScreenState extends State<DriverApprovalScreen> {
   static const Color leafGreen = Color(0xFF4CAF50);
   static const Color deepForest = Color(0xFF1B5E20);
-  static const Color softMint = Color(0xFFF1F8E9); // Lightened for cleaner look
+  static const Color softMint = Color(0xFFF1F8E9);
 
   final Map<String, String> _selectedDuties = {};
   final Map<String, TextEditingController> _controllers = {};
+  // Added this to track which tile is open and prevent closing on state change
+  final Map<String, PageStorageKey> _keys = {};
 
   final List<String> dutyRoles = [
     'Collector',
@@ -81,7 +83,7 @@ class _DriverApprovalScreenState extends State<DriverApprovalScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF9FBF9), // Premium Off-White
+      backgroundColor: const Color(0xFFF9FBF9),
       appBar: AppBar(
         title: const Text(
           "🛡️ Verification Hub",
@@ -139,11 +141,13 @@ class _DriverApprovalScreenState extends State<DriverApprovalScreen> {
               String driverKey = keys[index];
               var driver = drivers[driverKey];
 
+              // Proper assignment to prevent UI jumping
               _selectedDuties.putIfAbsent(driverKey, () => 'Collector');
               _controllers.putIfAbsent(
                 driverKey,
                 () => TextEditingController(),
               );
+              _keys.putIfAbsent(driverKey, () => PageStorageKey(driverKey));
 
               return _buildApprovalCard(driver, driverKey, index);
             },
@@ -154,201 +158,188 @@ class _DriverApprovalScreenState extends State<DriverApprovalScreen> {
   }
 
   Widget _buildApprovalCard(var driver, String key, int index) {
-    return TweenAnimationBuilder(
-      duration: Duration(milliseconds: 400 + (index * 100)),
-      tween: Tween<double>(begin: 0, end: 1),
-      builder: (context, double anim, child) => Opacity(
-        opacity: anim,
-        child: Transform.translate(
-          offset: Offset(0, 20 * (1 - anim)),
-          child: child,
-        ),
+    return Container(
+      // Using the unique key to prevent tile from closing on setState
+      key: _keys[key],
+      margin: const EdgeInsets.only(bottom: 20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(30),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
       ),
-      child: Container(
-        key: ValueKey(key),
-        margin: const EdgeInsets.only(bottom: 20),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(30),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.04),
-              blurRadius: 20,
-              offset: const Offset(0, 10),
+      child: Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          // Important: Maintain state during rebuilds
+          maintainState: true,
+          tilePadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+          leading: Container(
+            padding: const EdgeInsets.all(2),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: leafGreen.withOpacity(0.3), width: 2),
+            ),
+            child: const CircleAvatar(
+              backgroundColor: softMint,
+              child: Icon(Icons.person_outline, color: leafGreen),
+            ),
+          ),
+          title: Text(
+            (driver['name'] ?? "New Applicant").toString().toUpperCase(),
+            style: const TextStyle(
+              fontWeight: FontWeight.w900,
+              fontSize: 14,
+              color: deepForest,
+              letterSpacing: 0.5,
+            ),
+          ),
+          subtitle: Text(
+            driver['email'] ?? "Email not provided",
+            style: const TextStyle(fontSize: 11, color: Colors.grey),
+          ),
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 25),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Divider(height: 1, color: Color(0xFFF1F1F1)),
+                  const SizedBox(height: 20),
+                  _infoBadge(
+                    Icons.badge_outlined,
+                    "CNIC Number",
+                    driver['cnic'] ?? "N/A",
+                  ),
+                  const SizedBox(height: 25),
+                  const Text(
+                    "DOCUMENT VERIFICATION",
+                    style: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 10,
+                      color: Colors.grey,
+                      letterSpacing: 1.2,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      _docBox("CNIC FRONT", driver['cnic_image_base64']),
+                      const SizedBox(width: 15),
+                      _docBox("LICENSE", driver['license_image_base64']),
+                    ],
+                  ),
+                  const SizedBox(height: 30),
+                  const Text(
+                    "ADMIN ASSIGNMENT",
+                    style: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 10,
+                      color: Colors.grey,
+                      letterSpacing: 1.2,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  // Dropdown update no longer causes jumping
+                  DropdownButtonFormField<String>(
+                    decoration: _inputDeco(
+                      "Select Duty Role",
+                      Icons.work_outline,
+                    ),
+                    value: _selectedDuties[key],
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: deepForest,
+                      fontSize: 13,
+                    ),
+                    items: dutyRoles
+                        .map((r) => DropdownMenuItem(value: r, child: Text(r)))
+                        .toList(),
+                    onChanged: (val) {
+                      setState(() {
+                        _selectedDuties[key] = val!;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 15),
+                  TextField(
+                    controller: _controllers[key],
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                    decoration: _inputDeco(
+                      "Assign Vehicle ID",
+                      Icons.local_shipping_outlined,
+                    ),
+                  ),
+                  const SizedBox(height: 30),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextButton(
+                          style: TextButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 18),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(18),
+                            ),
+                          ),
+                          onPressed: () => _process(
+                            key,
+                            false,
+                            driver['email'],
+                            driver['name'] ?? "New Driver",
+                          ),
+                          child: const Text(
+                            "REJECT",
+                            style: TextStyle(
+                              color: Colors.redAccent,
+                              fontWeight: FontWeight.w900,
+                              fontSize: 12,
+                              letterSpacing: 1,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 15),
+                      Expanded(
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: leafGreen,
+                            elevation: 0,
+                            padding: const EdgeInsets.symmetric(vertical: 18),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(18),
+                            ),
+                          ),
+                          onPressed: () => _process(
+                            key,
+                            true,
+                            driver['email'],
+                            driver['name'] ?? "New Driver",
+                          ),
+                          child: const Text(
+                            "APPROVE",
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w900,
+                              fontSize: 12,
+                              letterSpacing: 1,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ],
-        ),
-        child: Theme(
-          data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-          child: ExpansionTile(
-            maintainState: true,
-            tilePadding: const EdgeInsets.symmetric(
-              horizontal: 20,
-              vertical: 8,
-            ),
-            leading: Container(
-              padding: const EdgeInsets.all(2),
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(color: leafGreen.withOpacity(0.3), width: 2),
-              ),
-              child: const CircleAvatar(
-                backgroundColor: softMint,
-                child: Icon(Icons.person_outline, color: leafGreen),
-              ),
-            ),
-            title: Text(
-              (driver['name'] ?? "New Applicant").toString().toUpperCase(),
-              style: const TextStyle(
-                fontWeight: FontWeight.w900,
-                fontSize: 14,
-                color: deepForest,
-                letterSpacing: 0.5,
-              ),
-            ),
-            subtitle: Text(
-              driver['email'] ?? "Email not provided",
-              style: const TextStyle(fontSize: 11, color: Colors.grey),
-            ),
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 25),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Divider(height: 1, color: Color(0xFFF1F1F1)),
-                    const SizedBox(height: 20),
-                    _infoBadge(
-                      Icons.badge_outlined,
-                      "CNIC Number",
-                      driver['cnic'] ?? "N/A",
-                    ),
-                    const SizedBox(height: 25),
-                    const Text(
-                      "DOCUMENT VERIFICATION",
-                      style: TextStyle(
-                        fontWeight: FontWeight.w800,
-                        fontSize: 10,
-                        color: Colors.grey,
-                        letterSpacing: 1.2,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        _docBox("CNIC FRONT", driver['cnic_image_base64']),
-                        const SizedBox(width: 15),
-                        _docBox("LICENSE", driver['license_image_base64']),
-                      ],
-                    ),
-                    const SizedBox(height: 30),
-                    const Text(
-                      "ADMIN ASSIGNMENT",
-                      style: TextStyle(
-                        fontWeight: FontWeight.w800,
-                        fontSize: 10,
-                        color: Colors.grey,
-                        letterSpacing: 1.2,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    DropdownButtonFormField<String>(
-                      decoration: _inputDeco(
-                        "Select Duty Role",
-                        Icons.work_outline,
-                      ),
-                      value: _selectedDuties[key],
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: deepForest,
-                        fontSize: 13,
-                      ),
-                      items: dutyRoles
-                          .map(
-                            (r) => DropdownMenuItem(value: r, child: Text(r)),
-                          )
-                          .toList(),
-                      onChanged: (val) {
-                        setState(() {
-                          _selectedDuties[key] = val!;
-                        });
-                      },
-                    ),
-                    const SizedBox(height: 15),
-                    TextField(
-                      controller: _controllers[key],
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 13,
-                      ),
-                      decoration: _inputDeco(
-                        "Assign Vehicle ID",
-                        Icons.local_shipping_outlined,
-                      ),
-                    ),
-                    const SizedBox(height: 30),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextButton(
-                            style: TextButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 18),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(18),
-                              ),
-                            ),
-                            onPressed: () => _process(
-                              key,
-                              false,
-                              driver['email'],
-                              driver['name'] ?? "New Driver",
-                            ),
-                            child: const Text(
-                              "REJECT",
-                              style: TextStyle(
-                                color: Colors.redAccent,
-                                fontWeight: FontWeight.w900,
-                                fontSize: 12,
-                                letterSpacing: 1,
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 15),
-                        Expanded(
-                          child: ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: leafGreen,
-                              elevation: 0,
-                              padding: const EdgeInsets.symmetric(vertical: 18),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(18),
-                              ),
-                            ),
-                            onPressed: () => _process(
-                              key,
-                              true,
-                              driver['email'],
-                              driver['name'] ?? "New Driver",
-                            ),
-                            child: const Text(
-                              "APPROVE",
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w900,
-                                fontSize: 12,
-                                letterSpacing: 1,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
         ),
       ),
     );

@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:convert';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
@@ -17,32 +18,27 @@ class AuthPage extends StatefulWidget {
 
 class _AuthPageState extends State<AuthPage> {
   bool isLogin = true;
+  bool showForm = false;
   bool isLoading = false;
   bool obscurePassword = true;
-  bool obscureConfirmPassword = true;
 
   File? cnicFile;
   File? licenseFile;
   bool cnicUploaded = false;
   bool licenseUploaded = false;
 
-  // Controllers
-  final TextEditingController _nameController =
-      TextEditingController(); // Naya controller naam ke liye
+  final TextEditingController _nameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-  final TextEditingController _confirmPasswordController =
-      TextEditingController();
-  final TextEditingController _cnicController = TextEditingController();
 
-  String selectedRole = 'Civilian';
+  String selectedRegRole = 'Civilian';
   final List<String> registrationRoles = ['Civilian', 'Driver'];
-  final List<String> loginRoles = ['Civilian', 'Driver', 'Admin'];
 
   static const Color leafGreen = Color(0xFF4CAF50);
   static const Color deepForest = Color(0xFF1B5E20);
   static const Color softMint = Color(0xFFF1F8E9);
 
+  // --- LOGICS ---
   String imageToBase64(File file) {
     List<int> imageBytes = file.readAsBytesSync();
     return base64Encode(imageBytes);
@@ -50,8 +46,10 @@ class _AuthPageState extends State<AuthPage> {
 
   Future<void> _pickImage(String type) async {
     final ImagePicker picker = ImagePicker();
-    final XFile? image = await picker.pickImage(source: ImageSource.gallery);
-
+    final XFile? image = await picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 50,
+    );
     if (image != null) {
       setState(() {
         if (type == "CNIC") {
@@ -62,189 +60,97 @@ class _AuthPageState extends State<AuthPage> {
           licenseUploaded = true;
         }
       });
-      _showSnackBar("$type document attached successfully! ✅", deepForest);
     }
+  }
+
+  Future<void> _autoRouteUser(String uid) async {
+    final db = FirebaseDatabase.instance.ref();
+    final adminSnap = await db.child('admins/$uid').get();
+    if (adminSnap.exists) {
+      _navigate(const AdminPage());
+      return;
+    }
+    final driverSnap = await db.child('verified_drivers/$uid').get();
+    if (driverSnap.exists) {
+      _navigate(const DriverDashboard());
+      return;
+    }
+    final civilianSnap = await db.child('users/$uid').get();
+    if (civilianSnap.exists) {
+      _navigate(const CivillianPage());
+      return;
+    }
+    final pendingSnap = await db.child('pending_drivers/$uid').get();
+    if (pendingSnap.exists) {
+      await FirebaseAuth.instance.signOut();
+      _showSnackBar(
+        "Your account is still pending admin approval.",
+        Colors.orange,
+      );
+      return;
+    }
+    _showSnackBar("Account not found in system.", Colors.redAccent);
+  }
+
+  void _navigate(Widget screen) {
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (c) => screen),
+    );
   }
 
   Future<void> _handleSubmit() async {
     String email = _emailController.text.trim().toLowerCase();
     String password = _passwordController.text.trim();
-
     if (email.isEmpty || password.isEmpty) {
-      _showSnackBar("Please enter both email and password", Colors.redAccent);
+      _showSnackBar("Please fill all fields", Colors.redAccent);
       return;
     }
-
     setState(() => isLoading = true);
-
     try {
       if (isLogin) {
-        // --- LOGIN PROCESS ---
-        UserCredential userCredential = await FirebaseAuth.instance
+        UserCredential cred = await FirebaseAuth.instance
             .signInWithEmailAndPassword(email: email, password: password);
-
-        if (userCredential.user != null) {
-          String uid = userCredential.user!.uid;
-
-          if (selectedRole == 'Driver') {
-            final snapshot = await FirebaseDatabase.instance
-                .ref('verified_drivers/$uid')
-                .get();
-            if (!snapshot.exists) {
-              await FirebaseAuth.instance.signOut();
-              _showSnackBar(
-                "Access Denied: Profile not approved by Admin yet.",
-                Colors.orange,
-              );
-              return;
-            }
-          }
-
-          if (selectedRole == 'Admin') {
-            if (email.contains("admin")) {
-              _navigateBasedOnRole('admin');
-            } else {
-              await FirebaseAuth.instance.signOut();
-              _showSnackBar("Access Denied: Use Admin email", Colors.redAccent);
-            }
-          } else {
-            if (email.contains("admin")) {
-              await FirebaseAuth.instance.signOut();
-              _showSnackBar("Admin must select Admin role", Colors.redAccent);
-            } else {
-              _navigateBasedOnRole(selectedRole.toLowerCase());
-            }
-          }
-        }
+        if (cred.user != null) await _autoRouteUser(cred.user!.uid);
       } else {
-        // --- REGISTRATION PROCESS ---
-        if (_nameController.text.trim().isEmpty) {
-          _showSnackBar("Please enter your full name", Colors.redAccent);
+        if (selectedRegRole == 'Driver' &&
+            (!cnicUploaded || !licenseUploaded)) {
+          _showSnackBar("Please upload both documents", Colors.redAccent);
           return;
         }
-        if (email.contains("admin")) {
-          _showSnackBar("Cannot register with 'admin' email", Colors.redAccent);
-          return;
-        }
-        if (password != _confirmPasswordController.text.trim()) {
-          _showSnackBar("Passwords mismatch", Colors.redAccent);
-          return;
-        }
-        if (selectedRole == 'Driver' &&
-            (cnicFile == null || licenseFile == null)) {
-          _showSnackBar("Actual documents required!", Colors.redAccent);
-          return;
-        }
-
-        UserCredential userCredential = await FirebaseAuth.instance
+        UserCredential cred = await FirebaseAuth.instance
             .createUserWithEmailAndPassword(email: email, password: password);
-
-        if (userCredential.user != null) {
-          String uid = userCredential.user!.uid;
-
-          if (selectedRole == 'Driver') {
-            String cnicData = imageToBase64(cnicFile!);
-            String licenseData = imageToBase64(licenseFile!);
-
+        if (cred.user != null) {
+          String uid = cred.user!.uid;
+          if (selectedRegRole == 'Driver') {
             await FirebaseDatabase.instance.ref('pending_drivers/$uid').set({
               "uid": uid,
               "name": _nameController.text.trim(),
               "email": email,
-              "cnic": _cnicController.text,
-              "cnic_image_base64": cnicData,
-              "license_image_base64": licenseData,
+              "cnic_image_base64": imageToBase64(cnicFile!),
+              "license_image_base64": imageToBase64(licenseFile!),
               "status": "pending",
-              "role": "driver",
               "regDate": DateTime.now().toString(),
+              "role": "driver",
             });
-            _showStatusDialog(
-              "Profile submitted! Admin will verify your documents shortly.",
-            );
           } else {
-            // Civilian Data Save
             await FirebaseDatabase.instance.ref('users/$uid').set({
               "uid": uid,
               "name": _nameController.text.trim(),
               "email": email,
               "role": "civilian",
-              "regDate": DateTime.now().toString(),
             });
-
-            // Redirect to Login instead of Dashboard
-            await FirebaseAuth.instance.signOut();
-            _showStatusDialog(
-              "Account created successfully! Please Sign In to continue.",
-            );
           }
+          _showStatusDialog(
+            "Submission Successful! Awaiting Admin Verification.",
+          );
         }
       }
-    } on FirebaseAuthException catch (e) {
-      _showSnackBar(e.message ?? "Auth Error", Colors.redAccent);
     } catch (e) {
-      _showSnackBar("An unexpected error occurred", Colors.redAccent);
+      _showSnackBar(e.toString(), Colors.redAccent);
     } finally {
-      if (mounted) setState(() => isLoading = false);
+      setState(() => isLoading = false);
     }
-  }
-
-  void _showSnackBar(String message, Color color) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: color,
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
-  }
-
-  void _navigateBasedOnRole(String role) {
-    Widget destination;
-    switch (role) {
-      case 'admin':
-        destination = const AdminPage();
-        break;
-      case 'driver':
-        destination = const DriverDashboard();
-        break;
-      default:
-        destination = const CivillianPage();
-    }
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (context) => destination),
-    );
-  }
-
-  // Common Dialog for Driver Pending & Civilian Success
-  void _showStatusDialog(String message) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
-        title: const Text(
-          "Success",
-          style: TextStyle(color: deepForest, fontWeight: FontWeight.bold),
-        ),
-        content: Text(message),
-        actions: [
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              setState(() {
-                isLogin = true; // Switch to login view
-                _emailController.clear();
-                _passwordController.clear();
-                _confirmPasswordController.clear();
-                _nameController.clear();
-              });
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: leafGreen),
-            child: const Text("OK", style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
   }
 
   @override
@@ -252,162 +158,78 @@ class _AuthPageState extends State<AuthPage> {
     return Scaffold(
       body: Stack(
         children: [
+          // 1. FADED GREEN NATURE BACKGROUND
           Container(
             decoration: const BoxDecoration(
-              color: leafGreen,
               image: DecorationImage(
-                image: AssetImage('assets/background.jpeg'),
+                image: NetworkImage(
+                  'https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?q=80&w=1000',
+                ),
                 fit: BoxFit.cover,
-                colorFilter: ColorFilter.mode(Colors.black45, BlendMode.darken),
               ),
             ),
           ),
-          Center(
-            child: SingleChildScrollView(
-              child: Padding(
+          // 2. LOW OPACITY GREEN OVERLAY
+          Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.white.withOpacity(0.4),
+                  leafGreen.withOpacity(0.7),
+                  deepForest.withOpacity(0.9),
+                ],
+              ),
+            ),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 2, sigmaY: 2),
+              child: Container(color: Colors.transparent),
+            ),
+          ),
+          SafeArea(
+            child: Center(
+              child: SingleChildScrollView(
                 padding: const EdgeInsets.symmetric(horizontal: 25),
                 child: Column(
                   children: [
-                    const SizedBox(height: 50),
+                    // 3. WASTE COLLECTION SIGN LOGO
                     Container(
-                      height: 100,
-                      width: 100,
-                      decoration: const BoxDecoration(
-                        color: Colors.white,
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.2),
                         shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white30),
                       ),
                       child: const Icon(
-                        Icons.recycling_rounded,
-                        size: 60,
-                        color: leafGreen,
+                        Icons.recycling_rounded, // Waste/Recycle Sign
+                        color: Colors.white,
+                        size: 70,
                       ),
                     ),
-                    const SizedBox(height: 15),
+                    const SizedBox(height: 10),
                     const Text(
-                      "SWCS PORTAL",
+                      "SWCS",
                       style: TextStyle(
                         color: Colors.white,
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
+                        fontSize: 36,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 4,
                       ),
                     ),
-                    const SizedBox(height: 25),
-                    Container(
-                      padding: const EdgeInsets.all(25),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.95),
-                        borderRadius: BorderRadius.circular(30),
+                    const Text(
+                      "SMART WASTE COLLECTION",
+                      style: TextStyle(
+                        color: Colors.white70,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        letterSpacing: 1.5,
                       ),
-                      child: Column(
-                        children: [
-                          Text(
-                            isLogin ? "Sign In" : "Register",
-                            style: const TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                              color: deepForest,
-                            ),
-                          ),
-                          const SizedBox(height: 20),
-
-                          // Name Field (Only for Registration)
-                          if (!isLogin) ...[
-                            _buildTextField(
-                              controller: _nameController,
-                              label: "Full Name",
-                              icon: Icons.person_outline,
-                            ),
-                            const SizedBox(height: 15),
-                          ],
-
-                          _buildTextField(
-                            controller: _emailController,
-                            label: "Email",
-                            icon: Icons.email_outlined,
-                          ),
-                          const SizedBox(height: 15),
-                          _buildTextField(
-                            controller: _passwordController,
-                            label: "Password",
-                            icon: Icons.lock_outline,
-                            isPassword: true,
-                            isObscured: obscurePassword,
-                            toggleVisibility: () => setState(
-                              () => obscurePassword = !obscurePassword,
-                            ),
-                          ),
-                          if (!isLogin) ...[
-                            const SizedBox(height: 15),
-                            _buildTextField(
-                              controller: _confirmPasswordController,
-                              label: "Confirm Password",
-                              icon: Icons.lock_reset,
-                              isPassword: true,
-                              isObscured: obscureConfirmPassword,
-                              toggleVisibility: () => setState(
-                                () => obscureConfirmPassword =
-                                    !obscureConfirmPassword,
-                              ),
-                            ),
-                          ],
-                          const SizedBox(height: 15),
-                          _buildRoleDropdown(),
-                          const SizedBox(height: 15),
-                          if (!isLogin && selectedRole == 'Driver') ...[
-                            _buildTextField(
-                              controller: _cnicController,
-                              label: "CNIC Number",
-                              icon: Icons.badge,
-                            ),
-                            const SizedBox(height: 15),
-                            _buildUploadButton(
-                              "CNIC Photo",
-                              Icons.camera,
-                              () => _pickImage("CNIC"),
-                              cnicUploaded,
-                            ),
-                            const SizedBox(height: 10),
-                            _buildUploadButton(
-                              "License Photo",
-                              Icons.drive_eta,
-                              () => _pickImage("License"),
-                              licenseUploaded,
-                            ),
-                            const SizedBox(height: 20),
-                          ],
-                          SizedBox(
-                            width: double.infinity,
-                            height: 55,
-                            child: ElevatedButton(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: leafGreen,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(15),
-                                ),
-                              ),
-                              onPressed: isLoading ? null : _handleSubmit,
-                              child: isLoading
-                                  ? const CircularProgressIndicator(
-                                      color: Colors.white,
-                                    )
-                                  : Text(
-                                      isLogin ? "LOGIN" : "REGISTER",
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                            ),
-                          ),
-                          TextButton(
-                            onPressed: () => setState(() => isLogin = !isLogin),
-                            child: Text(
-                              isLogin ? "New? Create Account" : "Back to Login",
-                              style: const TextStyle(color: leafGreen),
-                            ),
-                          ),
-                        ],
-                      ),
+                    ),
+                    const SizedBox(height: 40),
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 500),
+                      child: !showForm ? _buildChoiceBoxes() : _buildAuthForm(),
                     ),
                   ],
                 ),
@@ -419,30 +241,255 @@ class _AuthPageState extends State<AuthPage> {
     );
   }
 
+  Widget _buildChoiceBoxes() {
+    return Column(
+      children: [
+        _selectionCard(
+          title: "Sign In",
+          subtitle: "Access system automatically",
+          icon: Icons.login_rounded,
+          onTap: () => setState(() {
+            isLogin = true;
+            showForm = true;
+          }),
+        ),
+        const SizedBox(height: 20),
+        _selectionCard(
+          title: "Join Us",
+          subtitle: "Register as Driver or Civilian",
+          icon: Icons.person_add_rounded,
+          onTap: () => setState(() {
+            isLogin = false;
+            showForm = true;
+          }),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAuthForm() {
+    return Container(
+      padding: const EdgeInsets.all(25),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.95),
+        borderRadius: BorderRadius.circular(30),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black26,
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              IconButton(
+                onPressed: () => setState(() => showForm = false),
+                icon: const Icon(
+                  Icons.arrow_back_ios_new_rounded,
+                  color: leafGreen,
+                  size: 18,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                isLogin ? "Welcome Back" : "Create Account",
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: deepForest,
+                ),
+              ),
+              const Spacer(flex: 2),
+            ],
+          ),
+          const SizedBox(height: 20),
+          if (!isLogin) _buildSignupRoleSelector(),
+          if (!isLogin) ...[
+            const SizedBox(height: 15),
+            _buildTextField(
+              controller: _nameController,
+              label: "Full Name",
+              icon: Icons.person_outline,
+            ),
+          ],
+          const SizedBox(height: 15),
+          _buildTextField(
+            controller: _emailController,
+            label: "Email Address",
+            icon: Icons.email_outlined,
+          ),
+          const SizedBox(height: 15),
+          _buildTextField(
+            controller: _passwordController,
+            label: "Password",
+            icon: Icons.lock_outline,
+            isPassword: true,
+          ),
+          if (!isLogin && selectedRegRole == 'Driver') ...[
+            const SizedBox(height: 15),
+            _buildDocButton(
+              "Attach CNIC Front",
+              Icons.badge_outlined,
+              "CNIC",
+              cnicUploaded,
+            ),
+            const SizedBox(height: 10),
+            _buildDocButton(
+              "Attach License Front",
+              Icons.drive_eta_outlined,
+              "License",
+              licenseUploaded,
+            ),
+          ],
+          const SizedBox(height: 25),
+          SizedBox(
+            width: double.infinity,
+            height: 55,
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: leafGreen,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(15),
+                ),
+                elevation: 0,
+              ),
+              onPressed: isLoading ? null : _handleSubmit,
+              child: isLoading
+                  ? const CircularProgressIndicator(color: Colors.white)
+                  : Text(
+                      isLogin ? "LOG IN" : "CONTINUE",
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSignupRoleSelector() {
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: softMint,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: registrationRoles.map((role) {
+          bool isSelected = selectedRegRole == role;
+          return Expanded(
+            child: GestureDetector(
+              onTap: () => setState(() => selectedRegRole = role),
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                decoration: BoxDecoration(
+                  color: isSelected ? leafGreen : Colors.transparent,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Center(
+                  child: Text(
+                    role,
+                    style: TextStyle(
+                      color: isSelected ? Colors.white : Colors.grey,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _selectionCard({
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(25),
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.85),
+          borderRadius: BorderRadius.circular(25),
+          border: Border.all(color: Colors.white54),
+        ),
+        child: Row(
+          children: [
+            CircleAvatar(
+              backgroundColor: leafGreen.withOpacity(0.1),
+              child: Icon(icon, color: leafGreen),
+            ),
+            const SizedBox(width: 15),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: deepForest,
+                    ),
+                  ),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(fontSize: 11, color: Colors.black54),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(
+              Icons.arrow_forward_ios_rounded,
+              size: 14,
+              color: leafGreen,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildTextField({
     required TextEditingController controller,
     required String label,
     required IconData icon,
     bool isPassword = false,
-    bool isObscured = false,
-    VoidCallback? toggleVisibility,
   }) {
     return TextField(
       controller: controller,
-      obscureText: isPassword ? isObscured : false,
+      obscureText: isPassword && obscurePassword,
+      style: const TextStyle(fontSize: 14),
       decoration: InputDecoration(
         labelText: label,
-        prefixIcon: Icon(icon, color: leafGreen),
+        labelStyle: const TextStyle(color: Colors.grey, fontSize: 13),
+        prefixIcon: Icon(icon, color: leafGreen, size: 20),
         suffixIcon: isPassword
             ? IconButton(
                 icon: Icon(
-                  isObscured ? Icons.visibility_off : Icons.visibility,
+                  obscurePassword ? Icons.visibility_off : Icons.visibility,
+                  size: 18,
                 ),
-                onPressed: toggleVisibility,
+                onPressed: () =>
+                    setState(() => obscurePassword = !obscurePassword),
               )
             : null,
         filled: true,
-        fillColor: softMint,
+        fillColor: Colors.grey.withOpacity(0.05),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(15),
           borderSide: BorderSide.none,
@@ -451,53 +498,71 @@ class _AuthPageState extends State<AuthPage> {
     );
   }
 
-  Widget _buildRoleDropdown() {
-    final displayRoles = isLogin ? loginRoles : registrationRoles;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(
-        color: softMint,
-        borderRadius: BorderRadius.circular(15),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          value: displayRoles.contains(selectedRole)
-              ? selectedRole
-              : displayRoles[0],
-          isExpanded: true,
-          items: displayRoles
-              .map((r) => DropdownMenuItem(value: r, child: Text("Role: $r")))
-              .toList(),
-          onChanged: (value) => setState(() => selectedRole = value!),
+  Widget _buildDocButton(
+    String label,
+    IconData icon,
+    String type,
+    bool isDone,
+  ) {
+    return InkWell(
+      onTap: () => _pickImage(type),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: softMint.withOpacity(0.5),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: isDone ? leafGreen : Colors.grey.shade300),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: leafGreen, size: 20),
+            const SizedBox(width: 10),
+            Text(
+              isDone ? "$type Attached ✅" : label,
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: deepForest,
+              ),
+            ),
+            const Spacer(),
+            const Icon(Icons.cloud_upload_outlined, color: leafGreen, size: 18),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildUploadButton(
-    String label,
-    IconData icon,
-    VoidCallback onTap,
-    bool isDone,
-  ) {
-    return InkWell(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 15),
-        decoration: BoxDecoration(
-          border: Border.all(color: isDone ? leafGreen : Colors.grey.shade300),
-          borderRadius: BorderRadius.circular(15),
-          color: softMint,
+  void _showSnackBar(String m, Color c) =>
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(m),
+          backgroundColor: c,
+          behavior: SnackBarBehavior.floating,
         ),
-        child: Row(
-          children: [
-            Icon(icon, color: isDone ? leafGreen : Colors.grey),
-            const SizedBox(width: 15),
-            Text(isDone ? "Attached" : label),
-            const Spacer(),
-            Icon(isDone ? Icons.check_circle : Icons.cloud_upload),
-          ],
-        ),
+      );
+
+  void _showStatusDialog(String m) {
+    showDialog(
+      context: context,
+      builder: (c) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        content: Text(m),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              setState(() {
+                showForm = false;
+                isLogin = true;
+              });
+            },
+            child: const Text(
+              "OK",
+              style: TextStyle(color: leafGreen, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
       ),
     );
   }

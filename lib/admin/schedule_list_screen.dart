@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'add_schedule_screen.dart';
@@ -118,7 +119,7 @@ class _ScheduleManagementPageState extends State<ScheduleManagementPage>
     return StreamBuilder(
       stream: _scheduleStream,
       builder: (context, AsyncSnapshot<DatabaseEvent> snapshot) {
-        // FIX: Agar purana data maujood hai to Loading Spinner mat dikhao
+        // FIX: Handle loading state correctly
         if (snapshot.connectionState == ConnectionState.waiting &&
             !snapshot.hasData) {
           return const Center(
@@ -126,6 +127,7 @@ class _ScheduleManagementPageState extends State<ScheduleManagementPage>
           );
         }
 
+        // FIX: Handle null/empty data from Firebase to remove infinite loader
         if (!snapshot.hasData || snapshot.data!.snapshot.value == null) {
           return _buildEmptyState(statusFilter);
         }
@@ -141,6 +143,7 @@ class _ScheduleManagementPageState extends State<ScheduleManagementPage>
             .where((s) => (s['status'] ?? "Active") == statusFilter)
             .toList();
 
+        // If list is empty after filtering by status
         if (liveList.isEmpty) return _buildEmptyState(statusFilter);
 
         return ListView.builder(
@@ -233,7 +236,7 @@ class _ScheduleManagementPageState extends State<ScheduleManagementPage>
           ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.orange,
-              shape: StadiumBorder(),
+              shape: const StadiumBorder(),
             ),
             onPressed: () => Navigator.pop(context, true),
             child: const Text("ARCHIVE", style: TextStyle(color: Colors.white)),
@@ -261,7 +264,7 @@ class _ScheduleManagementPageState extends State<ScheduleManagementPage>
           ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.redAccent,
-              shape: StadiumBorder(),
+              shape: const StadiumBorder(),
             ),
             onPressed: () => Navigator.pop(context, true),
             child: const Text("DELETE", style: TextStyle(color: Colors.white)),
