@@ -26,66 +26,82 @@ class CollectionHistoryPage extends StatelessWidget {
           onPressed: () => Navigator.pop(context),
         ),
       ),
-      body: Column(
-        children: [
-          if (uid != null) _buildHeaderStats(uid),
-          Expanded(
-            child: uid == null
-                ? const Center(child: Text("User not logged in"))
-                : StreamBuilder(
-                    stream: FirebaseDatabase.instance
-                        .ref('driver_history/$uid')
-                        .onValue,
-                    builder: (context, AsyncSnapshot<DatabaseEvent> snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                        return const Center(
-                          child: CircularProgressIndicator(
-                            color: Color(0xFF00695C),
-                          ),
-                        );
-                      }
-
-                      if (!snapshot.hasData ||
-                          snapshot.data!.snapshot.value == null) {
-                        return _buildEmptyState();
-                      }
-
-                      Map data = snapshot.data!.snapshot.value as Map;
-                      var historyList = data.entries.toList();
-
-                      // Sort: Latest collections on top
-                      historyList.sort((a, b) => b.key.compareTo(a.key));
-
-                      return AnimationLimiter(
-                        child: ListView.builder(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 15,
-                            vertical: 10,
-                          ),
-                          itemCount: historyList.length,
-                          itemBuilder: (context, index) {
-                            var item = historyList[index].value;
-                            return AnimationConfiguration.staggeredList(
-                              position: index,
-                              duration: const Duration(milliseconds: 600),
-                              child: SlideAnimation(
-                                verticalOffset: 50.0,
-                                child: FadeInAnimation(
-                                  child: _buildHistoryCard(
-                                    area: item['area_name'] ?? "Unknown",
-                                    time: item['time'] ?? "--:--",
-                                    points: item['points'] ?? 0,
-                                  ),
+      body: Container(
+        decoration: BoxDecoration(
+          image: DecorationImage(
+            image: const NetworkImage(
+              'https://images.unsplash.com/photo-1601584115197-04ecc0da31d7?q=80&w=1000',
+            ),
+            fit: BoxFit.cover,
+            colorFilter: ColorFilter.mode(
+              Colors.white.withValues(alpha: 0.85),
+              BlendMode.lighten,
+            ),
+          ),
+        ),
+        child: Column(
+          children: [
+            if (uid != null) _buildHeaderStats(uid),
+            Expanded(
+              child: uid == null
+                  ? const Center(child: Text("User not logged in"))
+                  : StreamBuilder(
+                      stream: FirebaseDatabase.instance
+                          .ref('driver_history/$uid')
+                          .onValue,
+                      builder:
+                          (context, AsyncSnapshot<DatabaseEvent> snapshot) {
+                            if (snapshot.connectionState ==
+                                ConnectionState.waiting) {
+                              return const Center(
+                                child: CircularProgressIndicator(
+                                  color: Color(0xFF00695C),
                                 ),
+                              );
+                            }
+
+                            if (!snapshot.hasData ||
+                                snapshot.data!.snapshot.value == null) {
+                              return _buildEmptyState();
+                            }
+
+                            Map data = snapshot.data!.snapshot.value as Map;
+                            var historyList = data.entries.toList();
+
+                            // Sort: Latest collections on top
+                            historyList.sort((a, b) => b.key.compareTo(a.key));
+
+                            return AnimationLimiter(
+                              child: ListView.builder(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 15,
+                                  vertical: 10,
+                                ),
+                                itemCount: historyList.length,
+                                itemBuilder: (context, index) {
+                                  var item = historyList[index].value;
+                                  return AnimationConfiguration.staggeredList(
+                                    position: index,
+                                    duration: const Duration(milliseconds: 600),
+                                    child: SlideAnimation(
+                                      verticalOffset: 50.0,
+                                      child: FadeInAnimation(
+                                        child: _buildHistoryCard(
+                                          area: item['area_name'] ?? "Unknown",
+                                          time: item['time'] ?? "--:--",
+                                          points: item['points'] ?? 0,
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                },
                               ),
                             );
                           },
-                        ),
-                      );
-                    },
-                  ),
-          ),
-        ],
+                    ),
+            ),
+          ],
+        ),
       ),
     );
   }

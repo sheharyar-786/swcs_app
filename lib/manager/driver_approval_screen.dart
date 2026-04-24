@@ -29,6 +29,14 @@ class _DriverApprovalScreenState extends State<DriverApprovalScreen> {
     'Emergency Squad',
   ];
 
+  late Stream<DatabaseEvent> _pendingDriversStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _pendingDriversStream = FirebaseDatabase.instance.ref('pending_drivers').onValue;
+  }
+
   @override
   void dispose() {
     for (var controller in _controllers.values) {
@@ -102,16 +110,16 @@ class _DriverApprovalScreenState extends State<DriverApprovalScreen> {
           // 1. FADED BACKGROUND IMAGE
           Positioned.fill(
             child: Opacity(
-              opacity: 0.07,
+              opacity: 0.15,
               child: Image.network(
-                'https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?q=80&w=1000',
+                'https://images.unsplash.com/photo-1554774853-719586f82d77?q=80&w=1000',
                 fit: BoxFit.cover,
               ),
             ),
           ),
 
           StreamBuilder(
-            stream: FirebaseDatabase.instance.ref('pending_drivers').onValue,
+            stream: _pendingDriversStream,
             builder: (context, AsyncSnapshot<DatabaseEvent> snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(

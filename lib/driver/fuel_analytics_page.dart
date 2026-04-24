@@ -43,66 +43,80 @@ class _FuelAnalyticsPageState extends State<FuelAnalyticsPage> {
           ),
         ],
       ),
-      body: StreamBuilder(
-        stream: FirebaseDatabase.instance
-            .ref('verified_drivers/${user?.uid}')
-            .onValue,
-        builder: (context, AsyncSnapshot<DatabaseEvent> snapshot) {
-          if (!snapshot.hasData || snapshot.data!.snapshot.value == null) {
-            return const Center(
-              child: CircularProgressIndicator(color: Colors.green),
-            );
-          }
-
-          Map data = snapshot.data!.snapshot.value as Map;
-          double totalKm = (data['distance_covered'] ?? 0.0).toDouble();
-
-          // Logic based on User Input
-          double distanceSaved = totalKm * 0.18; // 18% ACO efficiency
-          double fuelSaved = distanceSaved / vehicleAvg;
-          double moneySaved = fuelSaved * fuelPrice;
-
-          return SingleChildScrollView(
-            physics: const BouncingScrollPhysics(),
-            child: Column(
-              children: [
-                _buildHeroHeader(moneySaved),
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 10,
-                  ),
-                  child: Column(
-                    children: [
-                      _buildQuickConfigChips(),
-                      const SizedBox(height: 20),
-                      _analyticsCard(
-                        "ACO Distance Saved",
-                        "${distanceSaved.toStringAsFixed(2)} KM",
-                        Icons.route_rounded,
-                        Colors.blue,
-                      ),
-                      _analyticsCard(
-                        "Fuel Conserved",
-                        "${fuelSaved.toStringAsFixed(2)} Litres",
-                        Icons.local_gas_station_rounded,
-                        Colors.orange,
-                      ),
-                      _analyticsCard(
-                        "Carbon Footprint Reduced",
-                        "${(fuelSaved * 2.3).toStringAsFixed(1)} kg CO2",
-                        Icons.cloud_done_rounded,
-                        Colors.teal,
-                      ),
-                      const SizedBox(height: 30),
-                      _buildEfficiencyGauge(totalKm),
-                    ],
-                  ),
-                ),
-              ],
+      body: Container(
+        decoration: BoxDecoration(
+          image: DecorationImage(
+            image: const NetworkImage(
+              'https://images.unsplash.com/photo-1519003722824-194d4455a60c?q=80&w=1000',
             ),
-          );
-        },
+            fit: BoxFit.cover,
+            colorFilter: ColorFilter.mode(
+              Colors.white.withValues(alpha: 0.85),
+              BlendMode.lighten,
+            ),
+          ),
+        ),
+        child: StreamBuilder(
+          stream: FirebaseDatabase.instance
+              .ref('verified_drivers/${user?.uid}')
+              .onValue,
+          builder: (context, AsyncSnapshot<DatabaseEvent> snapshot) {
+            if (!snapshot.hasData || snapshot.data!.snapshot.value == null) {
+              return const Center(
+                child: CircularProgressIndicator(color: Colors.green),
+              );
+            }
+
+            Map data = snapshot.data!.snapshot.value as Map;
+            double totalKm = (data['distance_covered'] ?? 0.0).toDouble();
+
+            // Logic based on User Input
+            double distanceSaved = totalKm * 0.18; // 18% ACO efficiency
+            double fuelSaved = distanceSaved / vehicleAvg;
+            double moneySaved = fuelSaved * fuelPrice;
+
+            return SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              child: Column(
+                children: [
+                  _buildHeroHeader(moneySaved),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 10,
+                    ),
+                    child: Column(
+                      children: [
+                        _buildQuickConfigChips(),
+                        const SizedBox(height: 20),
+                        _analyticsCard(
+                          "ACO Distance Saved",
+                          "${distanceSaved.toStringAsFixed(2)} KM",
+                          Icons.route_rounded,
+                          Colors.blue,
+                        ),
+                        _analyticsCard(
+                          "Fuel Conserved",
+                          "${fuelSaved.toStringAsFixed(2)} Litres",
+                          Icons.local_gas_station_rounded,
+                          Colors.orange,
+                        ),
+                        _analyticsCard(
+                          "Carbon Footprint Reduced",
+                          "${(fuelSaved * 2.3).toStringAsFixed(1)} kg CO2",
+                          Icons.cloud_done_rounded,
+                          Colors.teal,
+                        ),
+                        const SizedBox(height: 30),
+                        _buildEfficiencyGauge(totalKm),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
       ),
     );
   }

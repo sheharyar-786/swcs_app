@@ -31,8 +31,7 @@ class _AuthPageState extends State<AuthPage> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-  final TextEditingController _phoneController =
-      TextEditingController(); // New: Phone Field
+  final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _cnicNumberController = TextEditingController();
 
   String selectedRegRole = 'Civilian';
@@ -44,6 +43,24 @@ class _AuthPageState extends State<AuthPage> {
   static const Color softMint = Color(0xFFF1F8E9);
 
   // --- LOGICS ---
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkExistingLogin();
+    });
+  }
+
+  Future<void> _checkExistingLogin() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      setState(() => isLoading = true);
+      await _autoRouteUser(user.uid, user.email ?? '');
+      if (mounted) setState(() => isLoading = false);
+    }
+  }
+
   String imageToBase64(File file) {
     List<int> imageBytes = file.readAsBytesSync();
     return base64Encode(imageBytes);
@@ -192,7 +209,6 @@ class _AuthPageState extends State<AuthPage> {
             "uid": uid,
             "name": _nameController.text.trim(),
             "email": email,
-            "phone": _phoneController.text.trim(),
             "isApproved": false,
             "isSuspended": false,
             "regDate": DateTime.now().toString(),
@@ -208,6 +224,7 @@ class _AuthPageState extends State<AuthPage> {
                 .set(userData);
           } else if (selectedRegRole == 'Manager') {
             userData["role"] = "manager";
+            userData["phone"] = _phoneController.text.trim();
             await FirebaseDatabase.instance
                 .ref('pending_managers/$uid')
                 .set(userData);
@@ -249,9 +266,9 @@ class _AuthPageState extends State<AuthPage> {
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: [
-                  Colors.white.withValues(alpha: 0.2),
-                  leafGreen.withValues(alpha: 0.7),
-                  deepForest.withValues(alpha: 0.9),
+                  Colors.white.withValues(alpha: 0.1),
+                  leafGreen.withValues(alpha: 0.4),
+                  deepForest.withValues(alpha: 0.6),
                 ],
               ),
             ),
@@ -378,12 +395,14 @@ class _AuthPageState extends State<AuthPage> {
               label: "Full Name",
               icon: Icons.person_outline,
             ),
-            const SizedBox(height: 15),
-            _buildTextField(
-              controller: _phoneController,
-              label: "Mobile Number",
-              icon: Icons.phone_android,
-            ),
+            if (selectedRegRole == 'Manager') ...[
+              const SizedBox(height: 15),
+              _buildTextField(
+                controller: _phoneController,
+                label: "Mobile Number",
+                icon: Icons.phone_android,
+              ),
+            ],
           ],
           const SizedBox(height: 15),
           _buildTextField(

@@ -11,47 +11,62 @@ class ManagerApprovals extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAF9),
-      body: Column(
-        children: [
-          _buildPremiumHeader(),
-          Expanded(
-            child: StreamBuilder(
-              stream: globalStream,
-              builder: (context, snapshot) {
-                if (snapshot.hasData && snapshot.data!.snapshot.value != null) {
-                  Map allData = snapshot.data!.snapshot.value as Map;
-
-                  // SCREENSHOT FIX: Fetching from 'pending_managers' node
-                  Map? pendingManagers = allData['pending_managers'] as Map?;
-
-                  if (pendingManagers == null || pendingManagers.isEmpty) {
-                    return _buildEmptyState();
-                  }
-
-                  var pendingList = pendingManagers.entries.toList();
-
-                  return ListView.builder(
-                    padding: const EdgeInsets.all(20),
-                    itemCount: pendingList.length,
-                    itemBuilder: (context, index) {
-                      var uid = pendingList[index].key;
-                      var data = pendingList[index].value as Map;
-
-                      return FadeInUp(
-                        duration: const Duration(milliseconds: 400),
-                        delay: Duration(milliseconds: 100 * index),
-                        child: _buildApprovalCard(context, uid, data),
-                      );
-                    },
-                  );
-                }
-                return const Center(
-                  child: CircularProgressIndicator(color: Color(0xFF0A714E)),
-                );
-              },
+      body: Container(
+        decoration: BoxDecoration(
+          image: DecorationImage(
+            image: const NetworkImage(
+              'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?q=80&w=1000',
+            ),
+            fit: BoxFit.cover,
+            colorFilter: ColorFilter.mode(
+              Colors.white.withValues(alpha: 0.85),
+              BlendMode.lighten,
             ),
           ),
-        ],
+        ),
+        child: Column(
+          children: [
+            _buildPremiumHeader(),
+            Expanded(
+              child: StreamBuilder(
+                stream: globalStream,
+                builder: (context, snapshot) {
+                  if (snapshot.hasData &&
+                      snapshot.data!.snapshot.value != null) {
+                    Map allData = snapshot.data!.snapshot.value as Map;
+
+                    // SCREENSHOT FIX: Fetching from 'pending_managers' node
+                    Map? pendingManagers = allData['pending_managers'] as Map?;
+
+                    if (pendingManagers == null || pendingManagers.isEmpty) {
+                      return _buildEmptyState();
+                    }
+
+                    var pendingList = pendingManagers.entries.toList();
+
+                    return ListView.builder(
+                      padding: const EdgeInsets.all(20),
+                      itemCount: pendingList.length,
+                      itemBuilder: (context, index) {
+                        var uid = pendingList[index].key;
+                        var data = pendingList[index].value as Map;
+
+                        return FadeInUp(
+                          duration: const Duration(milliseconds: 400),
+                          delay: Duration(milliseconds: 100 * index),
+                          child: _buildApprovalCard(context, uid, data),
+                        );
+                      },
+                    );
+                  }
+                  return const Center(
+                    child: CircularProgressIndicator(color: Color(0xFF0A714E)),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -94,7 +109,10 @@ class ManagerApprovals extends StatelessWidget {
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 10),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 10,
+          ),
         ],
       ),
       child: Column(

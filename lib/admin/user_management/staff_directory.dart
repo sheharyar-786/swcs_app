@@ -37,38 +37,56 @@ class _StaffDirectoryState extends State<StaffDirectory>
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAF9),
       // BouncingScrollPhysics adds a premium feel to the whole column if needed
-      body: StreamBuilder(
-        stream: widget.globalStream,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator(color: Color(0xFF0A714E)));
-          }
-          if (snapshot.hasError) {
-            return Center(child: Text("Error: ${snapshot.error}"));
-          }
-          if (!snapshot.hasData || snapshot.data!.snapshot.value == null) {
-            return const Center(child: CircularProgressIndicator(color: Color(0xFF0A714E)));
-          }
-          
-          Map allData = snapshot.data!.snapshot.value as Map;
+      body: Container(
+        decoration: BoxDecoration(
+          image: DecorationImage(
+            image: const NetworkImage(
+              'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?q=80&w=1000',
+            ),
+            fit: BoxFit.cover,
+            colorFilter: ColorFilter.mode(
+              Colors.white.withValues(alpha: 0.85),
+              BlendMode.lighten,
+            ),
+          ),
+        ),
+        child: StreamBuilder(
+          stream: widget.globalStream,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(
+                child: CircularProgressIndicator(color: Color(0xFF0A714E)),
+              );
+            }
+            if (snapshot.hasError) {
+              return Center(child: Text("Error: ${snapshot.error}"));
+            }
+            if (!snapshot.hasData || snapshot.data!.snapshot.value == null) {
+              return const Center(
+                child: CircularProgressIndicator(color: Color(0xFF0A714E)),
+              );
+            }
 
-          return Column(
-            children: [
-              _buildPremiumHeader(),
-              _buildSearchBar(),
-              _buildTabBar(),
-              Expanded(
-                child: TabBarView(
-                  controller: _tabController,
-                  children: [
-                    _buildUserList('manager', allData), 
-                    _buildUserList('driver', allData)
-                  ],
+            Map allData = snapshot.data!.snapshot.value as Map;
+
+            return Column(
+              children: [
+                _buildPremiumHeader(),
+                _buildSearchBar(),
+                _buildTabBar(),
+                Expanded(
+                  child: TabBarView(
+                    controller: _tabController,
+                    children: [
+                      _buildUserList('manager', allData),
+                      _buildUserList('driver', allData),
+                    ],
+                  ),
                 ),
-              ),
-            ],
-          );
-        }
+              ],
+            );
+          },
+        ),
       ),
     );
   }
@@ -171,9 +189,7 @@ class _StaffDirectoryState extends State<StaffDirectory>
           String name = userMap['name']?.toString().toLowerCase() ?? "";
           bool isApproved = userMap['isApproved'] ?? false;
 
-          return userRole == role &&
-              name.contains(_searchQuery) &&
-              isApproved;
+          return userRole == role && name.contains(_searchQuery) && isApproved;
         }).toList();
       }
     }
@@ -191,64 +207,64 @@ class _StaffDirectoryState extends State<StaffDirectory>
         }
         var uid = staffList[index].key;
 
-              return FadeInLeft(
-                duration: const Duration(milliseconds: 400),
-                delay: Duration(milliseconds: 50 * index),
-                child: Container(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(18),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.03),
-                        blurRadius: 10,
-                      ),
-                    ],
-                  ),
-                  child: ListTile(
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 15,
-                      vertical: 8,
-                    ),
-                    leading: CircleAvatar(
-                      radius: 25,
-                      backgroundColor: const Color(0xFF0A714E).withValues(alpha: 0.1),
-                      child: Text(
-                        (user['name'] ?? "U")[0].toUpperCase(),
-                        style: const TextStyle(
-                          color: Color(0xFF0A714E),
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                    title: Text(
-                      user['name'] ?? "Unknown",
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    subtitle: Text(
-                      user['email'] ?? "No email",
-                      style: const TextStyle(fontSize: 12, color: Colors.grey),
-                    ),
-                    trailing: const Icon(
-                      Icons.arrow_forward_ios,
-                      size: 14,
-                      color: Colors.grey,
-                    ),
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) =>
-                              UserDetailsEdit(uid: uid, userData: user),
-                        ),
-                      );
-                    },
+        return FadeInLeft(
+          duration: const Duration(milliseconds: 400),
+          delay: Duration(milliseconds: 50 * index),
+          child: Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(18),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.03),
+                  blurRadius: 10,
+                ),
+              ],
+            ),
+            child: ListTile(
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 15,
+                vertical: 8,
+              ),
+              leading: CircleAvatar(
+                radius: 25,
+                backgroundColor: const Color(0xFF0A714E).withValues(alpha: 0.1),
+                child: Text(
+                  (user['name']?.toString().isNotEmpty == true ? user['name'][0] : "U").toUpperCase(),
+                  style: const TextStyle(
+                    color: Color(0xFF0A714E),
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
-              );
-            },
-          );
+              ),
+              title: Text(
+                user['name'] ?? "Unknown",
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+              subtitle: Text(
+                user['email'] ?? "No email",
+                style: const TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+              trailing: const Icon(
+                Icons.arrow_forward_ios,
+                size: 14,
+                color: Colors.grey,
+              ),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) =>
+                        UserDetailsEdit(uid: uid, userData: user),
+                  ),
+                );
+              },
+            ),
+          ),
+        );
+      },
+    );
   }
 
   Widget _buildEmptyState(String role) {

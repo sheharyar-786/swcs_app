@@ -1,9 +1,34 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
+import 'package:intl/intl.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:firebase_database/firebase_database.dart';
 
-class DriversStatusPage extends StatelessWidget {
+class DriversStatusPage extends StatefulWidget {
   final Map drivers;
   const DriversStatusPage({super.key, required this.drivers});
+
+  @override
+  State<DriversStatusPage> createState() => _DriversStatusPageState();
+}
+
+class _DriversStatusPageState extends State<DriversStatusPage> {
+  late Map _localDrivers;
+
+  @override
+  void initState() {
+    super.initState();
+    _localDrivers = {};
+    widget.drivers.forEach((key, value) {
+      if (value is Map) {
+        _localDrivers[key] = Map.from(value);
+      } else {
+        _localDrivers[key] = value;
+      }
+    });
+  }
 
   // Theme Colors
   static const Color leafGreen = Color(0xFF2E7D32);
@@ -14,8 +39,8 @@ class DriversStatusPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // Analytics Calculations
-    int totalDrivers = drivers.length;
-    int activeNow = drivers.values
+    int totalDrivers = _localDrivers.length;
+    int activeNow = _localDrivers.values
         .where((d) => d['attendance'] == "Present")
         .length;
     int onLeave = totalDrivers - activeNow;
@@ -51,8 +76,8 @@ class DriversStatusPage extends StatelessWidget {
                     // 4. Staggered List of Drivers
                     AnimationLimiter(
                       child: Column(
-                        children: drivers.entries.map((entry) {
-                          int index = drivers.keys.toList().indexOf(entry.key);
+                        children: _localDrivers.entries.map((entry) {
+                          int index = _localDrivers.keys.toList().indexOf(entry.key);
                           return AnimationConfiguration.staggeredList(
                             position: index,
                             duration: const Duration(milliseconds: 500),
@@ -70,27 +95,35 @@ class DriversStatusPage extends StatelessWidget {
                         }).toList(),
                       ),
                     ),
+                    const SizedBox(height: 30),
+                    Center(
+                      child: ElevatedButton.icon(
+                        onPressed: () => _showExportPreview(context),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: premiumNavy,
+                          padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                        ),
+                        icon: const Icon(Icons.table_view_rounded, color: Colors.white),
+                        label: const Text(
+                          "GENERATE XL REPORT",
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 50),
                   ]),
                 ),
               ),
             ],
           ),
         ],
-      ),
-
-      // 5. Floating Excel Export Action
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showExportPreview(context),
-        backgroundColor: premiumNavy,
-        icon: const Icon(Icons.table_view_rounded, color: Colors.white),
-        label: const Text(
-          "GENERATE XL REPORT",
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-            fontSize: 10,
-          ),
-        ),
       ),
     );
   }
@@ -167,6 +200,9 @@ class DriversStatusPage extends StatelessWidget {
   Widget _buildDriverCard(BuildContext context, String uid, dynamic data) {
     bool isPresent = data['attendance'] == "Present";
     bool onRoute = data['status'] == "On Route";
+    bool isOnLeave = data['attendance'] == "On Leave" || (data['leave_reason'] != null && data['leave_reason'].toString().isNotEmpty);
+    String leaveReason = data['leave_reason']?.toString() ?? "No reason provided";
+    String leaveStatus = data['leave_status']?.toString() ?? "Pending";
 
     return GestureDetector(
       onTap: () => _openDriverDetails(context, data),
@@ -185,9 +221,12 @@ class DriversStatusPage extends StatelessWidget {
             ),
           ],
         ),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Driver Profile Pic Placeholder with Status Glow
+            Row(
+              children: [
+                // Driver Profile Pic Placeholder with Status Glow
             Stack(
               children: [
                 CircleAvatar(
@@ -231,6 +270,39 @@ class DriversStatusPage extends StatelessWidget {
                     data['assignedDuty'] ?? "General Duty",
                     style: const TextStyle(color: Colors.grey, fontSize: 10),
                   ),
+                  const SizedBox(height: 5),
+                  Row(
+                    children: [
+                      const Icon(Icons.delete_sweep_rounded, size: 12, color: leafGreen),
+                      const SizedBox(width: 4),
+                      Text(
+                        "${data['total_collections'] ?? 0} Bins Collected",
+                        style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  Row(
+                    children: [
+                      Icon(
+                        data['attendance'] == "Present" ? Icons.check_circle_outline : Icons.event_busy_rounded,
+                        size: 12, 
+                        color: data['attendance'] == "Present" ? leafGreen : Colors.red,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        "${data['attendance'] ?? 'Absent'} - " +
+                        (data['attendance_time'] != null && int.tryParse(data['attendance_time'].toString()) != null && int.parse(data['attendance_time'].toString()) > 0
+                            ? DateFormat('hh:mm a, MMM d').format(DateTime.fromMillisecondsSinceEpoch(int.parse(data['attendance_time'].toString())))
+                            : "Time N/A"),
+                        style: TextStyle(
+                          fontSize: 9, 
+                          color: data['attendance'] == "Present" ? leafGreen : Colors.red,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
               ),
             ),
@@ -253,9 +325,82 @@ class DriversStatusPage extends StatelessWidget {
             ),
           ],
         ),
-      ),
-    );
-  }
+        if (isOnLeave) ...[
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 8),
+            child: Divider(),
+          ),
+          Row(
+            children: [
+              const Icon(Icons.description_rounded, size: 14, color: Colors.blueGrey),
+              const SizedBox(width: 5),
+              Expanded(
+                child: Text(
+                  "Leave Reason: $leaveReason",
+                  style: const TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: Colors.blueGrey),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          if (leaveStatus == "Pending")
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(
+                  onPressed: () => _updateLeaveStatus(uid, "Rejected"),
+                  child: const Text("REJECT", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 11)),
+                ),
+                const SizedBox(width: 10),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: leafGreen,
+                    minimumSize: const Size(80, 30),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  onPressed: () => _updateLeaveStatus(uid, "Approved"),
+                  child: const Text("APPROVE", style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
+                ),
+              ],
+            )
+          else
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: leaveStatus == "Approved" ? Colors.green.withValues(alpha: 0.1) : Colors.red.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    "Leave $leaveStatus",
+                    style: TextStyle(
+                      color: leaveStatus == "Approved" ? Colors.green : Colors.red,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 10,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+        ],
+      ],
+    ),
+  ),
+);
+}
+
+void _updateLeaveStatus(String uid, String status) {
+  FirebaseDatabase.instance.ref('verified_drivers/$uid').update({
+    'leave_status': status,
+  });
+  setState(() {
+    if (_localDrivers[uid] != null) {
+      _localDrivers[uid]['leave_status'] = status;
+    }
+  });
+}
 
   Widget _statusChip(String label, Color color) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -358,32 +503,60 @@ class DriversStatusPage extends StatelessWidget {
     ),
   );
 
-  void _showExportPreview(BuildContext context) {
-    // This aggregates all data for your XL request
+  void _showExportPreview(BuildContext context) async {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
-        title: const Text("Fleet Report Summary"),
-        content: Text(
-          "Generate a real-time CSV/Excel report for ${drivers.length} verified drivers including attendance and rewards?",
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("CANCEL"),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: premiumNavy),
-            onPressed: () => Navigator.pop(context),
-            child: const Text(
-              "DOWNLOAD .XLS",
-              style: TextStyle(color: Colors.white),
-            ),
-          ),
-        ],
-      ),
+      barrierDismissible: false,
+      builder: (c) => const Center(child: CircularProgressIndicator()),
     );
+
+    try {
+      String csv = "Driver Name,Email,Assigned Duty,Status,Time,Total Bins Collected,Points/Rating,Leave Reason,Leave Status\n";
+      _localDrivers.forEach((key, val) {
+        String name = val['name']?.toString() ?? 'N/A';
+        String email = val['email']?.toString() ?? 'N/A';
+        String duty = val['assignedDuty']?.toString() ?? 'General Duty';
+        String attendance = val['attendance']?.toString() ?? 'Absent';
+        
+        String timeStr = "N/A";
+        if (val['attendance_time'] != null) {
+          int ms = int.tryParse(val['attendance_time'].toString()) ?? 0;
+          if (ms > 0) {
+            timeStr = DateFormat('hh:mm a, MMM d').format(DateTime.fromMillisecondsSinceEpoch(ms));
+          }
+        }
+        
+        int cols = int.tryParse(val['total_collections']?.toString() ?? '0') ?? 0;
+        int pts = int.tryParse(val['points']?.toString() ?? '0') ?? 0;
+        
+        String leaveReason = val['leave_reason']?.toString() ?? '';
+        String leaveStatus = val['leave_status']?.toString() ?? '';
+        
+        // Escape commas for CSV
+        name = name.replaceAll(',', ' ');
+        email = email.replaceAll(',', ' ');
+        duty = duty.replaceAll(',', ' ');
+        timeStr = timeStr.replaceAll(',', ' ');
+        leaveReason = leaveReason.replaceAll(',', ' ');
+        
+        csv += "$name,$email,$duty,$attendance,$timeStr,$cols,$pts,$leaveReason,$leaveStatus\n";
+      });
+
+      final dir = await getTemporaryDirectory();
+      final file = File('${dir.path}/driver_report_${DateTime.now().millisecondsSinceEpoch}.csv');
+      await file.writeAsString(csv);
+      
+      if (!context.mounted) return;
+      Navigator.pop(context); // Close loading dialog
+      
+      // Use XFile from share_plus
+      await Share.shareXFiles([XFile(file.path)], text: 'Verified Drivers Collection & Attendance Report');
+    } catch (e) {
+      if (context.mounted) {
+        Navigator.pop(context); // Close loading dialog
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error generating report: $e")));
+      }
+    }
   }
 
   Widget _sectionLabel(String t) => Text(

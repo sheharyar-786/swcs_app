@@ -14,13 +14,23 @@ class ReportCenter extends StatelessWidget {
       stream: globalStream,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(body: Center(child: CircularProgressIndicator(color: Color(0xFF0A714E))));
+          return const Scaffold(
+            body: Center(
+              child: CircularProgressIndicator(color: Color(0xFF0A714E)),
+            ),
+          );
         }
         if (snapshot.hasError) {
-          return Scaffold(body: Center(child: Text("Error: ${snapshot.error}")));
+          return Scaffold(
+            body: Center(child: Text("Error: ${snapshot.error}")),
+          );
         }
         if (!snapshot.hasData || snapshot.data!.snapshot.value == null) {
-          return const Scaffold(body: Center(child: CircularProgressIndicator(color: Color(0xFF0A714E))));
+          return const Scaffold(
+            body: Center(
+              child: CircularProgressIndicator(color: Color(0xFF0A714E)),
+            ),
+          );
         }
 
         Map allData = snapshot.data!.snapshot.value as Map;
@@ -29,23 +39,37 @@ class ReportCenter extends StatelessWidget {
           length: 2,
           child: Scaffold(
             backgroundColor: const Color(0xFFF8FAF9),
-            body: Column(
-              children: [
-                _buildPremiumHeader(),
-                _buildTabBar(),
-                Expanded(
-                  child: TabBarView(
-                    children: [
-                      _buildReportList('Pending', allData), 
-                      _buildReportList('Resolved', allData), 
-                    ],
+            body: Container(
+              decoration: BoxDecoration(
+                image: DecorationImage(
+                  image: const NetworkImage(
+                    'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?q=80&w=1000',
+                  ),
+                  fit: BoxFit.cover,
+                  colorFilter: ColorFilter.mode(
+                    Colors.white.withValues(alpha: 0.85),
+                    BlendMode.lighten,
                   ),
                 ),
-              ],
+              ),
+              child: Column(
+                children: [
+                  _buildPremiumHeader(),
+                  _buildTabBar(),
+                  Expanded(
+                    child: TabBarView(
+                      children: [
+                        _buildReportList('Pending', allData),
+                        _buildReportList('Resolved', allData),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         );
-      }
+      },
     );
   }
 
@@ -134,8 +158,10 @@ class ReportCenter extends StatelessWidget {
 
     // Sorting latest first
     filteredList.sort((a, b) {
-      int timeA = (a.value as Map)['timestamp'] ?? int.tryParse(a.key.toString()) ?? 0;
-      int timeB = (b.value as Map)['timestamp'] ?? int.tryParse(b.key.toString()) ?? 0;
+      int timeA =
+          (a.value as Map)['timestamp'] ?? int.tryParse(a.key.toString()) ?? 0;
+      int timeB =
+          (b.value as Map)['timestamp'] ?? int.tryParse(b.key.toString()) ?? 0;
       return timeB.compareTo(timeA);
     });
 
@@ -148,101 +174,100 @@ class ReportCenter extends StatelessWidget {
         var report = filteredList[index].value as Map;
 
         // Formatting Timestamp
-        int ts = report['timestamp'] ?? int.tryParse(filteredList[index].key.toString()) ?? 0;
-        DateTime date = DateTime.fromMillisecondsSinceEpoch(ts > 0 ? ts : DateTime.now().millisecondsSinceEpoch);
+        int ts =
+            report['timestamp'] ??
+            int.tryParse(filteredList[index].key.toString()) ??
+            0;
+        DateTime date = DateTime.fromMillisecondsSinceEpoch(
+          ts > 0 ? ts : DateTime.now().millisecondsSinceEpoch,
+        );
         String formattedDate = DateFormat('dd MMM, hh:mm a').format(date);
 
         String uiStatus = filterTab == 'Resolved' ? 'Resolved' : 'Pending';
 
-              return FadeInUp(
-                duration: const Duration(milliseconds: 400),
-                delay: Duration(milliseconds: 50 * index),
-                child: Container(
-                  margin: const EdgeInsets.only(bottom: 15),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(18),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.02),
-                        blurRadius: 10,
+        return FadeInUp(
+          duration: const Duration(milliseconds: 400),
+          delay: Duration(milliseconds: 50 * index),
+          child: Container(
+            margin: const EdgeInsets.only(bottom: 15),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(18),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.02),
+                  blurRadius: 10,
+                ),
+              ],
+            ),
+            child: ListTile(
+              contentPadding: const EdgeInsets.all(18),
+              title: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  // SCREENSHOT FIX: Field 'type' used as title
+                  Text(
+                    report['type'] ?? "General",
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF1A1A1A),
+                    ),
+                  ),
+                  Text(
+                    formattedDate,
+                    style: const TextStyle(fontSize: 10, color: Colors.grey),
+                  ),
+                ],
+              ),
+              subtitle: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 8),
+                  // SCREENSHOT FIX: Field 'comment' used as description
+                  Text(
+                    report['comment'] ?? "No details provided.",
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: Colors.grey[700], fontSize: 13),
+                  ),
+                  const SizedBox(height: 15),
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.location_on,
+                        size: 14,
+                        color: Color(0xFF0A714E),
                       ),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          report['area'] ?? "Unknown Area",
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      _buildStatusChip(uiStatus),
                     ],
                   ),
-                  child: ListTile(
-                    contentPadding: const EdgeInsets.all(18),
-                    title: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        // SCREENSHOT FIX: Field 'type' used as title
-                        Text(
-                          report['type'] ?? "General",
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF1A1A1A),
-                          ),
-                        ),
-                        Text(
-                          formattedDate,
-                          style: const TextStyle(
-                            fontSize: 10,
-                            color: Colors.grey,
-                          ),
-                        ),
-                      ],
-                    ),
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const SizedBox(height: 8),
-                        // SCREENSHOT FIX: Field 'comment' used as description
-                        Text(
-                          report['comment'] ?? "No details provided.",
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: Colors.grey[700],
-                            fontSize: 13,
-                          ),
-                        ),
-                        const SizedBox(height: 15),
-                        Row(
-                          children: [
-                            const Icon(
-                              Icons.location_on,
-                              size: 14,
-                              color: Color(0xFF0A714E),
-                            ),
-                            const SizedBox(width: 4),
-                            Expanded(
-                              child: Text(
-                                report['area'] ?? "Unknown Area",
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            _buildStatusChip(uiStatus),
-                          ],
-                        ),
-                        const SizedBox(height: 5),
-                        Text(
-                          "Reported by: ${report['user'] ?? report['phone'] ?? 'N/A'}",
-                          style: const TextStyle(
-                            fontSize: 10,
-                            color: Colors.blueGrey,
-                            fontStyle: FontStyle.italic,
-                          ),
-                        ),
-                      ],
+                  const SizedBox(height: 5),
+                  Text(
+                    "Reported by: ${report['user'] ?? report['phone'] ?? 'N/A'}",
+                    style: const TextStyle(
+                      fontSize: 10,
+                      color: Colors.blueGrey,
+                      fontStyle: FontStyle.italic,
                     ),
                   ),
-                ),
-              );
-            },
-          );
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
   }
 
   Widget _buildEmptyState(String status) {

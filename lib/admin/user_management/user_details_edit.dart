@@ -78,7 +78,9 @@ class _UserDetailsEditState extends State<UserDetailsEdit> {
               radius: 50,
               backgroundColor: Colors.white24,
               child: Text(
-                widget.userData['name'][0].toUpperCase(),
+                (widget.userData['name']?.toString().isNotEmpty == true 
+                    ? widget.userData['name'][0] 
+                    : "U").toUpperCase(),
                 style: const TextStyle(
                   fontSize: 40,
                   color: Colors.white,
@@ -98,7 +100,7 @@ class _UserDetailsEditState extends State<UserDetailsEdit> {
             ),
           ),
           Text(
-            widget.userData['email'],
+            widget.userData['email']?.toString() ?? "No Email",
             style: const TextStyle(color: Colors.white, fontSize: 16),
           ),
         ],

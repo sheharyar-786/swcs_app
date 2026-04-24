@@ -3,6 +3,7 @@ import 'dart:math' show cos, sqrt, asin;
 import 'package:flutter/material.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 // Your existing imports
 import 'analytics_screen.dart';
@@ -125,7 +126,12 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
           }
           Map driversData = snapshot.data!.snapshot.value as Map? ?? {};
           var activeDrivers = driversData.entries
-              .where((d) => d.value['attendance'] == 'Present')
+              .where((d) {
+                var val = d.value;
+                bool isPresent = val['attendance'] == 'Present';
+                bool isActive = val['status'] == 'active';
+                return isPresent && isActive;
+              })
               .map((d) {
                 double dLat =
                     double.tryParse(d.value['lat']?.toString() ?? "0.0") ?? 0.0;
@@ -135,6 +141,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
                   'uid': d.key,
                   'name': d.value['name'] ?? "Driver",
                   'distance': _calculateDistance(binLat, binLng, dLat, dLng),
+                  'hasLocation': dLat != 0.0 && dLng != 0.0,
                 };
               })
               .toList();
@@ -188,7 +195,9 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
                                   ),
                                 ),
                                 subtitle: Text(
-                                  "${driver['distance'].toStringAsFixed(2)} km away",
+                                  driver['hasLocation'] == true
+                                      ? "${(driver['distance'] as double).toStringAsFixed(2)} km away"
+                                      : "Location unavailable",
                                 ),
                                 trailing: const Icon(
                                   Icons.send_rounded,
@@ -259,21 +268,6 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
           floatingActionButton: Column(
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
-              if (unassignedCritical.isNotEmpty)
-                FloatingActionButton(
-                  heroTag: "alertBtn",
-                  onPressed: () =>
-                      _showMissionBriefing(context, unassignedCritical.length),
-                  backgroundColor: alertRed,
-                  child: Text(
-                    unassignedCritical.length.toString(),
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              const SizedBox(height: 15),
               FloatingActionButton.extended(
                 heroTag: "addBinBtn",
                 onPressed: () => Navigator.push(
@@ -295,7 +289,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
               ),
             ],
           ),
-          drawer: _buildDrawer(),
+          drawer: _buildDrawer(activityMsg),
           body: CustomScrollView(
             controller: _scrollController,
             physics: const BouncingScrollPhysics(),
@@ -306,9 +300,9 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
                   children: [
                     Positioned.fill(
                       child: Opacity(
-                        opacity: 0.08,
+                        opacity: 0.15,
                         child: Image.network(
-                          'https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?q=80&w=1000',
+                          'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?q=80&w=1000',
                           fit: BoxFit.cover,
                         ),
                       ),
@@ -367,7 +361,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildDrawer() => Drawer(
+  Widget _buildDrawer(String msg) => Drawer(
     child: Column(
       children: [
         const DrawerHeader(
@@ -396,6 +390,30 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
             ),
           ),
         ),
+        Container(
+          margin: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.blue.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.blue.withValues(alpha: 0.3)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Row(
+                children: [
+                  Icon(Icons.notifications_active_rounded, color: Colors.blue, size: 16),
+                  SizedBox(width: 8),
+                  Text("LATEST ALERTS & UPDATES", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blue)),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(msg, style: const TextStyle(fontSize: 12, color: deepForest, fontWeight: FontWeight.bold)),
+            ],
+          ),
+        ),
+        const Divider(),
         ListTile(
           leading: const Icon(Icons.settings_remote, color: leafGreen),
           title: const Text("IoT Simulation"),
@@ -412,7 +430,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
         ListTile(
           leading: const Icon(Icons.logout, color: alertRed),
           title: const Text("Logout"),
-          onTap: () => _handleLogout(context),
+          onTap: _handleLogout,
         ),
         const SizedBox(height: 20),
       ],
@@ -445,7 +463,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
       actions: [
         IconButton(
           icon: const Icon(Icons.logout_rounded, size: 22, color: Colors.white),
-          onPressed: () => _handleLogout(context),
+          onPressed: _handleLogout,
         ),
       ],
       flexibleSpace: FlexibleSpaceBar(
@@ -462,47 +480,14 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: [
-                    Colors.black.withValues(alpha: 0.4),
+                    Colors.black.withValues(alpha: 0.2),
                     Colors.transparent,
-                    leafGreen.withValues(alpha: 0.9),
+                    leafGreen.withValues(alpha: 0.6),
                   ],
                 ),
               ),
             ),
-            Positioned(
-              bottom: 15,
-              left: 20,
-              right: 20,
-              child: Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.95),
-                  borderRadius: BorderRadius.circular(15),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.radar_rounded,
-                      color: Colors.blue,
-                      size: 18,
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        msg,
-                        style: const TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                          color: deepForest,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
+
           ],
         ),
       ),
@@ -770,11 +755,15 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     ),
   );
 
-  void _handleLogout(context) => Navigator.pushAndRemoveUntil(
-    context,
-    MaterialPageRoute(builder: (c) => const AuthPage()),
-    (r) => false,
-  );
+  void _handleLogout() async {
+    await FirebaseAuth.instance.signOut();
+    if (!context.mounted) return;
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (c) => const AuthPage()),
+      (r) => false,
+    );
+  }
 
   void _msg(String m, Color c) => ScaffoldMessenger.of(context).showSnackBar(
     SnackBar(

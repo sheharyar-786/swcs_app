@@ -306,7 +306,7 @@ class _DriverDashboardState extends State<DriverDashboard> {
         fit: StackFit.expand,
         children: [
           Image.network(
-            'https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?q=80&w=1000',
+            'https://images.unsplash.com/photo-1449965408869-eaa3f722e40d?q=80&w=1000',
             fit: BoxFit.cover,
           ),
           Container(
@@ -315,9 +315,9 @@ class _DriverDashboardState extends State<DriverDashboard> {
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: [
-                  Colors.black.withValues(alpha: 0.4),
+                  Colors.black.withValues(alpha: 0.2),
                   Colors.transparent,
-                  deepForest.withValues(alpha: 0.9),
+                  deepForest.withValues(alpha: 0.6),
                 ],
               ),
             ),
@@ -650,10 +650,14 @@ class _DriverDashboardState extends State<DriverDashboard> {
     );
   }
 
-  void _logout() => Navigator.pushReplacement(
-    context,
-    MaterialPageRoute(builder: (c) => const AuthPage()),
-  );
+  void _logout() async {
+    await FirebaseAuth.instance.signOut();
+    if (!context.mounted) return;
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (c) => const AuthPage()),
+    );
+  }
   void _msg(String m) => ScaffoldMessenger.of(context).showSnackBar(
     SnackBar(content: Text(m), behavior: SnackBarBehavior.floating),
   );

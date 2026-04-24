@@ -28,74 +28,90 @@ class _NearbyBinsPageState extends State<NearbyBinsPage> {
         elevation: 0,
         foregroundColor: Colors.white,
       ),
-      body: Column(
-        children: [
-          // --- PREMIUM SEARCH BAR ---
-          _buildSearchHeader(),
-
-          Expanded(
-            child: StreamBuilder(
-              // Direct Firebase Stream taake Sensors ka data Live nazar aaye
-              stream: FirebaseDatabase.instance.ref('bins').onValue,
-              builder: (context, AsyncSnapshot<DatabaseEvent> snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return Center(
-                    child: CircularProgressIndicator(color: leafGreen),
-                  );
-                }
-
-                if (!snapshot.hasData ||
-                    snapshot.data!.snapshot.value == null) {
-                  return _buildNoDataState("No bins connected to the system.");
-                }
-
-                Map bins = snapshot.data!.snapshot.value as Map;
-
-                // Filtering Logic based on Area Name
-                var filteredList = bins.entries.where((e) {
-                  String area = (e.value['area'] ?? "")
-                      .toString()
-                      .toLowerCase();
-                  return area.contains(binSearchQuery.toLowerCase());
-                }).toList();
-
-                if (filteredList.isEmpty) {
-                  return _buildNoDataState(
-                    "No bins found in '$binSearchQuery'",
-                  );
-                }
-
-                return AnimationLimiter(
-                  child: ListView.builder(
-                    padding: const EdgeInsets.all(20),
-                    itemCount: filteredList.length,
-                    itemBuilder: (context, index) {
-                      var bin = filteredList[index];
-                      return AnimationConfiguration.staggeredList(
-                        position: index,
-                        duration: const Duration(milliseconds: 500),
-                        child: SlideAnimation(
-                          verticalOffset: 50.0,
-                          child: FadeInAnimation(
-                            child: _buildSensorCard(
-                              binId: bin.key,
-                              area: bin.value['area'] ?? "Unknown",
-                              fill:
-                                  int.tryParse(
-                                    bin.value['fill_level'].toString(),
-                                  ) ??
-                                  0,
-                            ),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                );
-              },
+      body: Container(
+        decoration: BoxDecoration(
+          image: DecorationImage(
+            image: const NetworkImage(
+              'https://images.unsplash.com/photo-1518005020951-eccb494ad742?q=80&w=1000',
+            ),
+            fit: BoxFit.cover,
+            colorFilter: ColorFilter.mode(
+              Colors.white.withValues(alpha: 0.85),
+              BlendMode.lighten,
             ),
           ),
-        ],
+        ),
+        child: Column(
+          children: [
+            // --- PREMIUM SEARCH BAR ---
+            _buildSearchHeader(),
+
+            Expanded(
+              child: StreamBuilder(
+                // Direct Firebase Stream taake Sensors ka data Live nazar aaye
+                stream: FirebaseDatabase.instance.ref('bins').onValue,
+                builder: (context, AsyncSnapshot<DatabaseEvent> snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return Center(
+                      child: CircularProgressIndicator(color: leafGreen),
+                    );
+                  }
+
+                  if (!snapshot.hasData ||
+                      snapshot.data!.snapshot.value == null) {
+                    return _buildNoDataState(
+                      "No bins connected to the system.",
+                    );
+                  }
+
+                  Map bins = snapshot.data!.snapshot.value as Map;
+
+                  // Filtering Logic based on Area Name
+                  var filteredList = bins.entries.where((e) {
+                    String area = (e.value['area'] ?? "")
+                        .toString()
+                        .toLowerCase();
+                    return area.contains(binSearchQuery.toLowerCase());
+                  }).toList();
+
+                  if (filteredList.isEmpty) {
+                    return _buildNoDataState(
+                      "No bins found in '$binSearchQuery'",
+                    );
+                  }
+
+                  return AnimationLimiter(
+                    child: ListView.builder(
+                      padding: const EdgeInsets.all(20),
+                      itemCount: filteredList.length,
+                      itemBuilder: (context, index) {
+                        var bin = filteredList[index];
+                        return AnimationConfiguration.staggeredList(
+                          position: index,
+                          duration: const Duration(milliseconds: 500),
+                          child: SlideAnimation(
+                            verticalOffset: 50.0,
+                            child: FadeInAnimation(
+                              child: _buildSensorCard(
+                                binId: bin.key,
+                                area: bin.value['area'] ?? "Unknown",
+                                fill:
+                                    int.tryParse(
+                                      bin.value['fill_level'].toString(),
+                                    ) ??
+                                    0,
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

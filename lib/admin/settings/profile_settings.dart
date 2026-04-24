@@ -142,52 +142,66 @@ class _ProfileSettingsState extends State<ProfileSettings> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAF9),
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
-            _buildPremiumHeader(),
-            Padding(
-              padding: const EdgeInsets.all(25),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildSectionTitle("Account Security"),
-                  _buildSettingTile(
-                    "Change Password",
-                    Icons.lock_outline,
-                    () => _showUpdateDialog(
-                      "Update Password",
-                      "New Password",
-                      true,
-                    ),
-                  ),
-                  _buildSettingTile(
-                    "Update Email",
-                    Icons.alternate_email_rounded,
-                    () => _showUpdateDialog(
-                      "Update Email",
-                      "New Email Address",
-                      false,
-                    ),
-                  ),
-                  const SizedBox(height: 30),
-                  _buildSectionTitle("System Configuration"),
-                  _buildSettingTile(
-                    "Alert Thresholds",
-                    Icons.notifications_active_outlined,
-                    _showThresholdDialog, // Finalized
-                  ),
-                  _buildSettingTile(
-                    "App Information",
-                    Icons.info_outline_rounded,
-                    _showAboutApp, // Finalized
-                  ),
-                  const SizedBox(height: 50),
-                  _buildLogoutButton(),
-                ],
-              ),
+      body: Container(
+        decoration: BoxDecoration(
+          image: DecorationImage(
+            image: const NetworkImage(
+              'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?q=80&w=1000',
             ),
-          ],
+            fit: BoxFit.cover,
+            colorFilter: ColorFilter.mode(
+              Colors.white.withValues(alpha: 0.85),
+              BlendMode.lighten,
+            ),
+          ),
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            children: [
+              _buildPremiumHeader(),
+              Padding(
+                padding: const EdgeInsets.all(25),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildSectionTitle("Account Security"),
+                    _buildSettingTile(
+                      "Change Password",
+                      Icons.lock_outline,
+                      () => _showUpdateDialog(
+                        "Update Password",
+                        "New Password",
+                        true,
+                      ),
+                    ),
+                    _buildSettingTile(
+                      "Update Email",
+                      Icons.alternate_email_rounded,
+                      () => _showUpdateDialog(
+                        "Update Email",
+                        "New Email Address",
+                        false,
+                      ),
+                    ),
+                    const SizedBox(height: 30),
+                    _buildSectionTitle("System Configuration"),
+                    _buildSettingTile(
+                      "Alert Thresholds",
+                      Icons.notifications_active_outlined,
+                      _showThresholdDialog, // Finalized
+                    ),
+                    _buildSettingTile(
+                      "App Information",
+                      Icons.info_outline_rounded,
+                      _showAboutApp, // Finalized
+                    ),
+                    const SizedBox(height: 50),
+                    _buildLogoutButton(),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -216,7 +230,11 @@ class _ProfileSettingsState extends State<ProfileSettings> {
                     backgroundColor: Colors.white24,
                     backgroundImage: _image != null ? FileImage(_image!) : null,
                     child: _image == null
-                        ? const Icon(Icons.person, size: 60, color: Colors.white)
+                        ? const Icon(
+                            Icons.person,
+                            size: 60,
+                            color: Colors.white,
+                          )
                         : null,
                   ),
                 ),

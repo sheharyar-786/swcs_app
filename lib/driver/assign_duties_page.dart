@@ -76,20 +76,34 @@ class _AssignDutiesPageState extends State<AssignDutiesPage>
           ],
         ),
       ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [
-          _CollectionTab(
-            stream: _scheduleStream,
-            userEmail: userEmail,
-            onAction: _showStartDialog,
+      body: Container(
+        decoration: BoxDecoration(
+          image: DecorationImage(
+            image: const NetworkImage(
+              'https://images.unsplash.com/photo-1449965408869-eaa3f722e40d?q=80&w=1000',
+            ),
+            fit: BoxFit.cover,
+            colorFilter: ColorFilter.mode(
+              Colors.white.withValues(alpha: 0.85),
+              BlendMode.lighten,
+            ),
           ),
-          _EmergencyTab(
-            stream: _binStream,
-            userId: userId,
-            onAction: _showStartDialog,
-          ),
-        ],
+        ),
+        child: TabBarView(
+          controller: _tabController,
+          children: [
+            _CollectionTab(
+              stream: _scheduleStream,
+              userEmail: userEmail,
+              onAction: _showStartDialog,
+            ),
+            _EmergencyTab(
+              stream: _binStream,
+              userId: userId,
+              onAction: _showStartDialog,
+            ),
+          ],
+        ),
       ),
     );
   }

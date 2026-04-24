@@ -26,70 +26,84 @@ class LeaderboardPage extends StatelessWidget {
           onPressed: () => Navigator.pop(context),
         ),
       ),
-      body: StreamBuilder(
-        stream: FirebaseDatabase.instance.ref('verified_drivers').onValue,
-        builder: (context, AsyncSnapshot<DatabaseEvent> snapshot) {
-          if (!snapshot.hasData || snapshot.data!.snapshot.value == null) {
-            return const Center(
-              child: CircularProgressIndicator(color: Colors.green),
+      body: Container(
+        decoration: BoxDecoration(
+          image: DecorationImage(
+            image: const NetworkImage(
+              'https://images.unsplash.com/photo-1554774853-719586f82d77?q=80&w=1000',
+            ),
+            fit: BoxFit.cover,
+            colorFilter: ColorFilter.mode(
+              Colors.white.withValues(alpha: 0.85),
+              BlendMode.lighten,
+            ),
+          ),
+        ),
+        child: StreamBuilder(
+          stream: FirebaseDatabase.instance.ref('verified_drivers').onValue,
+          builder: (context, AsyncSnapshot<DatabaseEvent> snapshot) {
+            if (!snapshot.hasData || snapshot.data!.snapshot.value == null) {
+              return const Center(
+                child: CircularProgressIndicator(color: Colors.green),
+              );
+            }
+
+            Map data = snapshot.data!.snapshot.value as Map;
+            List<MapEntry> drivers = data.entries.toList();
+
+            // Sorting drivers by points (descending)
+            drivers.sort(
+              (a, b) =>
+                  (b.value['points'] ?? 0).compareTo(a.value['points'] ?? 0),
             );
-          }
 
-          Map data = snapshot.data!.snapshot.value as Map;
-          List<MapEntry> drivers = data.entries.toList();
+            if (drivers.isEmpty) return _emptyState();
 
-          // Sorting drivers by points (descending)
-          drivers.sort(
-            (a, b) =>
-                (b.value['points'] ?? 0).compareTo(a.value['points'] ?? 0),
-          );
+            return SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              child: Column(
+                children: [
+                  _buildTopPodium(drivers),
+                  const SizedBox(height: 10),
+                  AnimationLimiter(
+                    child: ListView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 15,
+                        vertical: 10,
+                      ),
+                      itemCount: drivers.length > 3 ? drivers.length - 3 : 0,
+                      itemBuilder: (context, index) {
+                        int actualIndex = index + 3;
+                        var driver = drivers[actualIndex].value;
+                        int rank = actualIndex + 1;
+                        String displayName = _getDisplayName(driver);
 
-          if (drivers.isEmpty) return _emptyState();
-
-          return SingleChildScrollView(
-            physics: const BouncingScrollPhysics(),
-            child: Column(
-              children: [
-                _buildTopPodium(drivers),
-                const SizedBox(height: 10),
-                AnimationLimiter(
-                  child: ListView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 15,
-                      vertical: 10,
-                    ),
-                    itemCount: drivers.length > 3 ? drivers.length - 3 : 0,
-                    itemBuilder: (context, index) {
-                      int actualIndex = index + 3;
-                      var driver = drivers[actualIndex].value;
-                      int rank = actualIndex + 1;
-                      String displayName = _getDisplayName(driver);
-
-                      return AnimationConfiguration.staggeredList(
-                        position: index,
-                        duration: const Duration(milliseconds: 500),
-                        child: SlideAnimation(
-                          verticalOffset: 50.0,
-                          child: FadeInAnimation(
-                            child: _buildRankCard(
-                              displayName,
-                              rank,
-                              driver['points'] ?? 0,
-                              driver['vehicleId'] ?? "N/A",
+                        return AnimationConfiguration.staggeredList(
+                          position: index,
+                          duration: const Duration(milliseconds: 500),
+                          child: SlideAnimation(
+                            verticalOffset: 50.0,
+                            child: FadeInAnimation(
+                              child: _buildRankCard(
+                                displayName,
+                                rank,
+                                driver['points'] ?? 0,
+                                driver['vehicleId'] ?? "N/A",
+                              ),
                             ),
                           ),
-                        ),
-                      );
-                    },
+                        );
+                      },
+                    ),
                   ),
-                ),
-                const SizedBox(height: 20),
-              ],
-            ),
-          );
-        },
+                  const SizedBox(height: 20),
+                ],
+              ),
+            );
+          },
+        ),
       ),
     );
   }
@@ -138,7 +152,7 @@ class LeaderboardPage extends StatelessWidget {
 
           // 3rd Place
           if (third != null)
-             _podiumItem(
+            _podiumItem(
               _getDisplayName(third),
               "3",
               Colors.orangeAccent.shade100,

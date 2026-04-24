@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../auth/login_screen.dart';
 import 'nearby_bins_page.dart';
-
 class CivillianPage extends StatefulWidget {
   const CivillianPage({super.key});
 
@@ -177,7 +177,7 @@ class _CivillianPageState extends State<CivillianPage> {
         fit: StackFit.expand,
         children: [
           Image.network(
-            'https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?q=80&w=1000',
+            'https://images.unsplash.com/photo-1518005020951-eccb494ad742?q=80&w=1000',
             fit: BoxFit.cover,
           ),
           Container(
@@ -186,9 +186,9 @@ class _CivillianPageState extends State<CivillianPage> {
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: [
-                  Colors.black.withValues(alpha: 0.4),
+                  Colors.black.withValues(alpha: 0.2),
                   Colors.transparent,
-                  leafGreen.withValues(alpha: 0.9),
+                  leafGreen.withValues(alpha: 0.6),
                 ],
               ),
             ),
@@ -320,37 +320,92 @@ class _CivillianPageState extends State<CivillianPage> {
     );
   }
 
-  Widget _buildEmergencyCard() => Container(
-    padding: const EdgeInsets.all(25),
-    decoration: BoxDecoration(
-      gradient: const LinearGradient(colors: [deepForest, leafGreen]),
-      borderRadius: BorderRadius.circular(25),
-    ),
-    child: const Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              "Emergency Pickup",
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: 18,
+  Widget _buildEmergencyCard() => Column(
+    children: [
+      InkWell(
+        onTap: () async {
+          final u = Uri(scheme: 'tel', path: '1122');
+          if (await canLaunchUrl(u)) await launchUrl(u);
+        },
+        child: Container(
+          padding: const EdgeInsets.all(25),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(colors: [deepForest, leafGreen]),
+            borderRadius: BorderRadius.circular(25),
+          ),
+          child: const Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "Emergency Pickup",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                    ),
+                  ),
+                  Text("Call: 1122", style: TextStyle(color: Colors.white70)),
+                ],
               ),
-            ),
-            Text("Call: 1122", style: TextStyle(color: Colors.white70)),
-          ],
+              CircleAvatar(
+                backgroundColor: Colors.white24,
+                child: Icon(Icons.phone_enabled, color: Colors.white),
+              ),
+            ],
+          ),
         ),
-        CircleAvatar(
-          backgroundColor: Colors.white24,
-          child: Icon(Icons.phone_enabled, color: Colors.white),
+      ),
+      const SizedBox(height: 15),
+      InkWell(
+        onTap: () async {
+          final messenger = ScaffoldMessenger.of(context);
+          final Uri emailUri = Uri(
+            scheme: 'mailto',
+            path: 'adminswcs@gmail.com',
+            query: 'subject=Complaint%20Regarding%20Driver/Manager&body=Dear%20Admin,%0A%0AI%20would%20like%20to%20report%20an%20issue.%0A%0AMy%20Details:%0AName:%0APhone:%0A%0AIssue:%0A',
+          );
+          if (await canLaunchUrl(emailUri)) {
+            await launchUrl(emailUri);
+          } else {
+             messenger.showSnackBar(const SnackBar(content: Text("Could not open Mail app")));
+          }
+        },
+        child: Container(
+          padding: const EdgeInsets.all(25),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(colors: [Color(0xFFD32F2F), Color(0xFFEF5350)]),
+            borderRadius: BorderRadius.circular(25),
+          ),
+          child: const Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "Report Staff Issue",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                    ),
+                  ),
+                  Text("Direct Email to Admin", style: TextStyle(color: Colors.white70)),
+                ],
+              ),
+              CircleAvatar(
+                backgroundColor: Colors.white24,
+                child: Icon(Icons.email_rounded, color: Colors.white),
+              ),
+            ],
+          ),
         ),
-      ],
-    ),
+      ),
+    ],
   );
-
   void _showReportingDialog(String type) {
     showModalBottomSheet(
       context: context,
@@ -456,10 +511,14 @@ class _CivillianPageState extends State<CivillianPage> {
       behavior: SnackBarBehavior.floating,
     ),
   );
-  void _logout(context) => Navigator.pushReplacement(
-    context,
-    MaterialPageRoute(builder: (c) => const AuthPage()),
-  );
+  void _logout(context) async {
+    await FirebaseAuth.instance.signOut();
+    if (!context.mounted) return;
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (c) => const AuthPage()),
+    );
+  }
 }
 
 // --- EXPLORER PAGE (STABLE RATING VERSION) ---
@@ -534,17 +593,20 @@ class _ScheduleExplorerState extends State<ScheduleExplorer> {
                     borderRadius: BorderRadius.circular(20),
                     side: const BorderSide(color: Color(0xFFE8F5E9), width: 2),
                   ),
-                  child: ExpansionTile(
-                    leading: const CircleAvatar(
-                      backgroundColor: Color(0xFFE8F5E9),
-                      child: Text("🏙️"),
+                  child: Theme(
+                    data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                    child: ExpansionTile(
+                      leading: const CircleAvatar(
+                        backgroundColor: Color(0xFFE8F5E9),
+                        child: Text("🏙️"),
+                      ),
+                      title: Text(
+                        s['area'],
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      subtitle: Text("⏰ ${s['day']} at ${s['time']}"),
+                      children: [_buildRatingSection(s, drivers, index)],
                     ),
-                    title: Text(
-                      s['area'],
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    subtitle: Text("⏰ ${s['day']} at ${s['time']}"),
-                    children: [_buildRatingSection(s, drivers, index)],
                   ),
                 );
               },
