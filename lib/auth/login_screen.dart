@@ -5,9 +5,10 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:image_picker/image_picker.dart';
-import '../admin/admin_dashboard.dart';
+import '../manager/manager_dashboard.dart';
 import '../driver/driver_dashboard.dart';
 import '../civillian/civillian_dashboard.dart';
+import '../admin/dashboard/admin_main_shell.dart'; // Admin Dashboard Import
 
 class AuthPage extends StatefulWidget {
   const AuthPage({super.key});
@@ -30,11 +31,15 @@ class _AuthPageState extends State<AuthPage> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+  final TextEditingController _phoneController =
+      TextEditingController(); // New: Phone Field
+  final TextEditingController _cnicNumberController = TextEditingController();
 
   String selectedRegRole = 'Civilian';
-  final List<String> registrationRoles = ['Civilian', 'Driver'];
+  // Updated Roles: Manager added
+  final List<String> registrationRoles = ['Civilian', 'Driver', 'Manager'];
 
-  static const Color leafGreen = Color(0xFF4CAF50);
+  static const Color leafGreen = Color(0xFF0A714E);
   static const Color deepForest = Color(0xFF1B5E20);
   static const Color softMint = Color(0xFFF1F8E9);
 
@@ -63,33 +68,67 @@ class _AuthPageState extends State<AuthPage> {
     }
   }
 
-  Future<void> _autoRouteUser(String uid) async {
+  Future<void> _autoRouteUser(String uid, String email) async {
     final db = FirebaseDatabase.instance.ref();
-    final adminSnap = await db.child('admins/$uid').get();
-    if (adminSnap.exists) {
-      _navigate(const AdminPage());
+
+    // 1. Admin Bypass
+    if (email.toLowerCase() == "admin@gmail.com") {
+      _navigate(const AdminMainShell());
       return;
     }
+
+    // 2. Role Check from 'users' (Admin Approved roles: Manager, Driver, Civilian)
+    final userSnap = await db.child('users/$uid').get();
+    if (userSnap.exists) {
+      String role = userSnap.child('role').value.toString();
+      bool isSuspended = userSnap.child('isSuspended').value == true;
+
+      if (isSuspended) {
+        await FirebaseAuth.instance.signOut();
+        _showSnackBar("Your account is suspended. Contact Admin.", Colors.red);
+        return;
+      }
+
+      if (role == 'admin') {
+        _navigate(const AdminMainShell());
+      } else if (role == 'manager') {
+        _navigate(const AdminPage());
+      } else if (role == 'driver') {
+        _navigate(const DriverDashboard());
+      } else {
+        _navigate(const CivillianPage());
+      }
+      return;
+    }
+
+    // 2.5 Role Check from 'verified_drivers' (Drivers)
     final driverSnap = await db.child('verified_drivers/$uid').get();
     if (driverSnap.exists) {
+      bool isSuspended = driverSnap.child('isSuspended').value == true;
+      if (isSuspended) {
+        await FirebaseAuth.instance.signOut();
+        _showSnackBar("Your account is suspended. Contact Admin.", Colors.red);
+        return;
+      }
       _navigate(const DriverDashboard());
       return;
     }
-    final civilianSnap = await db.child('users/$uid').get();
-    if (civilianSnap.exists) {
-      _navigate(const CivillianPage());
-      return;
-    }
-    final pendingSnap = await db.child('pending_drivers/$uid').get();
-    if (pendingSnap.exists) {
+
+    // 3. Pending Check (For Manager & Driver)
+    // Still check users if not approved
+    // Standard practice: if they exist in a "pending" node
+    final isPendingManager =
+        (await db.child('pending_managers/$uid').get()).exists;
+    final isPendingDriver =
+        (await db.child('pending_drivers/$uid').get()).exists;
+
+    if (isPendingManager || isPendingDriver) {
       await FirebaseAuth.instance.signOut();
-      _showSnackBar(
-        "Your account is still pending admin approval.",
-        Colors.orange,
-      );
+      _showSnackBar("Account pending admin approval.", Colors.orange);
       return;
     }
-    _showSnackBar("Account not found in system.", Colors.redAccent);
+
+    _showSnackBar("Record not found. Contact Admin.", Colors.redAccent);
   }
 
   void _navigate(Widget screen) {
@@ -99,51 +138,86 @@ class _AuthPageState extends State<AuthPage> {
     );
   }
 
+  Future<void> _forgotPassword() async {
+    if (_emailController.text.isEmpty) {
+      _showSnackBar("Enter email to receive reset link!", Colors.orange);
+      return;
+    }
+    try {
+      await FirebaseAuth.instance.sendPasswordResetEmail(
+        email: _emailController.text.trim(),
+      );
+      _showSnackBar("Official Reset Link sent to your Email!", leafGreen);
+    } catch (e) {
+      _showSnackBar("Error sending link. Verify email.", Colors.redAccent);
+    }
+  }
+
   Future<void> _handleSubmit() async {
     String email = _emailController.text.trim().toLowerCase();
     String password = _passwordController.text.trim();
+
     if (email.isEmpty || password.isEmpty) {
       _showSnackBar("Please fill all fields", Colors.redAccent);
       return;
     }
+
     setState(() => isLoading = true);
+
     try {
       if (isLogin) {
         UserCredential cred = await FirebaseAuth.instance
             .signInWithEmailAndPassword(email: email, password: password);
-        if (cred.user != null) await _autoRouteUser(cred.user!.uid);
+        if (cred.user != null) await _autoRouteUser(cred.user!.uid, email);
       } else {
+        // Sign-up Specific Validation
         if (selectedRegRole == 'Driver' &&
-            (!cnicUploaded || !licenseUploaded)) {
-          _showSnackBar("Please upload both documents", Colors.redAccent);
+            (!cnicUploaded ||
+                !licenseUploaded ||
+                _phoneController.text.isEmpty)) {
+          _showSnackBar(
+            "Provide Phone, CNIC and License images",
+            Colors.redAccent,
+          );
+          setState(() => isLoading = false);
           return;
         }
+
         UserCredential cred = await FirebaseAuth.instance
             .createUserWithEmailAndPassword(email: email, password: password);
+
         if (cred.user != null) {
           String uid = cred.user!.uid;
+          Map<String, dynamic> userData = {
+            "uid": uid,
+            "name": _nameController.text.trim(),
+            "email": email,
+            "phone": _phoneController.text.trim(),
+            "isApproved": false,
+            "isSuspended": false,
+            "regDate": DateTime.now().toString(),
+          };
+
           if (selectedRegRole == 'Driver') {
-            await FirebaseDatabase.instance.ref('pending_drivers/$uid').set({
-              "uid": uid,
-              "name": _nameController.text.trim(),
-              "email": email,
-              "cnic_image_base64": imageToBase64(cnicFile!),
-              "license_image_base64": imageToBase64(licenseFile!),
-              "status": "pending",
-              "regDate": DateTime.now().toString(),
-              "role": "driver",
-            });
+            userData["role"] = "driver";
+            userData["cnic_number"] = _cnicNumberController.text.trim();
+            userData["cnic_image"] = imageToBase64(cnicFile!);
+            userData["license_image"] = imageToBase64(licenseFile!);
+            await FirebaseDatabase.instance
+                .ref('pending_drivers/$uid')
+                .set(userData);
+          } else if (selectedRegRole == 'Manager') {
+            userData["role"] = "manager";
+            await FirebaseDatabase.instance
+                .ref('pending_managers/$uid')
+                .set(userData);
           } else {
-            await FirebaseDatabase.instance.ref('users/$uid').set({
-              "uid": uid,
-              "name": _nameController.text.trim(),
-              "email": email,
-              "role": "civilian",
-            });
+            userData["role"] = "civilian";
+            userData["isApproved"] = true; // Civilian needs no approval
+            await FirebaseDatabase.instance.ref('users/$uid').set(userData);
           }
-          _showStatusDialog(
-            "Submission Successful! Awaiting Admin Verification.",
-          );
+
+          _showStatusDialog("Registered! Wait for Admin Approval.");
         }
       }
     } catch (e) {
@@ -158,7 +232,7 @@ class _AuthPageState extends State<AuthPage> {
     return Scaffold(
       body: Stack(
         children: [
-          // 1. FADED GREEN NATURE BACKGROUND
+          // Background
           Container(
             decoration: const BoxDecoration(
               image: DecorationImage(
@@ -169,16 +243,15 @@ class _AuthPageState extends State<AuthPage> {
               ),
             ),
           ),
-          // 2. LOW OPACITY GREEN OVERLAY
           Container(
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: [
-                  Colors.white.withOpacity(0.4),
-                  leafGreen.withOpacity(0.7),
-                  deepForest.withOpacity(0.9),
+                  Colors.white.withValues(alpha: 0.2),
+                  leafGreen.withValues(alpha: 0.7),
+                  deepForest.withValues(alpha: 0.9),
                 ],
               ),
             ),
@@ -193,16 +266,16 @@ class _AuthPageState extends State<AuthPage> {
                 padding: const EdgeInsets.symmetric(horizontal: 25),
                 child: Column(
                   children: [
-                    // 3. WASTE COLLECTION SIGN LOGO
+                    // Logo
                     Container(
                       padding: const EdgeInsets.all(20),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
+                        color: Colors.white.withValues(alpha: 0.2),
                         shape: BoxShape.circle,
                         border: Border.all(color: Colors.white30),
                       ),
                       child: const Icon(
-                        Icons.recycling_rounded, // Waste/Recycle Sign
+                        Icons.recycling_rounded,
                         color: Colors.white,
                         size: 70,
                       ),
@@ -215,15 +288,6 @@ class _AuthPageState extends State<AuthPage> {
                         fontSize: 36,
                         fontWeight: FontWeight.w900,
                         letterSpacing: 4,
-                      ),
-                    ),
-                    const Text(
-                      "SMART WASTE COLLECTION",
-                      style: TextStyle(
-                        color: Colors.white70,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                        letterSpacing: 1.5,
                       ),
                     ),
                     const SizedBox(height: 40),
@@ -256,7 +320,7 @@ class _AuthPageState extends State<AuthPage> {
         const SizedBox(height: 20),
         _selectionCard(
           title: "Join Us",
-          subtitle: "Register as Driver or Civilian",
+          subtitle: "Register as Staff or Civilian",
           icon: Icons.person_add_rounded,
           onTap: () => setState(() {
             isLogin = false;
@@ -271,13 +335,13 @@ class _AuthPageState extends State<AuthPage> {
     return Container(
       padding: const EdgeInsets.all(25),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.95),
+        color: Colors.white.withValues(alpha: 0.95),
         borderRadius: BorderRadius.circular(30),
-        boxShadow: [
+        boxShadow: const [
           BoxShadow(
             color: Colors.black26,
             blurRadius: 20,
-            offset: const Offset(0, 10),
+            offset: Offset(0, 10),
           ),
         ],
       ),
@@ -314,6 +378,12 @@ class _AuthPageState extends State<AuthPage> {
               label: "Full Name",
               icon: Icons.person_outline,
             ),
+            const SizedBox(height: 15),
+            _buildTextField(
+              controller: _phoneController,
+              label: "Mobile Number",
+              icon: Icons.phone_android,
+            ),
           ],
           const SizedBox(height: 15),
           _buildTextField(
@@ -328,22 +398,46 @@ class _AuthPageState extends State<AuthPage> {
             icon: Icons.lock_outline,
             isPassword: true,
           ),
+
+          if (isLogin)
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: _forgotPassword,
+                child: const Text(
+                  "Forgot Password?",
+                  style: TextStyle(
+                    color: leafGreen,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            ),
+
           if (!isLogin && selectedRegRole == 'Driver') ...[
             const SizedBox(height: 15),
+            _buildTextField(
+              controller: _cnicNumberController,
+              label: "CNIC (31303-xxxxxxx-x)",
+              icon: Icons.numbers,
+            ),
+            const SizedBox(height: 15),
             _buildDocButton(
-              "Attach CNIC Front",
+              "CNIC Front Image",
               Icons.badge_outlined,
               "CNIC",
               cnicUploaded,
             ),
             const SizedBox(height: 10),
             _buildDocButton(
-              "Attach License Front",
+              "License Front Image",
               Icons.drive_eta_outlined,
               "License",
               licenseUploaded,
             ),
           ],
+
           const SizedBox(height: 25),
           SizedBox(
             width: double.infinity,
@@ -354,7 +448,6 @@ class _AuthPageState extends State<AuthPage> {
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(15),
                 ),
-                elevation: 0,
               ),
               onPressed: isLoading ? null : _handleSubmit,
               child: isLoading
@@ -399,7 +492,7 @@ class _AuthPageState extends State<AuthPage> {
                     style: TextStyle(
                       color: isSelected ? Colors.white : Colors.grey,
                       fontWeight: FontWeight.bold,
-                      fontSize: 13,
+                      fontSize: 11,
                     ),
                   ),
                 ),
@@ -423,14 +516,13 @@ class _AuthPageState extends State<AuthPage> {
       child: Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.85),
+          color: Colors.white.withValues(alpha: 0.85),
           borderRadius: BorderRadius.circular(25),
-          border: Border.all(color: Colors.white54),
         ),
         child: Row(
           children: [
             CircleAvatar(
-              backgroundColor: leafGreen.withOpacity(0.1),
+              backgroundColor: leafGreen.withValues(alpha: 0.1),
               child: Icon(icon, color: leafGreen),
             ),
             const SizedBox(width: 15),
@@ -473,23 +565,20 @@ class _AuthPageState extends State<AuthPage> {
     return TextField(
       controller: controller,
       obscureText: isPassword && obscurePassword,
-      style: const TextStyle(fontSize: 14),
       decoration: InputDecoration(
         labelText: label,
-        labelStyle: const TextStyle(color: Colors.grey, fontSize: 13),
-        prefixIcon: Icon(icon, color: leafGreen, size: 20),
+        prefixIcon: Icon(icon, color: leafGreen),
         suffixIcon: isPassword
             ? IconButton(
                 icon: Icon(
                   obscurePassword ? Icons.visibility_off : Icons.visibility,
-                  size: 18,
                 ),
                 onPressed: () =>
                     setState(() => obscurePassword = !obscurePassword),
               )
             : null,
         filled: true,
-        fillColor: Colors.grey.withOpacity(0.05),
+        fillColor: Colors.grey.withValues(alpha: 0.05),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(15),
           borderSide: BorderSide.none,
@@ -509,7 +598,7 @@ class _AuthPageState extends State<AuthPage> {
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: softMint.withOpacity(0.5),
+          color: softMint.withValues(alpha: 0.5),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: isDone ? leafGreen : Colors.grey.shade300),
         ),
@@ -518,15 +607,11 @@ class _AuthPageState extends State<AuthPage> {
             Icon(icon, color: leafGreen, size: 20),
             const SizedBox(width: 10),
             Text(
-              isDone ? "$type Attached ✅" : label,
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: deepForest,
-              ),
+              isDone ? "$type Added ✅" : label,
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
             ),
             const Spacer(),
-            const Icon(Icons.cloud_upload_outlined, color: leafGreen, size: 18),
+            const Icon(Icons.upload, color: leafGreen, size: 18),
           ],
         ),
       ),
@@ -557,10 +642,7 @@ class _AuthPageState extends State<AuthPage> {
                 isLogin = true;
               });
             },
-            child: const Text(
-              "OK",
-              style: TextStyle(color: leafGreen, fontWeight: FontWeight.bold),
-            ),
+            child: const Text("OK"),
           ),
         ],
       ),

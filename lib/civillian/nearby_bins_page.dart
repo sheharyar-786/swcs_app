@@ -144,7 +144,7 @@ class _NearbyBinsPageState extends State<NearbyBinsPage> {
         borderRadius: BorderRadius.circular(25),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 15,
             offset: const Offset(0, 8),
           ),
@@ -179,7 +179,7 @@ class _NearbyBinsPageState extends State<NearbyBinsPage> {
                   vertical: 6,
                 ),
                 decoration: BoxDecoration(
-                  color: statusColor.withOpacity(0.1),
+                  color: statusColor.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
@@ -213,12 +213,12 @@ class _NearbyBinsPageState extends State<NearbyBinsPage> {
                     (fill / 100).clamp(0, 1),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
-                    colors: [statusColor.withOpacity(0.6), statusColor],
+                    colors: [statusColor.withValues(alpha: 0.6), statusColor],
                   ),
                   borderRadius: BorderRadius.circular(10),
                   boxShadow: [
                     BoxShadow(
-                      color: statusColor.withOpacity(0.3),
+                      color: statusColor.withValues(alpha: 0.3),
                       blurRadius: 4,
                       offset: const Offset(0, 2),
                     ),

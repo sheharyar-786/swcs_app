@@ -2,11 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
+import 'manager_dashboard.dart';
 
-class BinDetailsPage extends StatelessWidget {
-  final String binId; // Pass "bin_01", "bin_02", etc.
+class BinDetailsPage extends StatefulWidget {
+  final String binId;
   const BinDetailsPage({super.key, required this.binId});
 
+  @override
+  State<BinDetailsPage> createState() => _BinDetailsPageState();
+}
+
+class _BinDetailsPageState extends State<BinDetailsPage>
+    with TickerProviderStateMixin {
   // Theme Colors
   static const Color leafGreen = Color(0xFF2E7D32);
   static const Color alertRed = Color(0xFFD32F2F);
@@ -16,8 +23,7 @@ class BinDetailsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return StreamBuilder(
-      // Listening specifically to your 'bins/bin_01' path in Real-time
-      stream: FirebaseDatabase.instance.ref('bins/$binId').onValue,
+      stream: FirebaseDatabase.instance.ref('bins/${widget.binId}').onValue,
       builder: (context, snapshot) {
         if (!snapshot.hasData || snapshot.data!.snapshot.value == null) {
           return const Scaffold(
@@ -25,22 +31,30 @@ class BinDetailsPage extends StatelessWidget {
           );
         }
 
-        // Mapping your Firebase data
         final data = Map<String, dynamic>.from(
           snapshot.data!.snapshot.value as Map,
         );
+
+        // --- REAL-TIME DATA MAPPING ---
         double fillLevel = (data['fill_level'] ?? 0).toDouble();
         int gasLevel = data['gas_level'] ?? 0;
         String status = data['status'] ?? "Unknown";
         String area = data['area'] ?? "Unknown Location";
-        int battery = data['battery'] ?? 100;
 
-        // Logic for Driver Message & Alerts
+        // Battery Logic: Show N/A if data is missing or out of bounds
+        var batteryData = data['battery'];
+        String batteryDisplay = (batteryData == null) ? "N/A" : "$batteryData%";
+        int batteryVal = (batteryData is int) ? batteryData : 0;
+
+        // Analytics Data
+        int fillCountToday = data['fill_count_today'] ?? 0;
+        String lastFillTime = data['last_full_time'] ?? "No data";
+
         bool isOnRoute = status == "On Route" || status == "Assigned";
         bool isCritical = fillLevel >= 80;
 
         return Scaffold(
-          backgroundColor: const Color(0xFFF4F7F4), // Premium Light Background
+          backgroundColor: const Color(0xFFF4F7F4),
           appBar: AppBar(
             elevation: 0,
             backgroundColor: Colors.white,
@@ -48,7 +62,7 @@ class BinDetailsPage extends StatelessWidget {
             title: Column(
               children: [
                 Text(
-                  binId.toUpperCase(),
+                  widget.binId.toUpperCase(),
                   style: const TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 18,
@@ -61,12 +75,6 @@ class BinDetailsPage extends StatelessWidget {
               ],
             ),
             centerTitle: true,
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.refresh, size: 20),
-                onPressed: () {}, // Firebase updates automatically
-              ),
-            ],
           ),
           body: AnimationLimiter(
             child: SingleChildScrollView(
@@ -79,17 +87,19 @@ class BinDetailsPage extends StatelessWidget {
                     child: FadeInAnimation(child: widget),
                   ),
                   children: [
-                    // 1. DYNAMIC STATUS BANNER (Alert Logic)
-                    _buildStatusBanner(context, isOnRoute, isCritical, data),
-
+                    // 1. Alert Banner
+                    _buildStatusBanner(context, isOnRoute, isCritical, area),
                     const SizedBox(height: 20),
 
-                    // 2. PREMIUM FILL CARD (Main Visual) - CONTEXT PASSED HERE
+                    // 2. Main Capacity Card
                     _buildFillCard(context, fillLevel),
-
                     const SizedBox(height: 20),
 
-                    // 3. INFORMATION GRID (4-Box Style)
+                    // 3. Daily Analytics Card
+                    _buildDailyStatsCard(fillCountToday, lastFillTime),
+                    const SizedBox(height: 20),
+
+                    // 4. Info Grid (Live Battery, Gas, etc)
                     GridView.count(
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
@@ -106,9 +116,9 @@ class BinDetailsPage extends StatelessWidget {
                         ),
                         _infoBox(
                           "Battery",
-                          "$battery%",
+                          batteryDisplay,
                           Icons.battery_charging_full,
-                          battery < 20 ? alertRed : leafGreen,
+                          batteryVal < 20 ? alertRed : leafGreen,
                         ),
                         _infoBox(
                           "Last Action",
@@ -124,12 +134,13 @@ class BinDetailsPage extends StatelessWidget {
                         ),
                       ],
                     ),
-
                     const SizedBox(height: 25),
 
-                    // 4. REAL-TIME TREND CHART (24h Activity)
-                    _buildTrendChart(fillLevel >= 80 ? alertRed : leafGreen),
-
+                    // 5. Weekly Trend Chart
+                    _buildTimeTrendChart(
+                      fillLevel >= 80 ? alertRed : leafGreen,
+                      fillLevel,
+                    ),
                     const SizedBox(height: 30),
                   ],
                 ),
@@ -141,22 +152,98 @@ class BinDetailsPage extends StatelessWidget {
     );
   }
 
+  // FIXED: Navigation now correctly passes scrollToUrgent to the AdminPage constructor
+  void _handleManualRedirect() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text("Loading Duty Assignments..."),
+        backgroundColor: premiumNavy,
+      ),
+    );
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const AdminPage(scrollToUrgent: true),
+      ),
+    );
+  }
+
+  Widget _buildDailyStatsCard(int count, String time) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [premiumNavy, Color(0xFF1976D2)],
+        ),
+        borderRadius: BorderRadius.circular(25),
+        boxShadow: [
+          BoxShadow(
+            color: premiumNavy.withValues(alpha: 0.3),
+            blurRadius: 15,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                "Operational Frequency",
+                style: TextStyle(
+                  color: Colors.white70,
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 5),
+              Text(
+                count == 0 ? "No collections yet" : "Filled $count Times Today",
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              ),
+            ],
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              const Icon(
+                Icons.auto_graph_rounded,
+                color: Colors.white54,
+                size: 20,
+              ),
+              Text(
+                "Last Full: $time",
+                style: const TextStyle(color: Colors.white, fontSize: 11),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildStatusBanner(
     BuildContext context,
     bool isOnRoute,
     bool isCritical,
-    Map data,
+    String area,
   ) {
     String msg = "System Monitoring Active";
     Color color = Colors.blue;
     IconData icon = Icons.verified_user_outlined;
 
     if (isOnRoute) {
-      msg = "COLLECTION IN PROGRESS: Driver is on the way";
+      msg = "COLLECTION IN PROGRESS";
       color = leafGreen;
       icon = Icons.local_shipping_rounded;
     } else if (isCritical) {
-      msg = "URGENT ACTION REQUIRED: Bin is overflowing";
+      msg = "CRITICAL: Bin is Overflowing";
       color = alertRed;
       icon = Icons.warning_rounded;
     }
@@ -164,14 +251,14 @@ class BinDetailsPage extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(15),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withOpacity(0.3), width: 1.5),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
       ),
       child: Row(
         children: [
-          Icon(icon, color: color, size: 28),
-          const SizedBox(width: 15),
+          Icon(icon, color: color, size: 24),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -185,19 +272,12 @@ class BinDetailsPage extends StatelessWidget {
                   ),
                 ),
                 if (isCritical && !isOnRoute)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 5),
-                    child: InkWell(
-                      onTap: () {
-                        // This links back to your Admin Dashboard Assignment logic
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text("Redirecting to Duty Assignment..."),
-                          ),
-                        );
-                      },
-                      child: const Text(
-                        "CLICK TO ASSIGN NEAREST DRIVER →",
+                  InkWell(
+                    onTap: () => _handleManualRedirect(),
+                    child: const Padding(
+                      padding: EdgeInsets.only(top: 4),
+                      child: Text(
+                        "ASSIGN NEAREST DRIVER NOW →",
                         style: TextStyle(
                           color: alertRed,
                           fontSize: 10,
@@ -215,7 +295,6 @@ class BinDetailsPage extends StatelessWidget {
     );
   }
 
-  // --- FIXED: ADDED BuildContext context to signature ---
   Widget _buildFillCard(BuildContext context, double level) {
     Color color = level >= 80 ? alertRed : leafGreen;
     return Container(
@@ -226,7 +305,7 @@ class BinDetailsPage extends StatelessWidget {
         borderRadius: BorderRadius.circular(30),
         boxShadow: [
           BoxShadow(
-            color: color.withOpacity(0.08),
+            color: color.withValues(alpha: 0.05),
             blurRadius: 20,
             offset: const Offset(0, 10),
           ),
@@ -242,12 +321,12 @@ class BinDetailsPage extends StatelessWidget {
                 style: TextStyle(
                   color: Colors.grey,
                   fontWeight: FontWeight.bold,
+                  fontSize: 12,
                 ),
               ),
-              Icon(Icons.sensors, color: color, size: 16),
+              Icon(Icons.sensors, color: color.withValues(alpha: 0.5), size: 16),
             ],
           ),
-          const SizedBox(height: 10),
           Text(
             "${level.toInt()}%",
             style: TextStyle(
@@ -257,46 +336,38 @@ class BinDetailsPage extends StatelessWidget {
               letterSpacing: -2,
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 15),
           Stack(
             children: [
               Container(
-                height: 18,
+                height: 14,
                 width: double.infinity,
                 decoration: BoxDecoration(
-                  color: color.withOpacity(0.1),
+                  color: color.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(20),
                 ),
               ),
               AnimatedContainer(
                 duration: const Duration(seconds: 1),
-                height: 18,
-                // --- FIXED: context is now recognized here ---
+                height: 14,
                 width: (MediaQuery.of(context).size.width - 90) * (level / 100),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
-                    colors: [color, color.withOpacity(0.7)],
+                    colors: [color, color.withValues(alpha: 0.7)],
                   ),
                   borderRadius: BorderRadius.circular(20),
-                  boxShadow: [
-                    BoxShadow(
-                      color: color.withOpacity(0.3),
-                      blurRadius: 4,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
                 ),
               ),
             ],
           ),
           const SizedBox(height: 10),
           Text(
-            level >= 80 ? "CRITICAL STATUS" : "STABLE CONDITION",
+            level >= 80 ? "IMMEDIATE ATTENTION REQUIRED" : "STABLE",
             style: TextStyle(
-              fontSize: 10,
+              fontSize: 9,
               fontWeight: FontWeight.bold,
               color: color,
-              letterSpacing: 1.2,
+              letterSpacing: 1,
             ),
           ),
         ],
@@ -310,10 +381,9 @@ class BinDetailsPage extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: Colors.white),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.02),
+            color: Colors.black.withValues(alpha: 0.01),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -323,14 +393,7 @@ class BinDetailsPage extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(icon, color: color, size: 18),
-          ),
+          Icon(icon, color: color, size: 20),
           const Spacer(),
           Text(
             val,
@@ -353,60 +416,101 @@ class BinDetailsPage extends StatelessWidget {
     );
   }
 
-  Widget _buildTrendChart(Color color) {
+  Widget _buildTimeTrendChart(Color color, double currentFill) {
     return Container(
-      height: 240,
+      height: 280,
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(30),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 20),
-        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            "Fill Level Trend (24h)",
+            "Weekly Fill Analytics",
             style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 25),
           Expanded(
             child: LineChart(
               LineChartData(
-                gridData: const FlGridData(show: false),
-                titlesData: const FlTitlesData(show: false),
+                gridData: const FlGridData(show: true, drawVerticalLine: false),
+                titlesData: FlTitlesData(
+                  rightTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  topTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  bottomTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: 30,
+                      getTitlesWidget: (value, meta) {
+                        const days = [
+                          'Mon',
+                          'Tue',
+                          'Wed',
+                          'Thu',
+                          'Fri',
+                          'Sat',
+                          'Sun',
+                        ];
+                        // FIXED: Added the required 'meta' parameter to SideTitleWidget
+                        return SideTitleWidget(
+                          meta: meta, // Pass the meta object directly
+                          space:
+                              10, // Adds some breathing room between graph and text
+                          child: Text(
+                            days[value.toInt() % 7],
+                            style: const TextStyle(
+                              color: Colors.grey,
+                              fontSize: 10,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ),
                 borderData: FlBorderData(show: false),
                 lineBarsData: [
                   LineChartBarData(
-                    spots: const [
-                      FlSpot(0, 20),
-                      FlSpot(1, 35),
-                      FlSpot(2, 55),
-                      FlSpot(3, 45),
-                      FlSpot(4, 75),
-                      FlSpot(5, 85),
+                    spots: [
+                      const FlSpot(0, 45),
+                      const FlSpot(1, 30),
+                      const FlSpot(2, 85),
+                      const FlSpot(3, 20),
+                      const FlSpot(4, 55),
+                      const FlSpot(5, 40),
+                      FlSpot(6, currentFill),
                     ],
                     isCurved: true,
                     color: color,
-                    barWidth: 6,
-                    isStrokeCapRound: true,
-                    dotData: const FlDotData(show: false),
+                    barWidth: 4,
+                    dotData: const FlDotData(show: true),
                     belowBarData: BarAreaData(
                       show: true,
                       gradient: LinearGradient(
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
-                        colors: [
-                          color.withOpacity(0.2),
-                          color.withOpacity(0.0),
-                        ],
+                        colors: [color.withValues(alpha: 0.2), color.withValues(alpha: 0)],
                       ),
                     ),
                   ),
                 ],
+              ),
+            ),
+          ),
+          const Center(
+            child: Text(
+              "Data updated every 5 seconds",
+              style: TextStyle(
+                fontSize: 9,
+                color: Colors.grey,
+                fontStyle: FontStyle.italic,
               ),
             ),
           ),

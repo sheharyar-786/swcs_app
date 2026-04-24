@@ -60,7 +60,7 @@ class _FillLevelChartState extends State<FillLevelChart> {
           color: Colors.white,
           borderRadius: BorderRadius.circular(30),
           boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 20),
+            BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 20),
           ],
         ),
         child: Column(
@@ -81,7 +81,7 @@ class _FillLevelChartState extends State<FillLevelChart> {
                 BarChartData(
                   alignment: BarChartAlignment.spaceAround,
                   maxY: 100,
-                  barTouchData: BarTouchData(enabled: true),
+                  barTouchData: const BarTouchData(enabled: true),
                   titlesData: FlTitlesData(
                     show: true,
                     bottomTitles: AxisTitles(
@@ -154,7 +154,7 @@ class _FillLevelChartState extends State<FillLevelChart> {
               backDrawRodData: BackgroundBarChartRodData(
                 show: true,
                 toY: 100,
-                color: softMint.withOpacity(0.5),
+                color: softMint.withValues(alpha: 0.5),
               ),
             ),
           ],

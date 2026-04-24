@@ -49,8 +49,12 @@ dependencies:
   url_launcher: ^6.3.2
   confetti: ^0.8.0
   flutter_staggered_animations: ^1.1.1
+  animate_do: ^5.1.0
+  flutter_blue_plus: 1.20.0
+  flutter_screenutil: ^5.9.3
 
 
+  intl: any
 dev_dependencies:
   flutter_test:
     sdk: flutter

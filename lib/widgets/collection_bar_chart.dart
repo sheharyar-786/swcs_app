@@ -19,12 +19,12 @@ class CollectionRateChart extends StatelessWidget {
           borderRadius: BorderRadius.circular(30),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.03),
+              color: Colors.black.withValues(alpha: 0.03),
               blurRadius: 20,
               offset: const Offset(0, 10),
             ),
           ],
-          border: Border.all(color: leafGreen.withOpacity(0.05), width: 1.5),
+          border: Border.all(color: leafGreen.withValues(alpha: 0.05), width: 1.5),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -48,7 +48,7 @@ class CollectionRateChart extends StatelessWidget {
                     enabled: true,
                     touchTooltipData: BarTouchTooltipData(
                       // FIXED: 'tooltipRoundedRadius' error fixed here
-                      getTooltipColor: (_) => deepForest.withOpacity(0.9),
+                      getTooltipColor: (_) => deepForest.withValues(alpha: 0.9),
                       tooltipPadding: const EdgeInsets.symmetric(
                         horizontal: 12,
                         vertical: 8,
@@ -75,8 +75,9 @@ class CollectionRateChart extends StatelessWidget {
                         showTitles: true,
                         getTitlesWidget: (value, meta) {
                           const days = ['MON', 'TUE', 'WED', 'THU', 'FRI'];
-                          if (value.toInt() < 0 || value.toInt() >= days.length)
+                          if (value.toInt() < 0 || value.toInt() >= days.length) {
                             return const SizedBox();
+                          }
                           return Padding(
                             padding: const EdgeInsets.only(top: 8.0),
                             child: Text(
@@ -126,7 +127,7 @@ class CollectionRateChart extends StatelessWidget {
         BarChartRodData(
           toY: y,
           gradient: LinearGradient(
-            colors: [color.withOpacity(0.6), color],
+            colors: [color.withValues(alpha: 0.6), color],
             begin: Alignment.bottomCenter,
             end: Alignment.topCenter,
           ),
@@ -138,7 +139,7 @@ class CollectionRateChart extends StatelessWidget {
           backDrawRodData: BackgroundBarChartRodData(
             show: true,
             toY: 20,
-            color: softMint.withOpacity(0.4),
+            color: softMint.withValues(alpha: 0.4),
           ),
         ),
       ],

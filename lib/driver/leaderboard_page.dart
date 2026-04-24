@@ -21,6 +21,10 @@ class LeaderboardPage extends StatelessWidget {
         centerTitle: true,
         backgroundColor: const Color(0xFF1B5E20),
         elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
+        ),
       ),
       body: StreamBuilder(
         stream: FirebaseDatabase.instance.ref('verified_drivers').onValue,
@@ -33,6 +37,8 @@ class LeaderboardPage extends StatelessWidget {
 
           Map data = snapshot.data!.snapshot.value as Map;
           List<MapEntry> drivers = data.entries.toList();
+
+          // Sorting drivers by points (descending)
           drivers.sort(
             (a, b) =>
                 (b.value['points'] ?? 0).compareTo(a.value['points'] ?? 0),
@@ -40,118 +46,106 @@ class LeaderboardPage extends StatelessWidget {
 
           if (drivers.isEmpty) return _emptyState();
 
-          return LayoutBuilder(
-            builder: (context, constraints) {
-              return SingleChildScrollView(
-                physics: const BouncingScrollPhysics(),
-                child: Column(
-                  children: [
-                    _buildTopPodium(drivers), // Top 3 Drivers Stylish Podium
-                    // Neeche wali list ko limit karne ke liye aur overflow se bachne ke liye
-                    AnimationLimiter(
-                      child: ListView.builder(
-                        shrinkWrap:
-                            true, // Zaroori hai kyunke ye ScrollView ke andar hai
-                        physics: const NeverScrollableScrollPhysics(),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 15,
-                          vertical: 10,
-                        ),
-                        itemCount: drivers.length > 3 ? drivers.length - 3 : 0,
-                        itemBuilder: (context, index) {
-                          int actualIndex = index + 3;
-                          var driver = drivers[actualIndex].value;
-                          int rank = actualIndex + 1;
-                          String displayName = _getDisplayName(driver);
-
-                          return AnimationConfiguration.staggeredList(
-                            position: index,
-                            duration: const Duration(milliseconds: 500),
-                            child: SlideAnimation(
-                              verticalOffset: 50.0,
-                              child: FadeInAnimation(
-                                child: _buildRankCard(
-                                  displayName,
-                                  rank,
-                                  driver['points'] ?? 0,
-                                  driver['vehicleId'] ?? "N/A",
-                                ),
-                              ),
-                            ),
-                          );
-                        },
-                      ),
+          return SingleChildScrollView(
+            physics: const BouncingScrollPhysics(),
+            child: Column(
+              children: [
+                _buildTopPodium(drivers),
+                const SizedBox(height: 10),
+                AnimationLimiter(
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 15,
+                      vertical: 10,
                     ),
-                    const SizedBox(height: 20),
-                  ],
+                    itemCount: drivers.length > 3 ? drivers.length - 3 : 0,
+                    itemBuilder: (context, index) {
+                      int actualIndex = index + 3;
+                      var driver = drivers[actualIndex].value;
+                      int rank = actualIndex + 1;
+                      String displayName = _getDisplayName(driver);
+
+                      return AnimationConfiguration.staggeredList(
+                        position: index,
+                        duration: const Duration(milliseconds: 500),
+                        child: SlideAnimation(
+                          verticalOffset: 50.0,
+                          child: FadeInAnimation(
+                            child: _buildRankCard(
+                              displayName,
+                              rank,
+                              driver['points'] ?? 0,
+                              driver['vehicleId'] ?? "N/A",
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
                 ),
-              );
-            },
+                const SizedBox(height: 20),
+              ],
+            ),
           );
         },
       ),
     );
   }
 
-  // --- TOP 3 PODIUM DESIGN ---
+  // --- TOP 3 PODIUM DESIGN (FIXED OVERFLOW) ---
   Widget _buildTopPodium(List drivers) {
     if (drivers.isEmpty) return const SizedBox.shrink();
 
-    var first = drivers.length > 0 ? drivers[0].value : null;
+    var first = drivers.isNotEmpty ? drivers[0].value : null;
     var second = drivers.length > 1 ? drivers[1].value : null;
     var third = drivers.length > 2 ? drivers[2].value : null;
 
     return Container(
-      padding: const EdgeInsets.all(25),
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(15, 10, 15, 30),
       decoration: const BoxDecoration(
         color: Color(0xFF1B5E20),
         borderRadius: BorderRadius.only(
-          bottomLeft: Radius.circular(40),
-          bottomRight: Radius.circular(40),
+          bottomLeft: Radius.circular(45),
+          bottomRight: Radius.circular(45),
         ),
       ),
-      child: SizedBox(
-        height: 200, // Podium ki height fix kar di taake overlap na ho
-        child: Stack(
-          alignment: Alignment.bottomCenter,
-          children: [
-            if (second != null)
-              Positioned(
-                left: 0,
-                bottom: 0,
-                child: _podiumItem(
-                  _getDisplayName(second),
-                  "2",
-                  Colors.grey.shade400,
-                  second['points'] ?? 0,
-                  110,
-                ),
-              ),
-            if (third != null)
-              Positioned(
-                right: 0,
-                bottom: 0,
-                child: _podiumItem(
-                  _getDisplayName(third),
-                  "3",
-                  Colors.orangeAccent.shade200,
-                  third['points'] ?? 0,
-                  100,
-                ),
-              ),
-            if (first != null)
-              Positioned(
-                bottom: 0,
-                child: _podiumItem(
-                  _getDisplayName(first),
-                  "1",
-                  Colors.amberAccent,
-                  first['points'] ?? 0,
-                  150,
-                ),
-              ),
-          ],
-        ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          // 2nd Place
+          if (second != null)
+            _podiumItem(
+              _getDisplayName(second),
+              "2",
+              Colors.grey.shade300,
+              second['points'] ?? 0,
+              130,
+            ),
+
+          // 1st Place
+          if (first != null)
+            _podiumItem(
+              _getDisplayName(first),
+              "1",
+              Colors.amberAccent,
+              first['points'] ?? 0,
+              170,
+            ),
+
+          // 3rd Place
+          if (third != null)
+             _podiumItem(
+              _getDisplayName(third),
+              "3",
+              Colors.orangeAccent.shade100,
+              third['points'] ?? 0,
+              125, // FIXED: Increased height to prevent 4.0 pixel overflow
+            ),
+        ],
       ),
     );
   }
@@ -161,105 +155,112 @@ class LeaderboardPage extends StatelessWidget {
     String rank,
     Color color,
     int pts,
-    double height,
+    double boxHeight,
   ) {
-    return Container(
-      width: 95,
-      height: height,
-      decoration: BoxDecoration(
-        color: Colors.white10,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white24),
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          CircleAvatar(
-            backgroundColor: color,
-            radius: height > 140 ? 30 : 25,
-            child: Text(
-              rank,
-              style: const TextStyle(
-                fontWeight: FontWeight.w900,
-                color: Colors.black,
-                fontSize: 18,
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 95,
+          height: boxHeight,
+          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 10),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.15),
+            borderRadius: BorderRadius.circular(25),
+            border: Border.all(color: Colors.white24),
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              CircleAvatar(
+                backgroundColor: color,
+                radius: rank == "1" ? 32 : 26,
+                child: Text(
+                  rank,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w900,
+                    color: Colors.black,
+                    fontSize: 22,
+                  ),
+                ),
               ),
-            ),
+              const SizedBox(height: 12),
+              // FIX: FittedBox prevents text from pushing borders out
+              SizedBox(
+                height: 20,
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    name,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+              ),
+              Text(
+                "$pts XP",
+                style: const TextStyle(
+                  color: Colors.white70,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 10),
-          Text(
-            name,
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-              fontSize: 10,
-            ),
-            textAlign: TextAlign.center,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          Text(
-            "${pts} XP",
-            style: const TextStyle(color: Colors.white70, fontSize: 10),
-          ),
-          const SizedBox(height: 10),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
   Widget _buildRankCard(String name, int rank, int pts, String vehicle) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 15),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.green.withOpacity(0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 5),
-          ),
-        ],
-        border: Border.all(color: Colors.green.withOpacity(0.08)),
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(22),
+        side: BorderSide(color: Colors.green.withValues(alpha: 0.1)),
       ),
       child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 20,
-          vertical: 10,
-        ),
-        leading: Text(
-          "#$rank",
-          style: const TextStyle(
-            fontWeight: FontWeight.w900,
-            fontSize: 20,
-            color: Colors.grey,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+        leading: Container(
+          width: 45,
+          alignment: Alignment.center,
+          child: Text(
+            "#$rank",
+            style: const TextStyle(
+              fontWeight: FontWeight.w900,
+              fontSize: 18,
+              color: Colors.grey,
+            ),
           ),
         ),
         title: Text(
           name,
           style: const TextStyle(
-            fontWeight: FontWeight.w900,
+            fontWeight: FontWeight.bold,
             color: Color(0xFF1B5E20),
-            fontSize: 16,
+            fontSize: 15,
           ),
         ),
         subtitle: Text(
-          "Vehicle: $vehicle",
-          style: const TextStyle(fontSize: 11, color: Colors.grey),
+          "Vehicle ID: $vehicle",
+          style: const TextStyle(fontSize: 11),
         ),
         trailing: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
-            color: Colors.orange.withOpacity(0.08),
-            borderRadius: BorderRadius.circular(10),
+            color: Colors.orange.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(12),
           ),
           child: Text(
-            "${pts} XP",
+            "$pts XP",
             style: const TextStyle(
               fontWeight: FontWeight.w900,
               color: Colors.orange,
-              fontSize: 15,
+              fontSize: 14,
             ),
           ),
         ),
@@ -278,9 +279,16 @@ class LeaderboardPage extends StatelessWidget {
 
   Widget _emptyState() {
     return const Center(
-      child: Text(
-        "No drivers registered in SWCS system.",
-        style: TextStyle(color: Colors.grey),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.emoji_events_outlined, size: 80, color: Colors.grey),
+          SizedBox(height: 15),
+          Text(
+            "No rankings available yet.",
+            style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold),
+          ),
+        ],
       ),
     );
   }

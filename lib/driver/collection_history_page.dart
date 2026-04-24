@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
-import 'package:intl/intl.dart';
 
 class CollectionHistoryPage extends StatelessWidget {
   const CollectionHistoryPage({super.key});
@@ -22,60 +21,69 @@ class CollectionHistoryPage extends StatelessWidget {
         backgroundColor: const Color(0xFF00695C), // Premium Teal
         elevation: 0,
         foregroundColor: Colors.white,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.pop(context),
+        ),
       ),
       body: Column(
         children: [
-          _buildHeaderStats(uid!),
+          if (uid != null) _buildHeaderStats(uid),
           Expanded(
-            child: StreamBuilder(
-              stream: FirebaseDatabase.instance
-                  .ref('driver_history/$uid')
-                  .onValue,
-              builder: (context, AsyncSnapshot<DatabaseEvent> snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(
-                    child: CircularProgressIndicator(color: Color(0xFF00695C)),
-                  );
-                }
-
-                if (!snapshot.hasData ||
-                    snapshot.data!.snapshot.value == null) {
-                  return _buildEmptyState();
-                }
-
-                Map data = snapshot.data!.snapshot.value as Map;
-                // Latest collections on top
-                var historyList = data.entries.toList();
-                historyList.sort((a, b) => b.key.compareTo(a.key));
-
-                return AnimationLimiter(
-                  child: ListView.builder(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 15,
-                      vertical: 10,
-                    ),
-                    itemCount: historyList.length,
-                    itemBuilder: (context, index) {
-                      var item = historyList[index].value;
-                      return AnimationConfiguration.staggeredList(
-                        position: index,
-                        duration: const Duration(milliseconds: 600),
-                        child: SlideAnimation(
-                          verticalOffset: 50.0,
-                          child: FadeInAnimation(
-                            child: _buildHistoryCard(
-                              area: item['area_name'] ?? "Unknown",
-                              time: item['time'] ?? "--:--",
-                              points: item['points'] ?? 0,
-                            ),
+            child: uid == null
+                ? const Center(child: Text("User not logged in"))
+                : StreamBuilder(
+                    stream: FirebaseDatabase.instance
+                        .ref('driver_history/$uid')
+                        .onValue,
+                    builder: (context, AsyncSnapshot<DatabaseEvent> snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Center(
+                          child: CircularProgressIndicator(
+                            color: Color(0xFF00695C),
                           ),
+                        );
+                      }
+
+                      if (!snapshot.hasData ||
+                          snapshot.data!.snapshot.value == null) {
+                        return _buildEmptyState();
+                      }
+
+                      Map data = snapshot.data!.snapshot.value as Map;
+                      var historyList = data.entries.toList();
+
+                      // Sort: Latest collections on top
+                      historyList.sort((a, b) => b.key.compareTo(a.key));
+
+                      return AnimationLimiter(
+                        child: ListView.builder(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 15,
+                            vertical: 10,
+                          ),
+                          itemCount: historyList.length,
+                          itemBuilder: (context, index) {
+                            var item = historyList[index].value;
+                            return AnimationConfiguration.staggeredList(
+                              position: index,
+                              duration: const Duration(milliseconds: 600),
+                              child: SlideAnimation(
+                                verticalOffset: 50.0,
+                                child: FadeInAnimation(
+                                  child: _buildHistoryCard(
+                                    area: item['area_name'] ?? "Unknown",
+                                    time: item['time'] ?? "--:--",
+                                    points: item['points'] ?? 0,
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
                         ),
                       );
                     },
                   ),
-                );
-              },
-            ),
           ),
         ],
       ),
@@ -135,7 +143,7 @@ class CollectionHistoryPage extends StatelessWidget {
     );
   }
 
-  // --- Premium History Card ---
+  // --- Fixed History Card (Overflow Proof) ---
   Widget _buildHistoryCard({
     required String area,
     required String time,
@@ -148,57 +156,93 @@ class CollectionHistoryPage extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
         ],
       ),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 20,
-          vertical: 10,
-        ),
-        leading: Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: const Color(0xFFE0F2F1),
-            borderRadius: BorderRadius.circular(15),
-          ),
-          child: const Icon(
-            Icons.auto_delete_rounded,
-            color: Color(0xFF00695C),
-          ),
-        ),
-        title: Text(
-          area,
-          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-        ),
-        subtitle: Row(
+      child: Padding(
+        padding: const EdgeInsets.all(15.0),
+        child: Row(
           children: [
-            const Icon(Icons.access_time, size: 14, color: Colors.grey),
-            const SizedBox(width: 5),
-            Text(
-              time,
-              style: const TextStyle(fontSize: 12, color: Colors.grey),
+            // Icon Section
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFE0F2F1),
+                borderRadius: BorderRadius.circular(15),
+              ),
+              child: const Icon(
+                Icons.auto_delete_rounded,
+                color: Color(0xFF00695C),
+              ),
+            ),
+            const SizedBox(width: 15),
+
+            // Text Section - WRAPPED IN EXPANDED TO FIX OVERFLOW
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    area,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize:
+                          15, // Slightly smaller to give more breathing room
+                    ),
+                    maxLines: 1,
+                    overflow:
+                        TextOverflow.ellipsis, // Adds "..." if name is too long
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.access_time,
+                        size: 13,
+                        color: Colors.grey,
+                      ),
+                      const SizedBox(width: 5),
+                      Flexible(
+                        // Ensures time string doesn't push badge
+                        child: Text(
+                          time,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: Colors.grey,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(width: 10),
+
+            // Points Badge Section
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.amber.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.amber.shade700, width: 1),
+              ),
+              child: Text(
+                "+$points XP",
+                style: TextStyle(
+                  color: Colors.amber.shade900,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                ),
+              ),
             ),
           ],
-        ),
-        trailing: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: BoxDecoration(
-            color: Colors.amber.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: Colors.amber.shade700, width: 1),
-          ),
-          child: Text(
-            "+$points XP",
-            style: TextStyle(
-              color: Colors.amber.shade900,
-              fontWeight: FontWeight.bold,
-              fontSize: 14,
-            ),
-          ),
         ),
       ),
     );
@@ -217,7 +261,7 @@ class CollectionHistoryPage extends StatelessWidget {
           const SizedBox(height: 15),
           const Text(
             "No collections recorded yet.",
-            style: TextStyle(color: Colors.grey),
+            style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold),
           ),
         ],
       ),

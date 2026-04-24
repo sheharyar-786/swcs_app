@@ -14,21 +14,15 @@ class ScheduleManagementPage extends StatefulWidget {
 class _ScheduleManagementPageState extends State<ScheduleManagementPage>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  late Stream<DatabaseEvent> _scheduleStream;
 
   static const Color leafGreen = Color(0xFF4CAF50);
   static const Color deepForest = Color(0xFF1B5E20);
-  static const Color softMint = Color(0xFFF1F8E9);
+
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
-    // Real-time optimized broadcast stream
-    _scheduleStream = FirebaseDatabase.instance
-        .ref('schedules')
-        .onValue
-        .asBroadcastStream();
   }
 
   @override
@@ -117,7 +111,7 @@ class _ScheduleManagementPageState extends State<ScheduleManagementPage>
 
   Widget _buildLiveScheduleList(String statusFilter) {
     return StreamBuilder(
-      stream: _scheduleStream,
+      stream: FirebaseDatabase.instance.ref('schedules').onValue,
       builder: (context, AsyncSnapshot<DatabaseEvent> snapshot) {
         // FIX: Handle loading state correctly
         if (snapshot.connectionState == ConnectionState.waiting &&

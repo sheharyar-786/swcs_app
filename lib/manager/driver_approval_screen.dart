@@ -17,8 +17,9 @@ class _DriverApprovalScreenState extends State<DriverApprovalScreen> {
 
   final Map<String, String> _selectedDuties = {};
   final Map<String, TextEditingController> _controllers = {};
-  // Added this to track which tile is open and prevent closing on state change
-  final Map<String, PageStorageKey> _keys = {};
+
+  // Logic to prevent the "Red Screen" and keep tiles open
+  final Map<String, GlobalKey> _tileKeys = {};
 
   final List<String> dutyRoles = [
     'Collector',
@@ -50,7 +51,6 @@ class _DriverApprovalScreenState extends State<DriverApprovalScreen> {
       context: context,
       builder: (context) => Dialog(
         backgroundColor: Colors.transparent,
-        insetPadding: const EdgeInsets.all(10),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -59,7 +59,7 @@ class _DriverApprovalScreenState extends State<DriverApprovalScreen> {
                 title,
                 style: const TextStyle(color: Colors.white, fontSize: 16),
               ),
-              backgroundColor: Colors.black.withOpacity(0.7),
+              backgroundColor: Colors.black.withValues(alpha: 0.7),
               elevation: 0,
               leading: IconButton(
                 icon: const Icon(Icons.close, color: Colors.white),
@@ -83,7 +83,7 @@ class _DriverApprovalScreenState extends State<DriverApprovalScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF9FBF9),
+      backgroundColor: Colors.white,
       appBar: AppBar(
         title: const Text(
           "🛡️ Verification Hub",
@@ -97,93 +97,89 @@ class _DriverApprovalScreenState extends State<DriverApprovalScreen> {
           borderRadius: BorderRadius.vertical(bottom: Radius.circular(25)),
         ),
       ),
-      body: StreamBuilder(
-        stream: FirebaseDatabase.instance.ref('pending_drivers').onValue,
-        builder: (context, AsyncSnapshot<DatabaseEvent> snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(
-              child: CircularProgressIndicator(color: leafGreen),
-            );
-          }
-
-          if (!snapshot.hasData || snapshot.data?.snapshot.value == null) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.verified_user_outlined,
-                    size: 80,
-                    color: Colors.grey.shade300,
-                  ),
-                  const SizedBox(height: 15),
-                  const Text(
-                    "No pending requests! ✅",
-                    style: TextStyle(
-                      color: Colors.grey,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
+      body: Stack(
+        children: [
+          // 1. FADED BACKGROUND IMAGE
+          Positioned.fill(
+            child: Opacity(
+              opacity: 0.07,
+              child: Image.network(
+                'https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?q=80&w=1000',
+                fit: BoxFit.cover,
               ),
-            );
-          }
+            ),
+          ),
 
-          Map<dynamic, dynamic> drivers =
-              snapshot.data!.snapshot.value as Map<dynamic, dynamic>;
-          List<String> keys = drivers.keys.cast<String>().toList();
+          StreamBuilder(
+            stream: FirebaseDatabase.instance.ref('pending_drivers').onValue,
+            builder: (context, AsyncSnapshot<DatabaseEvent> snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(
+                  child: CircularProgressIndicator(color: leafGreen),
+                );
+              }
 
-          return ListView.builder(
-            padding: const EdgeInsets.fromLTRB(15, 20, 15, 80),
-            physics: const BouncingScrollPhysics(),
-            itemCount: keys.length,
-            itemBuilder: (context, index) {
-              String driverKey = keys[index];
-              var driver = drivers[driverKey];
+              if (!snapshot.hasData || snapshot.data?.snapshot.value == null) {
+                return _buildEmptyState();
+              }
 
-              // Proper assignment to prevent UI jumping
-              _selectedDuties.putIfAbsent(driverKey, () => 'Collector');
-              _controllers.putIfAbsent(
-                driverKey,
-                () => TextEditingController(),
+              Map<dynamic, dynamic> drivers =
+                  snapshot.data!.snapshot.value as Map<dynamic, dynamic>;
+              List<String> keys = drivers.keys.cast<String>().toList();
+
+              return ListView.builder(
+                padding: const EdgeInsets.fromLTRB(15, 20, 15, 80),
+                physics: const BouncingScrollPhysics(),
+                itemCount: keys.length,
+                itemBuilder: (context, index) {
+                  String driverKey = keys[index];
+                  var driver = drivers[driverKey];
+
+                  _selectedDuties.putIfAbsent(driverKey, () => 'Collector');
+                  _controllers.putIfAbsent(
+                    driverKey,
+                    () => TextEditingController(),
+                  );
+                  _tileKeys.putIfAbsent(driverKey, () => GlobalKey());
+
+                  return _buildApprovalCard(driver, driverKey);
+                },
               );
-              _keys.putIfAbsent(driverKey, () => PageStorageKey(driverKey));
-
-              return _buildApprovalCard(driver, driverKey, index);
             },
-          );
-        },
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildApprovalCard(var driver, String key, int index) {
+  Widget _buildApprovalCard(var driver, String key) {
     return Container(
-      // Using the unique key to prevent tile from closing on setState
-      key: _keys[key],
       margin: const EdgeInsets.only(bottom: 20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Colors.white.withValues(alpha: 
+          0.92,
+        ), // Slight transparency to show background
         borderRadius: BorderRadius.circular(30),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 20,
             offset: const Offset(0, 10),
           ),
         ],
+        border: Border.all(color: softMint),
       ),
       child: Theme(
         data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
         child: ExpansionTile(
-          // Important: Maintain state during rebuilds
+          key: _tileKeys[key], // FIXED: Prevents tile from resetting/closing
           maintainState: true,
           tilePadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
           leading: Container(
             padding: const EdgeInsets.all(2),
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              border: Border.all(color: leafGreen.withOpacity(0.3), width: 2),
+              border: Border.all(color: leafGreen.withValues(alpha: 0.3), width: 2),
             ),
             child: const CircleAvatar(
               backgroundColor: softMint,
@@ -214,7 +210,8 @@ class _DriverApprovalScreenState extends State<DriverApprovalScreen> {
                   _infoBadge(
                     Icons.badge_outlined,
                     "CNIC Number",
-                    driver['cnic'] ?? "N/A",
+                    (driver['cnic_number'] ?? driver['cnic'] ?? "N/A")
+                        .toString(),
                   ),
                   const SizedBox(height: 25),
                   const Text(
@@ -245,13 +242,15 @@ class _DriverApprovalScreenState extends State<DriverApprovalScreen> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  // Dropdown update no longer causes jumping
                   DropdownButtonFormField<String>(
+                    isExpanded: true,
                     decoration: _inputDeco(
                       "Select Duty Role",
                       Icons.work_outline,
                     ),
-                    value: _selectedDuties[key],
+                    initialValue: dutyRoles.contains(_selectedDuties[key])
+                        ? _selectedDuties[key]
+                        : dutyRoles.first,
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       color: deepForest,
@@ -358,7 +357,7 @@ class _DriverApprovalScreenState extends State<DriverApprovalScreen> {
               decoration: BoxDecoration(
                 color: const Color(0xFFF5F5F5),
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: Colors.black.withOpacity(0.03)),
+                border: Border.all(color: Colors.black.withValues(alpha: 0.03)),
               ),
               child: base64 != null
                   ? ClipRRect(
@@ -424,6 +423,7 @@ class _DriverApprovalScreenState extends State<DriverApprovalScreen> {
       await FirebaseDatabase.instance.ref('pending_drivers/$uid').remove();
       _controllers.remove(uid);
       _selectedDuties.remove(uid);
+      _tileKeys.remove(uid);
     } catch (e) {
       _msg("Error: $e", Colors.redAccent);
     }
@@ -431,55 +431,71 @@ class _DriverApprovalScreenState extends State<DriverApprovalScreen> {
 
   InputDecoration _inputDeco(String hint, IconData icon) => InputDecoration(
     hintText: hint,
-    hintStyle: const TextStyle(
-      fontSize: 12,
-      color: Colors.grey,
-      fontWeight: FontWeight.normal,
-    ),
+    hintStyle: const TextStyle(fontSize: 12, color: Colors.grey),
     prefixIcon: Icon(icon, color: leafGreen, size: 20),
     filled: true,
     fillColor: const Color(0xFFF8FBF8),
     contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
     border: OutlineInputBorder(
       borderRadius: BorderRadius.circular(18),
-      borderSide: BorderSide(color: Colors.grey.shade200),
+      borderSide: BorderSide.none,
     ),
     enabledBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(18),
-      borderSide: BorderSide(color: Colors.grey.shade100),
+      borderSide: BorderSide.none,
     ),
   );
 
   Widget _infoBadge(IconData icon, String label, String val) => Container(
     padding: const EdgeInsets.all(15),
     decoration: BoxDecoration(
-      color: softMint.withOpacity(0.5),
+      color: softMint.withValues(alpha: 0.5),
       borderRadius: BorderRadius.circular(15),
     ),
     child: Row(
       children: [
         Icon(icon, size: 20, color: leafGreen),
         const SizedBox(width: 15),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              label,
-              style: const TextStyle(
-                fontSize: 9,
-                color: Colors.grey,
-                fontWeight: FontWeight.bold,
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 9,
+                  color: Colors.grey,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-            ),
-            Text(
-              val,
-              style: const TextStyle(
-                fontWeight: FontWeight.w900,
-                fontSize: 13,
-                color: deepForest,
+              Text(
+                val,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 13,
+                  color: deepForest,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
+
+  Widget _buildEmptyState() => Center(
+    child: Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(
+          Icons.verified_user_outlined,
+          size: 80,
+          color: Colors.grey.shade300,
+        ),
+        const SizedBox(height: 15),
+        const Text(
+          "No pending requests! ✅",
+          style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold),
         ),
       ],
     ),

@@ -6,12 +6,14 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:confetti/confetti.dart';
 import 'package:geolocator/geolocator.dart';
+
+// Your existing imports
 import '../auth/login_screen.dart';
-import '../admin/live_map_screen.dart';
+import '../manager/live_map_screen.dart';
 import 'assign_duties_page.dart';
 import 'leaderboard_page.dart';
 import 'fuel_analytics_page.dart';
-import 'collection_history_page.dart'; // Naya Page Link
+import 'collection_history_page.dart';
 
 class DriverDashboard extends StatefulWidget {
   const DriverDashboard({super.key});
@@ -30,13 +32,17 @@ class _DriverDashboardState extends State<DriverDashboard> {
   String attendanceStatus = "Inactive";
   int dutyCount = 0;
 
-  List<String> _liveMessages = [
+  final List<String> _liveMessages = [
     "🚀 Dashboard Active: Waiting for system updates...",
     "🚛 Keep Sadiqabad Clean & Green!",
   ];
 
   late ConfettiController _confettiController;
   late ScrollController _announcementController;
+
+  // LOGIC FIX: Stream declared here to keep data persistent across page jumps
+  late Stream<DatabaseEvent> _globalStream;
+
   Timer? _marqueeTimer;
   Timer? _locationTimer;
 
@@ -47,6 +53,10 @@ class _DriverDashboardState extends State<DriverDashboard> {
       duration: const Duration(seconds: 3),
     );
     _announcementController = ScrollController();
+
+    // INITIALIZE GLOBAL STREAM ONCE
+    _globalStream = FirebaseDatabase.instance.ref().onValue.asBroadcastStream();
+
     _initDriverEngine();
     _startAnnouncementAnimation();
     _startBackgroundLocationUpdates();
@@ -61,41 +71,23 @@ class _DriverDashboardState extends State<DriverDashboard> {
     super.dispose();
   }
 
-  // --- Logic: Location Permission & Background Update ---
+  // --- LOGIC: Background GPS Updates (15s Interval) ---
   void _startBackgroundLocationUpdates() async {
-    bool serviceEnabled;
-    LocationPermission permission;
+    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) _msg("Please enable GPS/Location services.");
 
-    // Check if location services are enabled
-    serviceEnabled = await Geolocator.isLocationServiceEnabled();
-    if (!serviceEnabled) {
-      _msg("Please enable GPS/Location services.");
-    }
-
-    permission = await Geolocator.checkPermission();
+    LocationPermission permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
-      if (permission == LocationPermission.denied) {
-        _msg("Location permission denied.");
-        return;
-      }
     }
 
-    if (permission == LocationPermission.deniedForever) {
-      _msg("Location permissions are permanently denied.");
-      return;
-    }
-
-    // Har 15 seconds baad location update
     _locationTimer = Timer.periodic(const Duration(seconds: 15), (timer) async {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
-
       try {
         Position position = await Geolocator.getCurrentPosition(
-          desiredAccuracy: LocationAccuracy.high,
+          locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
         );
-
         await FirebaseDatabase.instance
             .ref('verified_drivers/${user.uid}')
             .update({
@@ -104,7 +96,7 @@ class _DriverDashboardState extends State<DriverDashboard> {
               'last_seen': ServerValue.timestamp,
             });
       } catch (e) {
-        debugPrint("Location Error: $e");
+        debugPrint("Location Update Sync Error: $e");
       }
     });
   }
@@ -131,33 +123,21 @@ class _DriverDashboardState extends State<DriverDashboard> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
+    // Real-time listener for Driver Profile
     FirebaseDatabase.instance
         .ref('verified_drivers/${user.uid}')
         .onValue
         .listen((event) {
           if (event.snapshot.exists && mounted) {
             Map data = event.snapshot.value as Map;
-            int newPoints = data['points'] ?? 0;
-            String fetchedName = data['name'] ?? "";
-            if (fetchedName.isEmpty) {
-              String email = data['email'] ?? "Driver";
-              fetchedName = email.split('@')[0].toUpperCase();
-            }
-
-            if (newPoints > driverPoints && driverPoints != 0) {
-              setState(() {
-                _liveMessages.add(
-                  "⭐ BRAVO! A citizen awarded you points. Total: $newPoints",
-                );
-              });
-            }
-
             setState(() {
-              driverName = fetchedName;
-              driverPoints = newPoints;
+              driverName =
+                  data['name'] ??
+                  user.email?.split('@')[0].toUpperCase() ??
+                  "Driver";
+              driverPoints = data['points'] ?? 0;
               attendanceStatus = data['attendance'] ?? "Inactive";
             });
-
             if (data['last_rating_received'] == 5.0) {
               _confettiController.play();
               FirebaseDatabase.instance
@@ -167,6 +147,7 @@ class _DriverDashboardState extends State<DriverDashboard> {
           }
         });
 
+    // Real-time task counter sync
     FirebaseDatabase.instance.ref('bins').onValue.listen((event) {
       if (event.snapshot.exists && mounted) {
         Map bins = event.snapshot.value as Map;
@@ -180,15 +161,6 @@ class _DriverDashboardState extends State<DriverDashboard> {
         setState(() => dutyCount = activeTasks);
       }
     });
-
-    FirebaseDatabase.instance.ref('latest_activity').onValue.listen((event) {
-      if (event.snapshot.exists && mounted) {
-        String activity = event.snapshot.value.toString();
-        if (activity.contains("Assigned") || activity.contains("Duty")) {
-          setState(() => _liveMessages.add("🆕 MISSION UPDATE: $activity"));
-        }
-      }
-    });
   }
 
   @override
@@ -198,16 +170,21 @@ class _DriverDashboardState extends State<DriverDashboard> {
       body: Stack(
         children: [
           StreamBuilder(
-            stream: FirebaseDatabase.instance.ref().onValue,
+            stream:
+                _globalStream, // Using initialized stream to prevent vanishing data
             builder: (context, AsyncSnapshot<DatabaseEvent> snapshot) {
-              if (!snapshot.hasData)
+              if (snapshot.connectionState == ConnectionState.waiting &&
+                  !snapshot.hasData) {
                 return const Center(
                   child: CircularProgressIndicator(color: leafGreen),
                 );
+              }
 
-              Map data = snapshot.data!.snapshot.value as Map;
+              final data = snapshot.data?.snapshot.value as Map? ?? {};
               Map bins = data['bins'] ?? {};
               final user = FirebaseAuth.instance.currentUser;
+
+              // Filter bins specifically for this driver's current mission list
               var myRouteBins = bins.entries
                   .where(
                     (e) =>
@@ -243,11 +220,13 @@ class _DriverDashboardState extends State<DriverDashboard> {
               );
             },
           ),
+          // Success Feedback Layer
           Align(
             alignment: Alignment.topCenter,
             child: ConfettiWidget(
               confettiController: _confettiController,
               blastDirectionality: BlastDirectionality.explosive,
+              colors: const [Colors.green, Colors.yellow, Colors.blue],
             ),
           ),
         ],
@@ -255,42 +234,42 @@ class _DriverDashboardState extends State<DriverDashboard> {
     );
   }
 
+  // --- UI COMPONENTS ---
+
   Widget _buildModernHeader() => SliverAppBar(
     expandedHeight: 220,
     pinned: true,
     backgroundColor: leafGreen,
-    elevation: 10,
+    elevation: 0,
     actions: [
       Padding(
         padding: const EdgeInsets.only(right: 12, top: 12),
-        child: Center(
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: Colors.white24,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: Colors.white30),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                CircleAvatar(
-                  radius: 4,
-                  backgroundColor: attendanceStatus == "Present"
-                      ? Colors.lightGreenAccent
-                      : Colors.orangeAccent,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: Colors.white24,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.white30),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircleAvatar(
+                radius: 4,
+                backgroundColor: attendanceStatus == "Present"
+                    ? Colors.lightGreenAccent
+                    : Colors.orangeAccent,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                attendanceStatus.toUpperCase(),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
                 ),
-                const SizedBox(width: 8),
-                Text(
-                  attendanceStatus.toUpperCase(),
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
@@ -309,16 +288,15 @@ class _DriverDashboardState extends State<DriverDashboard> {
             "Hello, $driverName",
             style: const TextStyle(
               fontWeight: FontWeight.w900,
-              fontSize: 20,
+              fontSize: 18,
               color: Colors.white,
             ),
           ),
           const Text(
             "Let's the mission begin! 🚛✨",
             style: TextStyle(
-              fontSize: 9,
+              fontSize: 8,
               color: Colors.white70,
-              fontWeight: FontWeight.w400,
               letterSpacing: 1,
             ),
           ),
@@ -328,7 +306,7 @@ class _DriverDashboardState extends State<DriverDashboard> {
         fit: StackFit.expand,
         children: [
           Image.network(
-            'https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?q=80&w=2070&auto=format&fit=crop',
+            'https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?q=80&w=1000',
             fit: BoxFit.cover,
           ),
           Container(
@@ -337,9 +315,9 @@ class _DriverDashboardState extends State<DriverDashboard> {
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: [
-                  Colors.black.withOpacity(0.4),
+                  Colors.black.withValues(alpha: 0.4),
                   Colors.transparent,
-                  deepForest.withOpacity(0.9),
+                  deepForest.withValues(alpha: 0.9),
                 ],
               ),
             ),
@@ -351,7 +329,7 @@ class _DriverDashboardState extends State<DriverDashboard> {
 
   Widget _buildMarqueeBar() => Container(
     height: 38,
-    color: Colors.orange.withOpacity(0.12),
+    color: Colors.orange.withValues(alpha: 0.1),
     child: SingleChildScrollView(
       controller: _announcementController,
       scrollDirection: Axis.horizontal,
@@ -386,13 +364,13 @@ class _DriverDashboardState extends State<DriverDashboard> {
 
   Widget _statItem(String l, String v, Color c) => Container(
     width: 105,
-    padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 10),
+    padding: const EdgeInsets.symmetric(vertical: 18),
     decoration: BoxDecoration(
       color: Colors.white,
       borderRadius: BorderRadius.circular(22),
       boxShadow: [
         BoxShadow(
-          color: c.withOpacity(0.06),
+          color: c.withValues(alpha: 0.06),
           blurRadius: 15,
           offset: const Offset(0, 8),
         ),
@@ -424,7 +402,7 @@ class _DriverDashboardState extends State<DriverDashboard> {
         borderRadius: BorderRadius.circular(30),
         border: Border.all(color: Colors.white, width: 4),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 20),
+          BoxShadow(color: Colors.black.withValues(alpha: 0.08), blurRadius: 20),
         ],
       ),
       child: ClipRRect(
@@ -437,13 +415,12 @@ class _DriverDashboardState extends State<DriverDashboard> {
           children: [
             TileLayer(
               urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-              userAgentPackageName: 'com.shary.swcs.driver_live_pro',
+              // FIXED: User Agent added to prevent "Access Blocked" policy error
+              userAgentPackageName: 'com.shary.swcs.driver_pro_fleet',
             ),
             MarkerLayer(
               markers: bins.entries.map((e) {
                 var d = e.value;
-                double lat = double.tryParse(d['lat'].toString()) ?? 28.3067;
-                double lng = double.tryParse(d['lng'].toString()) ?? 70.1411;
                 int fill = d['fill_level'] ?? 0;
                 int gas = d['gas_level'] ?? 0;
                 Color col = gas > 400
@@ -452,9 +429,12 @@ class _DriverDashboardState extends State<DriverDashboard> {
                           ? Colors.red
                           : (fill >= 50 ? Colors.orange : leafGreen));
                 return Marker(
-                  point: LatLng(lat, lng),
-                  width: 60,
-                  height: 60,
+                  point: LatLng(
+                    double.tryParse(d['lat'].toString()) ?? 28.3067,
+                    double.tryParse(d['lng'].toString()) ?? 70.1411,
+                  ),
+                  width: 50,
+                  height: 50,
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -473,7 +453,7 @@ class _DriverDashboardState extends State<DriverDashboard> {
                           ),
                         ),
                       ),
-                      Icon(Icons.location_on, color: col, size: 30),
+                      Icon(Icons.location_on, color: col, size: 25),
                     ],
                   ),
                 );
@@ -500,7 +480,7 @@ class _DriverDashboardState extends State<DriverDashboard> {
         badge: dutyCount,
         onTap: () => Navigator.push(
           context,
-          MaterialPageRoute(builder: (context) => const AssignDutiesPage()),
+          MaterialPageRoute(builder: (c) => const AssignDutiesPage()),
         ),
       ),
       _gridTile(
@@ -509,7 +489,7 @@ class _DriverDashboardState extends State<DriverDashboard> {
         Colors.red,
         onTap: () => Navigator.push(
           context,
-          MaterialPageRoute(builder: (context) => const LiveMapScreen()),
+          MaterialPageRoute(builder: (c) => const LiveMapScreen()),
         ),
       ),
       _gridTile(
@@ -518,7 +498,7 @@ class _DriverDashboardState extends State<DriverDashboard> {
         Colors.amber,
         onTap: () => Navigator.push(
           context,
-          MaterialPageRoute(builder: (context) => const LeaderboardPage()),
+          MaterialPageRoute(builder: (c) => const LeaderboardPage()),
         ),
       ),
       _gridTile(
@@ -527,11 +507,11 @@ class _DriverDashboardState extends State<DriverDashboard> {
         Colors.teal,
         onTap: () => Navigator.push(
           context,
-          MaterialPageRoute(builder: (context) => const FuelAnalyticsPage()),
+          MaterialPageRoute(builder: (c) => const FuelAnalyticsPage()),
         ),
       ),
       _gridTile(
-        "Daily Attendance",
+        "Attendance",
         Icons.how_to_reg_rounded,
         Colors.purple,
         onTap: () => Navigator.push(
@@ -540,15 +520,12 @@ class _DriverDashboardState extends State<DriverDashboard> {
         ),
       ),
       _gridTile(
-        "Collection Status",
-        Icons.history_edu_rounded, // Premium History Icon
-        Colors.teal, // Theme Color
-        badge: 0, // Is mein badge ki zaroorat nahi kyunke ye history hai
+        "History Logs",
+        Icons.history_edu_rounded,
+        Colors.indigo,
         onTap: () => Navigator.push(
           context,
-          MaterialPageRoute(
-            builder: (context) => const CollectionHistoryPage(),
-          ),
+          MaterialPageRoute(builder: (c) => const CollectionHistoryPage()),
         ),
       ),
     ],
@@ -567,10 +544,10 @@ class _DriverDashboardState extends State<DriverDashboard> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(25),
-        border: Border.all(color: c.withOpacity(0.1)),
+        border: Border.all(color: c.withValues(alpha: 0.1)),
         boxShadow: [
           BoxShadow(
-            color: c.withOpacity(0.04),
+            color: c.withValues(alpha: 0.04),
             blurRadius: 10,
             offset: const Offset(0, 5),
           ),
@@ -582,22 +559,22 @@ class _DriverDashboardState extends State<DriverDashboard> {
           Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(i, color: c, size: 32),
+              Icon(i, color: c, size: 30),
               const SizedBox(height: 8),
               Text(
                 t,
                 style: TextStyle(
                   fontWeight: FontWeight.w900,
                   color: c,
-                  fontSize: 11,
+                  fontSize: 10,
                 ),
               ),
             ],
           ),
           if (badge > 0)
             Positioned(
-              top: 10,
-              right: 10,
+              top: 12,
+              right: 12,
               child: CircleAvatar(
                 radius: 8,
                 backgroundColor: Colors.red,
@@ -613,16 +590,21 @@ class _DriverDashboardState extends State<DriverDashboard> {
   );
 
   Widget _buildTaskListView(List myBins) {
-    if (myBins.isEmpty)
+    if (myBins.isEmpty) {
       return const Center(
         child: Padding(
           padding: EdgeInsets.all(30),
           child: Text(
-            "No urgent bins detected. All clear!",
-            style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold),
+            "No urgent missions. You're efficient! ✨",
+            style: TextStyle(
+              color: Colors.grey,
+              fontWeight: FontWeight.bold,
+              fontSize: 12,
+            ),
           ),
         ),
       );
+    }
     return ListView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
@@ -635,7 +617,7 @@ class _DriverDashboardState extends State<DriverDashboard> {
             color: Colors.white,
             borderRadius: BorderRadius.circular(22),
             boxShadow: [
-              BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10),
+              BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 10),
             ],
           ),
           child: ListTile(
@@ -643,17 +625,24 @@ class _DriverDashboardState extends State<DriverDashboard> {
               backgroundColor: softMint,
               child: Icon(Icons.delete_sweep_rounded, color: leafGreen),
             ),
+            // FIXED: Added Expanded title and ellipsis to prevent Right Overflow error
             title: Text(
-              bin.value['area'] ?? "Unknown Sector",
-              style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14),
+              bin.value['area'] ?? "Unknown",
+              style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13),
+              overflow: TextOverflow.ellipsis,
             ),
             subtitle: Text(
               "Level: ${bin.value['fill_level']}% | Gas: ${bin.value['gas_level']}",
+              style: const TextStyle(fontSize: 11),
             ),
             trailing: const Icon(
               Icons.arrow_forward_ios_rounded,
-              size: 14,
+              size: 12,
               color: Colors.grey,
+            ),
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (c) => const AssignDutiesPage()),
             ),
           ),
         );
@@ -668,7 +657,6 @@ class _DriverDashboardState extends State<DriverDashboard> {
   void _msg(String m) => ScaffoldMessenger.of(context).showSnackBar(
     SnackBar(content: Text(m), behavior: SnackBarBehavior.floating),
   );
-
   Widget _sectionLabel(String t, String e) => Padding(
     padding: const EdgeInsets.only(bottom: 15, top: 10),
     child: Row(
@@ -679,7 +667,7 @@ class _DriverDashboardState extends State<DriverDashboard> {
           t,
           style: const TextStyle(
             fontWeight: FontWeight.w900,
-            fontSize: 12,
+            fontSize: 11,
             color: deepForest,
             letterSpacing: 1.2,
           ),
@@ -689,7 +677,7 @@ class _DriverDashboardState extends State<DriverDashboard> {
   );
 }
 
-// --- Attendance Page Logic ---
+// Attendance Logic Integrated (Saves space in folder structure)
 class DriverAttendancePage extends StatefulWidget {
   const DriverAttendancePage({super.key});
   @override
@@ -698,142 +686,86 @@ class DriverAttendancePage extends StatefulWidget {
 
 class _DriverAttendancePageState extends State<DriverAttendancePage> {
   final TextEditingController _reasonController = TextEditingController();
-
-  Future<void> _updateStatus(String status, {String? reason}) async {
+  Future<void> _updateStatus(String status) async {
+    final nav = Navigator.of(context);
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       await FirebaseDatabase.instance
           .ref('verified_drivers/${user.uid}')
           .update({
             'attendance': status,
-            'leave_reason': reason ?? "",
+            'leave_reason': status == "On Leave" ? _reasonController.text : "",
             'attendance_time': ServerValue.timestamp,
           });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text("🚀 Status Updated: $status"),
-          backgroundColor: status == "Present" ? Colors.green : Colors.orange,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-      Navigator.pop(context);
+      nav.pop();
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
       appBar: AppBar(
-        title: const Text(
-          "Attendance Hub",
-          style: TextStyle(fontWeight: FontWeight.w900),
-        ),
+        title: const Text("Attendance Hub"),
         backgroundColor: const Color(0xFF4CAF50),
         centerTitle: true,
-        elevation: 0,
       ),
-      body: SingleChildScrollView(
-        physics: const BouncingScrollPhysics(),
-        child: Padding(
-          padding: const EdgeInsets.all(25),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                "Daily Duty Status",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 20),
-              _actionCard(
-                "Mark Present",
-                Icons.verified_user_rounded,
-                Colors.green,
-                () => _updateStatus("Present"),
-              ),
-              const SizedBox(height: 35),
-              const Divider(),
-              const SizedBox(height: 25),
-              const Text(
-                "Need a Leave?",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 15),
-              TextField(
-                controller: _reasonController,
-                maxLines: 4,
-                decoration: InputDecoration(
-                  hintText: "Enter reason...",
-                  filled: true,
-                  fillColor: const Color(0xFFF8F9FA),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(20),
-                    borderSide: BorderSide.none,
-                  ),
+      body: Padding(
+        padding: const EdgeInsets.all(25),
+        child: Column(
+          children: [
+            const Text(
+              "Status for Today",
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 20),
+            _btn("MARK PRESENT", Colors.green, () => _updateStatus("Present")),
+            const SizedBox(height: 35),
+            const Divider(),
+            const Text(
+              "Request Leave",
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 15),
+            TextField(
+              controller: _reasonController,
+              decoration: InputDecoration(
+                hintText: "Why do you need leave?",
+                filled: true,
+                fillColor: Colors.grey[100],
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(15),
+                  borderSide: BorderSide.none,
                 ),
               ),
-              const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                height: 55,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.orange,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(15),
-                    ),
-                  ),
-                  onPressed: () =>
-                      _updateStatus("On Leave", reason: _reasonController.text),
-                  child: const Text(
-                    "Submit Leave Request",
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
+            ),
+            const SizedBox(height: 20),
+            _btn(
+              "SUBMIT LEAVE",
+              Colors.orange,
+              () => _updateStatus("On Leave"),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _actionCard(String t, IconData i, Color c, VoidCallback tap) =>
-      InkWell(
-        onTap: tap,
-        borderRadius: BorderRadius.circular(25),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: c.withOpacity(0.08),
-            borderRadius: BorderRadius.circular(25),
-            border: Border.all(color: c.withOpacity(0.3)),
-          ),
-          child: Row(
-            children: [
-              Icon(i, color: c, size: 28),
-              const SizedBox(width: 20),
-              Expanded(
-                child: Text(
-                  t,
-                  style: TextStyle(
-                    color: c,
-                    fontWeight: FontWeight.w900,
-                    fontSize: 18,
-                  ),
-                ),
-              ),
-              const Icon(
-                Icons.arrow_forward_ios_rounded,
-                size: 18,
-                color: Colors.grey,
-              ),
-            ],
-          ),
+  Widget _btn(String t, Color c, VoidCallback tap) => SizedBox(
+    width: double.infinity,
+    height: 50,
+    child: ElevatedButton(
+      style: ElevatedButton.styleFrom(
+        backgroundColor: c,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+      ),
+      onPressed: tap,
+      child: Text(
+        t,
+        style: const TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.bold,
         ),
-      );
+      ),
+    ),
+  );
 }

@@ -7,8 +7,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:geolocator/geolocator.dart';
 
 class LiveMapScreen extends StatefulWidget {
-  final String? targetArea;
-  const LiveMapScreen({super.key, this.targetArea});
+  final String?
+  assignedArea; // UPDATED: Changed targetArea to assignedArea for clarity
+  const LiveMapScreen({super.key, this.assignedArea});
 
   @override
   State<LiveMapScreen> createState() => _LiveMapScreenState();
@@ -147,8 +148,15 @@ class _LiveMapScreenState extends State<LiveMapScreen>
 
     bins.forEach((id, val) {
       if (val['lat'] != null && val['lng'] != null) {
-        if (widget.targetArea != null && val['area'] != widget.targetArea)
-          return;
+        // --- UPDATED LOGIC: FILTER BY ASSIGNED AREA ---
+        // If an area is passed from AssignDutiesPage, ignore all other bins
+        if (widget.assignedArea != null) {
+          String binArea = val['area'].toString().toLowerCase().trim();
+          String targetArea = widget.assignedArea!.toLowerCase().trim();
+          if (binArea != targetArea) {
+            return; // Skip bins not in the current mission area
+          }
+        }
 
         LatLng binPos = LatLng(
           double.parse(val['lat'].toString()),
@@ -185,6 +193,7 @@ class _LiveMapScreenState extends State<LiveMapScreen>
       }
     });
 
+    // --- ACO LOGIC: SORT BY PRIORITY FOR ROUTE OPTIMIZATION ---
     highPriorityBins.sort((a, b) => b['priority'].compareTo(a['priority']));
 
     List<Polyline> newPolylines = [];
@@ -212,7 +221,7 @@ class _LiveMapScreenState extends State<LiveMapScreen>
         Polyline(
           points: routinePoints,
           strokeWidth: 3.0,
-          color: Colors.grey.withOpacity(0.3),
+          color: Colors.grey.withValues(alpha: 0.3),
         ),
       );
       newPolylines.add(
@@ -376,7 +385,7 @@ class _LiveMapScreenState extends State<LiveMapScreen>
             width: 40,
             height: 40,
             decoration: BoxDecoration(
-              color: Colors.blue.withOpacity(0.2),
+              color: Colors.blue.withValues(alpha: 0.2),
               shape: BoxShape.circle,
             ),
           ),
@@ -391,12 +400,11 @@ class _LiveMapScreenState extends State<LiveMapScreen>
     return Scaffold(
       body: Stack(
         children: [
-          // --- UPDATED: Google Hybrid View for Clear Streets ---
           FlutterMap(
             mapController: _mapController,
             options: MapOptions(
               initialCenter: _myLiveLocation,
-              initialZoom: 16.0, // High zoom for better visibility
+              initialZoom: 16.0,
             ),
             children: [
               TileLayer(
@@ -426,7 +434,7 @@ class _LiveMapScreenState extends State<LiveMapScreen>
         decoration: BoxDecoration(
           color: Colors.red.shade900,
           borderRadius: BorderRadius.circular(20),
-          boxShadow: [const BoxShadow(color: Colors.black26, blurRadius: 10)],
+          boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 10)],
         ),
         child: Row(
           children: [
@@ -481,7 +489,7 @@ class _LiveMapScreenState extends State<LiveMapScreen>
       child: Container(
         padding: const EdgeInsets.all(15),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.9),
+          color: Colors.white.withValues(alpha: 0.9),
           borderRadius: BorderRadius.circular(20),
         ),
         child: Row(

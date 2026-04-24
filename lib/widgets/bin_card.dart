@@ -50,13 +50,13 @@ class BinInfoCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(30),
           boxShadow: [
             BoxShadow(
-              color: statusColor.withOpacity(0.08),
+              color: statusColor.withValues(alpha: 0.08),
               blurRadius: 20,
               spreadRadius: 2,
               offset: const Offset(0, 10),
             ),
           ],
-          border: Border.all(color: statusColor.withOpacity(0.05), width: 1),
+          border: Border.all(color: statusColor.withValues(alpha: 0.05), width: 1),
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(30),
@@ -68,7 +68,7 @@ class BinInfoCard extends StatelessWidget {
                 right: -50,
                 child: CircleAvatar(
                   radius: 80,
-                  backgroundColor: statusColor.withOpacity(0.03),
+                  backgroundColor: statusColor.withValues(alpha: 0.03),
                 ),
               ),
 
@@ -89,7 +89,7 @@ class BinInfoCard extends StatelessWidget {
                               style: TextStyle(
                                 fontWeight: FontWeight.w900,
                                 fontSize: 14,
-                                color: deepForest.withOpacity(0.5),
+                                color: deepForest.withValues(alpha: 0.5),
                                 letterSpacing: 1.2,
                               ),
                             ),
@@ -156,13 +156,13 @@ class BinInfoCard extends StatelessWidget {
                             borderRadius: BorderRadius.circular(20),
                             gradient: LinearGradient(
                               colors: [
-                                statusColor.withOpacity(0.7),
+                                statusColor.withValues(alpha: 0.7),
                                 statusColor,
                               ],
                             ),
                             boxShadow: [
                               BoxShadow(
-                                color: statusColor.withOpacity(0.3),
+                                color: statusColor.withValues(alpha: 0.3),
                                 blurRadius: 8,
                                 offset: const Offset(0, 4),
                               ),
@@ -184,7 +184,7 @@ class BinInfoCard extends StatelessWidget {
                             backgroundColor: statusColor,
                             foregroundColor: Colors.white,
                             elevation: 0,
-                            shadowColor: statusColor.withOpacity(0.4),
+                            shadowColor: statusColor.withValues(alpha: 0.4),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(18),
                             ),
@@ -214,9 +214,9 @@ class BinInfoCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(30),
-        border: Border.all(color: color.withOpacity(0.1), width: 1.5),
+        border: Border.all(color: color.withValues(alpha: 0.1), width: 1.5),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,

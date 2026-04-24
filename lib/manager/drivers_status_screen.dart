@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 
 class DriversStatusPage extends StatelessWidget {
@@ -175,12 +174,12 @@ class DriversStatusPage extends StatelessWidget {
         margin: const EdgeInsets.only(bottom: 15),
         padding: const EdgeInsets.all(15),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.9),
+          color: Colors.white.withValues(alpha: 0.9),
           borderRadius: BorderRadius.circular(22),
           border: Border.all(color: Colors.white),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.03),
+              color: Colors.black.withValues(alpha: 0.03),
               blurRadius: 10,
               offset: const Offset(0, 5),
             ),
@@ -194,7 +193,7 @@ class DriversStatusPage extends StatelessWidget {
                 CircleAvatar(
                   radius: 25,
                   backgroundColor: isPresent
-                      ? leafGreen.withOpacity(0.1)
+                      ? leafGreen.withValues(alpha: 0.1)
                       : Colors.grey.shade200,
                   child: Icon(
                     Icons.person_rounded,
@@ -261,7 +260,7 @@ class DriversStatusPage extends StatelessWidget {
   Widget _statusChip(String label, Color color) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
     decoration: BoxDecoration(
-      color: color.withOpacity(0.1),
+      color: color.withValues(alpha: 0.1),
       borderRadius: BorderRadius.circular(6),
     ),
     child: Text(

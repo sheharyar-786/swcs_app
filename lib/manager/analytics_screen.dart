@@ -157,7 +157,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
               child: Icon(
                 Icons.analytics_outlined,
                 size: 150,
-                color: Colors.white.withOpacity(0.1),
+                color: Colors.white.withValues(alpha: 0.1),
               ),
             ),
           ],
@@ -196,13 +196,13 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
       child: Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(
+          color: Colors.white.withValues(alpha: 
             0.9,
           ), // Slight transparency for background blend
           borderRadius: BorderRadius.circular(24),
           boxShadow: [
             BoxShadow(
-              color: color.withOpacity(0.05),
+              color: color.withValues(alpha: 0.05),
               blurRadius: 20,
               offset: const Offset(0, 10),
             ),
@@ -261,11 +261,11 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
               margin: const EdgeInsets.only(right: 15, bottom: 5),
               padding: const EdgeInsets.all(15),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.9),
+                color: Colors.white.withValues(alpha: 0.9),
                 borderRadius: BorderRadius.circular(24),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.02),
+                    color: Colors.black.withValues(alpha: 0.02),
                     blurRadius: 10,
                   ),
                 ],
@@ -279,7 +279,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
                         CircularProgressIndicator(
                           value: level / 100,
                           strokeWidth: 8,
-                          backgroundColor: color.withOpacity(0.1),
+                          backgroundColor: color.withValues(alpha: 0.1),
                           color: color,
                           strokeCap: StrokeCap.round,
                         ),
@@ -316,14 +316,14 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
       height: 260,
       padding: const EdgeInsets.fromLTRB(10, 25, 20, 10),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.95),
+        color: Colors.white.withValues(alpha: 0.95),
         borderRadius: BorderRadius.circular(30),
       ),
       child: BarChart(
         BarChartData(
           alignment: BarChartAlignment.spaceAround,
           maxY: 100,
-          barTouchData: BarTouchData(enabled: true),
+          barTouchData: const BarTouchData(enabled: true),
           gridData: const FlGridData(show: false),
           titlesData: FlTitlesData(
             show: true,
@@ -412,11 +412,11 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
               child: Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.9),
+                  color: Colors.white.withValues(alpha: 0.9),
                   borderRadius: BorderRadius.circular(20),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.01),
+                      color: Colors.black.withValues(alpha: 0.01),
                       blurRadius: 10,
                     ),
                   ],
@@ -427,8 +427,8 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
                       color: isFull
-                          ? alertRed.withOpacity(0.1)
-                          : leafGreen.withOpacity(0.1),
+                          ? alertRed.withValues(alpha: 0.1)
+                          : leafGreen.withValues(alpha: 0.1),
                       shape: BoxShape.circle,
                     ),
                     child: Icon(

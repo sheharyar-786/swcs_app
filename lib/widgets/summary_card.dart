@@ -44,17 +44,17 @@ class SummaryCard extends StatelessWidget {
             borderRadius: BorderRadius.circular(28),
             boxShadow: [
               BoxShadow(
-                color: iconColor.withOpacity(0.12),
+                color: iconColor.withValues(alpha: 0.12),
                 blurRadius: 20,
                 offset: const Offset(0, 10),
               ),
               BoxShadow(
-                color: Colors.white.withOpacity(0.8),
+                color: Colors.white.withValues(alpha: 0.8),
                 blurRadius: 10,
                 offset: const Offset(-5, -5),
               ),
             ],
-            border: Border.all(color: iconColor.withOpacity(0.05), width: 1.5),
+            border: Border.all(color: iconColor.withValues(alpha: 0.05), width: 1.5),
           ),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -64,11 +64,11 @@ class SummaryCard extends StatelessWidget {
                 height: 42,
                 width: 42,
                 decoration: BoxDecoration(
-                  color: iconColor.withOpacity(0.1),
+                  color: iconColor.withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                   boxShadow: [
                     BoxShadow(
-                      color: iconColor.withOpacity(0.15),
+                      color: iconColor.withValues(alpha: 0.15),
                       blurRadius: 10,
                       spreadRadius: 1,
                     ),
@@ -84,11 +84,11 @@ class SummaryCard extends StatelessWidget {
                 fit: BoxFit.scaleDown,
                 child: Text(
                   value,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 20,
                     letterSpacing: -0.5,
                     fontWeight: FontWeight.w900,
-                    color: const Color(0xFF263238),
+                    color: Color(0xFF263238),
                   ),
                 ),
               ),
@@ -104,7 +104,7 @@ class SummaryCard extends StatelessWidget {
                     fontSize: 8,
                     letterSpacing: 1.0,
                     fontWeight: FontWeight.w800,
-                    color: Colors.blueGrey.withOpacity(0.6),
+                    color: Colors.blueGrey.withValues(alpha: 0.6),
                   ),
                 ),
               ),

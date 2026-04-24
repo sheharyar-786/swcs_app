@@ -50,12 +50,12 @@ class ScheduleCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(25),
           boxShadow: [
             BoxShadow(
-              color: themeColor.withOpacity(0.08),
+              color: themeColor.withValues(alpha: 0.08),
               blurRadius: 15,
               offset: const Offset(0, 8),
             ),
           ],
-          border: Border.all(color: themeColor.withOpacity(0.12), width: 1),
+          border: Border.all(color: themeColor.withValues(alpha: 0.12), width: 1),
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(25),
@@ -67,7 +67,7 @@ class ScheduleCard extends StatelessWidget {
                 top: -15,
                 child: CircleAvatar(
                   radius: 40,
-                  backgroundColor: themeColor.withOpacity(0.04),
+                  backgroundColor: themeColor.withValues(alpha: 0.04),
                 ),
               ),
 
@@ -82,7 +82,7 @@ class ScheduleCard extends StatelessWidget {
                         Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: themeColor.withOpacity(0.1),
+                            color: themeColor.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(15),
                           ),
                           child: Icon(
@@ -180,7 +180,7 @@ class ScheduleCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(6),
       ),
       child: Text(

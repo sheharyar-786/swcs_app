@@ -106,7 +106,7 @@ class _SimulationScreenState extends State<SimulationScreen> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(25),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10),
+          BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 10),
         ],
       ),
       child: Column(
@@ -177,17 +177,17 @@ class _SimulationScreenState extends State<SimulationScreen> {
           style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
         ),
         SliderTheme(
-          data: SliderThemeData(
+          data: const SliderThemeData(
             trackHeight: 6,
-            thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
-            overlayShape: const RoundSliderOverlayShape(overlayRadius: 16),
+            thumbShape: RoundSliderThumbShape(enabledThumbRadius: 8),
+            overlayShape: RoundSliderOverlayShape(overlayRadius: 16),
           ),
           child: Slider(
             value: value.clamp(0, max),
             min: 0,
             max: max,
             activeColor: activeColor,
-            inactiveColor: activeColor.withOpacity(0.1),
+            inactiveColor: activeColor.withValues(alpha: 0.1),
             onChanged: onChanged,
           ),
         ),

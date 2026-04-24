@@ -184,7 +184,7 @@ class _FuelAnalyticsPageState extends State<FuelAnalyticsPage> {
     decoration: BoxDecoration(
       color: Colors.white,
       borderRadius: BorderRadius.circular(15),
-      border: Border.all(color: Colors.green.withOpacity(0.1)),
+      border: Border.all(color: Colors.green.withValues(alpha: 0.1)),
     ),
     child: Row(
       children: [
@@ -207,7 +207,7 @@ class _FuelAnalyticsPageState extends State<FuelAnalyticsPage> {
         borderRadius: BorderRadius.circular(30),
         boxShadow: [
           BoxShadow(
-            color: c.withOpacity(0.08),
+            color: c.withValues(alpha: 0.08),
             blurRadius: 20,
             offset: const Offset(0, 10),
           ),
@@ -218,7 +218,7 @@ class _FuelAnalyticsPageState extends State<FuelAnalyticsPage> {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: c.withOpacity(0.1),
+              color: c.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(20),
             ),
             child: Icon(i, color: c, size: 30),
@@ -259,7 +259,7 @@ class _FuelAnalyticsPageState extends State<FuelAnalyticsPage> {
       padding: const EdgeInsets.all(30),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [Colors.white, Colors.green.withOpacity(0.05)],
+          colors: [Colors.white, Colors.green.withValues(alpha: 0.05)],
         ),
         borderRadius: BorderRadius.circular(40),
       ),
@@ -352,7 +352,7 @@ class _FuelAnalyticsPageState extends State<FuelAnalyticsPage> {
           ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.green,
-              shape: StadiumBorder(),
+              shape: const StadiumBorder(),
             ),
             onPressed: () {
               setState(() {

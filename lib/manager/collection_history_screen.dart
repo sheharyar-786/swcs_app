@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 
 class CollectionHistoryPage extends StatelessWidget {
@@ -15,7 +14,6 @@ class CollectionHistoryPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // LOGIC: Filter for bins that have a "last_cleaned_by" entry
-    // This ensures we only show bins that have actually been serviced.
     var historyList = bins.entries
         .where(
           (e) =>
@@ -23,7 +21,7 @@ class CollectionHistoryPage extends StatelessWidget {
         )
         .toList();
 
-    // Sort by most recent (assuming you have a timestamp, or just show list)
+    // Sort by most recent
     historyList = historyList.reversed.toList();
 
     return Scaffold(
@@ -81,7 +79,7 @@ class CollectionHistoryPage extends StatelessWidget {
               colors: [deepForest, leafGreen],
             ),
           ),
-          child: Opacity(
+          child: const Opacity(
             opacity: 0.2,
             child: Icon(
               Icons.history_edu_rounded,
@@ -106,7 +104,7 @@ class CollectionHistoryPage extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: leafGreen.withOpacity(0.1),
+                  color: leafGreen.withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                   border: Border.all(color: leafGreen, width: 2),
                 ),
@@ -119,7 +117,7 @@ class CollectionHistoryPage extends StatelessWidget {
               Container(
                 width: 2,
                 height: 100,
-                color: leafGreen.withOpacity(0.2),
+                color: leafGreen.withValues(alpha: 0.2),
               ),
             ],
           ),
@@ -134,7 +132,7 @@ class CollectionHistoryPage extends StatelessWidget {
                 borderRadius: BorderRadius.circular(25),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.04),
+                    color: Colors.black.withValues(alpha: 0.04),
                     blurRadius: 15,
                     offset: const Offset(0, 8),
                   ),
@@ -147,11 +145,16 @@ class CollectionHistoryPage extends StatelessWidget {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        data['area'] ?? "Unknown Sector",
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w900,
-                          fontSize: 15,
+                      Expanded(
+                        // Added Expanded to prevent Overflow
+                        child: Text(
+                          (data['area'] ?? "Unknown Sector").toString(),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w900,
+                            fontSize: 15,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                       _statusBadge("VERIFIED"),
@@ -161,17 +164,17 @@ class CollectionHistoryPage extends StatelessWidget {
                   _logRow(
                     Icons.person_outline,
                     "Driver",
-                    data['last_cleaned_by'] ?? "System Auto",
+                    (data['last_cleaned_by'] ?? "System Auto").toString(),
                   ),
                   _logRow(
                     Icons.access_time_rounded,
                     "Time",
-                    data['last_cleaned_time'] ?? "Recently",
+                    (data['last_cleaned_time'] ?? "Recently").toString(),
                   ),
                   _logRow(
                     Icons.analytics_outlined,
                     "Sensor Confirmation",
-                    "Fill Level: 0%",
+                    "Fill Level: ${data['fill_level']?.toString() ?? '0'}%", // Fixed type mismatch
                   ),
                   const SizedBox(height: 10),
                   Text(
@@ -195,6 +198,8 @@ class CollectionHistoryPage extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Row(
+        crossAxisAlignment:
+            CrossAxisAlignment.start, // Better for multi-line values
         children: [
           Icon(icon, size: 14, color: leafGreen),
           const SizedBox(width: 10),
@@ -220,7 +225,7 @@ class CollectionHistoryPage extends StatelessWidget {
   Widget _statusBadge(String text) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
     decoration: BoxDecoration(
-      color: leafGreen.withOpacity(0.1),
+      color: leafGreen.withValues(alpha: 0.1),
       borderRadius: BorderRadius.circular(8),
     ),
     child: Text(

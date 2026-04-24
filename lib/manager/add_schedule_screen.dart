@@ -15,7 +15,7 @@ class _AddScheduleScreenState extends State<AddScheduleScreen> {
   static const Color leafGreen = Color(0xFF2E7D32);
   static const Color deepForest = Color(0xFF1B5E20);
   static const Color softMint = Color(0xFFF1F8E9);
-  static const Color premiumNavy = Color(0xFF0D47A1);
+
 
   final TextEditingController _areaController = TextEditingController();
   final TextEditingController _latController = TextEditingController();
@@ -275,7 +275,7 @@ class _AddScheduleScreenState extends State<AddScheduleScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
         decoration: BoxDecoration(
-          color: Colors.blue.withOpacity(0.1),
+          color: Colors.blue.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(8),
         ),
         child: const Row(
@@ -300,8 +300,9 @@ class _AddScheduleScreenState extends State<AddScheduleScreen> {
     return StreamBuilder(
       stream: FirebaseDatabase.instance.ref('verified_drivers').onValue,
       builder: (context, AsyncSnapshot<DatabaseEvent> snapshot) {
-        if (!snapshot.hasData)
+        if (!snapshot.hasData) {
           return const LinearProgressIndicator(color: leafGreen);
+        }
         Map drivers = (snapshot.data?.snapshot.value as Map?) ?? {};
         return Container(
           padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 4),
@@ -386,7 +387,7 @@ class _AddScheduleScreenState extends State<AddScheduleScreen> {
         decoration: BoxDecoration(
           color: softMint,
           borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: leafGreen.withOpacity(0.1)),
+          border: Border.all(color: leafGreen.withValues(alpha: 0.1)),
         ),
         child: Row(
           children: [
@@ -426,7 +427,7 @@ class _AddScheduleScreenState extends State<AddScheduleScreen> {
             borderRadius: BorderRadius.circular(18),
           ),
           elevation: 4,
-          shadowColor: deepForest.withOpacity(0.4),
+          shadowColor: deepForest.withValues(alpha: 0.4),
         ),
         onPressed: _isSaving ? null : _saveToFirebase,
         child: _isSaving
