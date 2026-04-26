@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:ui' as ui;
 import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
@@ -12,37 +13,67 @@ class CollectionHistoryPage extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAF8),
-      appBar: AppBar(
-        title: const Text(
-          "COLLECTION LOGS",
-          style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1.2),
-        ),
-        centerTitle: true,
-        backgroundColor: const Color(0xFF00695C), // Premium Teal
-        elevation: 0,
-        foregroundColor: Colors.white,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
-      body: Container(
-        decoration: BoxDecoration(
-          image: DecorationImage(
-            image: const NetworkImage(
-              'https://images.unsplash.com/photo-1601584115197-04ecc0da31d7?q=80&w=1000',
+      body: CustomScrollView(
+        slivers: [
+          SliverAppBar(
+            expandedHeight: 180.0,
+            pinned: true,
+            backgroundColor: Colors.white,
+            elevation: 0,
+            centerTitle: true,
+            title: const Text(
+              "COLLECTION LOGS",
+              style: TextStyle(
+                fontWeight: FontWeight.w900,
+                fontSize: 16,
+                color: Colors.black87,
+              ),
             ),
-            fit: BoxFit.cover,
-            colorFilter: ColorFilter.mode(
-              Colors.white.withValues(alpha: 0.85),
-              BlendMode.lighten,
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back, color: Colors.black87),
+              onPressed: () => Navigator.pop(context),
+            ),
+            flexibleSpace: FlexibleSpaceBar(
+              background: Stack(
+                fit: StackFit.expand,
+                children: [
+                  ImageFiltered(
+                  imageFilter: ui.ImageFilter.blur(sigmaX: 1.5, sigmaY: 1.5),
+                    child: Image.asset(
+                      'lib/assets/bg.jpeg',
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                  Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.white.withValues(alpha: 0.3),
+                          Colors.white.withValues(alpha: 0.1),
+                          Colors.white.withValues(alpha: 0.5),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
-        ),
-        child: Column(
-          children: [
-            if (uid != null) _buildHeaderStats(uid),
-            Expanded(
+          if (uid != null) SliverToBoxAdapter(child: _buildHeaderStats(uid)),
+          SliverFillRemaining(
+            child: Container(
+              decoration: BoxDecoration(
+                image: DecorationImage(
+                  image: const AssetImage('lib/assets/bg.jpeg'),
+                  fit: BoxFit.cover,
+                  colorFilter: ColorFilter.mode(
+                    Colors.white.withValues(alpha: 0.9),
+                    BlendMode.lighten,
+                  ),
+                ),
+              ),
               child: uid == null
                   ? const Center(child: Text("User not logged in"))
                   : StreamBuilder(
@@ -100,8 +131,8 @@ class CollectionHistoryPage extends StatelessWidget {
                           },
                     ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -117,40 +148,76 @@ class CollectionHistoryPage extends StatelessWidget {
         }
         return Container(
           width: double.infinity,
-          padding: const EdgeInsets.all(25),
+          height: 180,
           decoration: const BoxDecoration(
-            color: Color(0xFF00695C),
+            color: Colors.white,
             borderRadius: BorderRadius.only(
               bottomLeft: Radius.circular(40),
               bottomRight: Radius.circular(40),
             ),
           ),
-          child: Column(
+          child: Stack(
+            fit: StackFit.expand,
             children: [
-              const Text(
-                "TOTAL BINS CLEARED",
-                style: TextStyle(
-                  color: Colors.white70,
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
+              ClipRRect(
+                borderRadius: const BorderRadius.only(
+                  bottomLeft: Radius.circular(40),
+                  bottomRight: Radius.circular(40),
+                ),
+                child: ImageFiltered(
+                  imageFilter: ui.ImageFilter.blur(sigmaX: 3, sigmaY: 3),
+                  child: Image.asset(
+                    'lib/assets/bg.jpeg',
+                    fit: BoxFit.cover,
+                  ),
                 ),
               ),
-              const SizedBox(height: 5),
-              Text(
-                "$total",
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 40,
-                  fontWeight: FontWeight.w900,
+              Container(
+                decoration: BoxDecoration(
+                  borderRadius: const BorderRadius.only(
+                    bottomLeft: Radius.circular(40),
+                    bottomRight: Radius.circular(40),
+                  ),
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.white.withValues(alpha: 0.3),
+                      Colors.white.withValues(alpha: 0.1),
+                      Colors.white.withValues(alpha: 0.5),
+                    ],
+                  ),
                 ),
               ),
-              const Text(
-                "Eco-Mission Success",
-                style: TextStyle(
-                  color: Colors.yellowAccent,
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                ),
+              Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Text(
+                    "TOTAL BINS CLEARED",
+                    style: TextStyle(
+                      color: Colors.black54,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    "$total",
+                    style: const TextStyle(
+                      color: Colors.black87,
+                      fontSize: 45,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const Text(
+                    "Eco-Mission Success 🏆",
+                    style: TextStyle(
+                      color: Color(0xFF1B5E20),
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),

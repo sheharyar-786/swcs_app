@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'dart:ui' as ui;
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
+import 'bin_utils.dart';
 
 class CollectionHistoryPage extends StatelessWidget {
   final Map bins;
@@ -17,7 +19,8 @@ class CollectionHistoryPage extends StatelessWidget {
     var historyList = bins.entries
         .where(
           (e) =>
-              e.value['last_cleaned_by'] != null || e.value['fill_level'] == 0,
+              e.value['last_cleaned_by'] != null ||
+              BinData.fillLevel(e.value) == 0,
         )
         .toList();
 
@@ -57,36 +60,43 @@ class CollectionHistoryPage extends StatelessWidget {
 
   Widget _buildSliverHeader() {
     return SliverAppBar(
-      expandedHeight: 150.0,
+      expandedHeight: 180.0,
       pinned: true,
-      backgroundColor: leafGreen,
-      flexibleSpace: FlexibleSpaceBar(
-        centerTitle: true,
-        title: const Text(
-          "COLLECTION LOGS",
-          style: TextStyle(
-            fontWeight: FontWeight.w900,
-            fontSize: 16,
-            letterSpacing: 1.5,
-            color: Colors.white,
-          ),
+      backgroundColor: Colors.white,
+      centerTitle: true,
+      title: const Text(
+        "COLLECTION LOGS",
+        style: TextStyle(
+          fontWeight: FontWeight.w900,
+          fontSize: 16,
+          color: Colors.black87,
         ),
-        background: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [deepForest, leafGreen],
+      ),
+      flexibleSpace: FlexibleSpaceBar(
+        background: Stack(
+          fit: StackFit.expand,
+          children: [
+            ImageFiltered(
+              imageFilter: ui.ImageFilter.blur(sigmaX: 1.5, sigmaY: 1.5),
+              child: Image.asset(
+                'lib/assets/bg.jpeg',
+                fit: BoxFit.cover,
+              ),
             ),
-          ),
-          child: const Opacity(
-            opacity: 0.2,
-            child: Icon(
-              Icons.history_edu_rounded,
-              size: 150,
-              color: Colors.white,
+            Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.white.withValues(alpha: 0.3),
+                    Colors.white.withValues(alpha: 0.1),
+                    Colors.white.withValues(alpha: 0.5),
+                  ],
+                ),
+              ),
             ),
-          ),
+          ],
         ),
       ),
     );
@@ -148,7 +158,7 @@ class CollectionHistoryPage extends StatelessWidget {
                       Expanded(
                         // Added Expanded to prevent Overflow
                         child: Text(
-                          (data['area'] ?? "Unknown Sector").toString(),
+                          BinData.area(data),
                           style: const TextStyle(
                             fontWeight: FontWeight.w900,
                             fontSize: 15,
@@ -174,7 +184,7 @@ class CollectionHistoryPage extends StatelessWidget {
                   _logRow(
                     Icons.analytics_outlined,
                     "Sensor Confirmation",
-                    "Fill Level: ${data['fill_level']?.toString() ?? '0'}%", // Fixed type mismatch
+                    "Fill Level: ${BinData.fillLevel(data).toInt()}%", // Fixed type mismatch
                   ),
                   const SizedBox(height: 10),
                   Text(

@@ -11,13 +11,16 @@ android {
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
-    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
+   compileOptions {
+        // Kotlin Script mein '=' aur 'is' lagana lazmi hai
+        isCoreLibraryDesugaringEnabled = true 
+        sourceCompatibility = JavaVersion.VERSION_1_8
+        targetCompatibility = JavaVersion.VERSION_1_8
     }
 
     kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_17.toString()
+        // Kotlin mein version hamesha double quotes " " mein hota hai
+        jvmTarget = "1.8"
     }
 
     defaultConfig {
@@ -43,6 +46,7 @@ android {
 // ke android block ke baad ye add karen:
 
 dependencies {
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.3")
     // Firebase BoM aur Realtime Database libraries
     implementation(platform("com.google.firebase:firebase-bom:34.11.0"))
     implementation("com.google.firebase:firebase-database")

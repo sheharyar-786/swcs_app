@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'dart:ui' as ui;
 import 'package:firebase_database/firebase_database.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import 'bin_details.dart';
+import 'bin_utils.dart';
 
 class AnalyticsPage extends StatefulWidget {
   const AnalyticsPage({super.key});
@@ -45,7 +47,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
   Widget build(BuildContext context) {
     int totalBins = binData.length;
     int criticalBins = binData.values
-        .where((b) => (b['fill_level'] ?? 0) >= 80)
+        .where((b) => BinData.fillLevel(b) >= 80)
         .length;
 
     return Scaffold(
@@ -56,8 +58,8 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
           Positioned.fill(
             child: Opacity(
               opacity: 0.05, // Very subtle so it doesn't distract
-              child: Image.network(
-                'https://img.freepik.com/free-vector/abstract-technology-particle-background_52683-25766.jpg',
+              child: Image.asset(
+                'lib/assets/bg.jpeg',
                 fit: BoxFit.cover,
               ),
             ),
@@ -103,9 +105,9 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
 
                           const SizedBox(height: 25),
 
-                          // 5. DETAILED LIST (CLICKABLE)
-                          _sectionLabel("Detailed Fleet Status"),
-                          _buildLiveStatusList(),
+                          // 5. VIEW BIN DETAILS — merged with fleet status
+                          _sectionLabel("Bin Fleet Overview"),
+                          _buildViewBinDetailsSection(),
 
                           const SizedBox(height: 50),
                         ],
@@ -127,37 +129,42 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
       floating: false,
       pinned: true,
       elevation: 0,
-      backgroundColor: leafGreen,
-      flexibleSpace: FlexibleSpaceBar(
-        centerTitle: true,
-        title: const Text(
-          "SYSTEM ANALYTICS",
-          style: TextStyle(
-            fontWeight: FontWeight.w900,
-            fontSize: 14,
-            letterSpacing: 2,
-            color: Colors.white,
-          ),
+      backgroundColor: Colors.white,
+      centerTitle: true,
+      title: const Text(
+        "SYSTEM ANALYTICS",
+        style: TextStyle(
+          fontWeight: FontWeight.w900,
+          fontSize: 16,
+          color: Colors.black87,
         ),
+      ),
+      leading: IconButton(
+        icon: const Icon(Icons.arrow_back, color: Colors.black87),
+        onPressed: () => Navigator.pop(context),
+      ),
+      flexibleSpace: FlexibleSpaceBar(
         background: Stack(
           fit: StackFit.expand,
           children: [
+            ImageFiltered(
+              imageFilter: ui.ImageFilter.blur(sigmaX: 1.5, sigmaY: 1.5),
+              child: Image.asset(
+                'lib/assets/bg.jpeg',
+                fit: BoxFit.cover,
+              ),
+            ),
             Container(
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
-                  colors: [deepForest, leafGreen],
+                  colors: [
+                    Colors.white.withValues(alpha: 0.3),
+                    Colors.white.withValues(alpha: 0.1),
+                    Colors.white.withValues(alpha: 0.5),
+                  ],
                 ),
-              ),
-            ),
-            Positioned(
-              right: -20,
-              top: 40,
-              child: Icon(
-                Icons.analytics_outlined,
-                size: 150,
-                color: Colors.white.withValues(alpha: 0.1),
               ),
             ),
           ],
@@ -247,8 +254,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
         itemCount: sortedBins.length,
         itemBuilder: (context, index) {
           String id = sortedBins[index].key;
-          double level = (sortedBins[index].value['fill_level'] ?? 0)
-              .toDouble();
+          double level = BinData.fillLevel(sortedBins[index].value);
           Color color = level >= 80 ? alertRed : leafGreen;
 
           return GestureDetector(
@@ -363,7 +369,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
           borderData: FlBorderData(show: false),
           barGroups: binData.entries.map((e) {
             int index = binData.keys.toList().indexOf(e.key);
-            double level = (e.value['fill_level'] ?? 0).toDouble();
+            double level = BinData.fillLevel(e.value);
             return BarChartGroupData(
               x: index,
               barRods: [
@@ -388,98 +394,220 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
     );
   }
 
-  Widget _buildLiveStatusList() {
-    var list = binData.entries.toList();
-    return ListView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: list.length,
-      itemBuilder: (context, index) {
-        var data = list[index].value;
-        String id = list[index].key;
-        bool isFull = (data['fill_level'] ?? 0) >= 80;
+  // --- NEW: DEDICATED "VIEW BIN DETAILS" SECTION ---
+  Widget _buildViewBinDetailsSection() {
+    var bins = binData.entries.toList();
 
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              borderRadius: BorderRadius.circular(20),
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (c) => BinDetailsPage(binId: id)),
+    if (bins.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(30),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.9),
+          borderRadius: BorderRadius.circular(24),
+        ),
+        child: const Center(
+          child: Text(
+            "No bins registered yet.",
+            style: TextStyle(color: Colors.grey),
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.95),
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: [
+          BoxShadow(
+            color: leafGreen.withValues(alpha: 0.08),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          // Header strip
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF2E7D32), Color(0xFF43A047)],
               ),
-              child: Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.9),
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.01),
-                      blurRadius: 10,
-                    ),
-                  ],
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.delete_outline, color: Colors.white, size: 20),
+                const SizedBox(width: 10),
+                Text(
+                  "${bins.length} Bins Registered",
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 14,
+                  ),
                 ),
-                child: ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: isFull
-                          ? alertRed.withValues(alpha: 0.1)
-                          : leafGreen.withValues(alpha: 0.1),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      isFull
-                          ? Icons.warning_amber_rounded
-                          : Icons.check_circle_outline,
-                      color: isFull ? alertRed : leafGreen,
-                      size: 22,
-                    ),
+                const Spacer(),
+                const Text(
+                  "TAP TO INSPECT",
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 9,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1,
                   ),
-                  title: Text(
-                    data['area'] ?? "Unknown Area",
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w900,
-                      fontSize: 14,
-                    ),
+                ),
+              ],
+            ),
+          ),
+
+          // Bin list
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: bins.length,
+            separatorBuilder: (_, __) => const Divider(height: 1, indent: 20, endIndent: 20),
+            itemBuilder: (context, index) {
+              String binId = bins[index].key;
+              var data = bins[index].value;
+              String area = BinData.area(data);
+              double level = BinData.fillLevel(data);
+              bool isCritical = level >= 80;
+              Color statusColor = isCritical ? alertRed : leafGreen;
+
+              return InkWell(
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (c) => BinDetailsPage(binId: binId),
                   ),
-                  subtitle: Text(
-                    "ID: ${id.toUpperCase()} • Gas: ${data['gas_level'] ?? 0}",
-                    style: const TextStyle(fontSize: 11, color: Colors.grey),
-                  ),
-                  trailing: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.end,
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                  child: Row(
                     children: [
-                      Text(
-                        "${data['fill_level']}%",
-                        style: TextStyle(
-                          fontWeight: FontWeight.w900,
-                          color: isFull ? alertRed : deepForest,
-                          fontSize: 16,
+                      // Fill level badge
+                      Container(
+                        width: 50,
+                        height: 50,
+                        decoration: BoxDecoration(
+                          color: statusColor.withValues(alpha: 0.1),
+                          shape: BoxShape.circle,
+                          border: Border.all(color: statusColor.withValues(alpha: 0.3), width: 2),
+                        ),
+                        child: Center(
+                          child: Text(
+                            "${level.toInt()}%",
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w900,
+                              color: statusColor,
+                            ),
+                          ),
                         ),
                       ),
-                      const Text(
-                        "LEVEL",
-                        style: TextStyle(
-                          fontSize: 8,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.grey,
+                      const SizedBox(width: 15),
+
+                      // Area name, Bin ID & Gas level
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              area,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w900,
+                                fontSize: 15,
+                                color: Color(0xFF1B2D1B),
+                              ),
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              "${binId.toUpperCase()} • Gas: ${data['gas_level'] ?? 0} ppm",
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: Colors.grey,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          ],
                         ),
+                      ),
+
+                      // Status chips + arrow
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          // Online/Offline status
+                          Container(
+                            margin: const EdgeInsets.only(bottom: 4),
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: BinData.isOnline(data)
+                                  ? leafGreen.withValues(alpha: 0.1)
+                                  : Colors.grey.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Container(
+                                  width: 5,
+                                  height: 5,
+                                  decoration: BoxDecoration(
+                                    color: BinData.isOnline(data) ? leafGreen : Colors.grey,
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  BinData.connectionStatus(data).toUpperCase(),
+                                  style: TextStyle(
+                                    fontSize: 8,
+                                    fontWeight: FontWeight.w900,
+                                    color: BinData.isOnline(data) ? leafGreen : Colors.grey,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          // Critical/Stable status
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: statusColor.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Text(
+                              isCritical ? "CRITICAL" : "STABLE",
+                              style: TextStyle(
+                                fontSize: 9,
+                                fontWeight: FontWeight.w900,
+                                color: statusColor,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Icon(Icons.chevron_right_rounded, color: Colors.grey.shade400, size: 20),
+                        ],
                       ),
                     ],
                   ),
                 ),
-              ),
-            ),
+              );
+            },
           ),
-        );
-      },
+        ],
+      ),
     );
   }
+
+
 
   Widget _sectionLabel(String t) => Padding(
     padding: const EdgeInsets.only(bottom: 15, top: 10),

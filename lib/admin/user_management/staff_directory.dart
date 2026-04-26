@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:ui' as ui;
 import 'package:firebase_database/firebase_database.dart';
 import 'package:animate_do/animate_do.dart';
 import 'user_details_edit.dart';
@@ -38,18 +39,7 @@ class _StaffDirectoryState extends State<StaffDirectory>
       backgroundColor: const Color(0xFFF8FAF9),
       // BouncingScrollPhysics adds a premium feel to the whole column if needed
       body: Container(
-        decoration: BoxDecoration(
-          image: DecorationImage(
-            image: const NetworkImage(
-              'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?q=80&w=1000',
-            ),
-            fit: BoxFit.cover,
-            colorFilter: ColorFilter.mode(
-              Colors.white.withValues(alpha: 0.85),
-              BlendMode.lighten,
-            ),
-          ),
-        ),
+        color: const Color(0xFFF8FAF9),
         child: StreamBuilder(
           stream: widget.globalStream,
           builder: (context, snapshot) {
@@ -72,6 +62,7 @@ class _StaffDirectoryState extends State<StaffDirectory>
             return Column(
               children: [
                 _buildPremiumHeader(),
+                _buildStatementBar(),
                 _buildSearchBar(),
                 _buildTabBar(),
                 Expanded(
@@ -96,27 +87,87 @@ class _StaffDirectoryState extends State<StaffDirectory>
   Widget _buildPremiumHeader() {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.only(top: 60, left: 25, right: 25, bottom: 20),
+      height: 180,
       decoration: const BoxDecoration(
-        color: Color(0xFF0A714E),
+        color: Colors.white,
         borderRadius: BorderRadius.vertical(bottom: Radius.circular(30)),
       ),
-      child: const Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Stack(
+        fit: StackFit.expand,
         children: [
-          Text(
-            "Staff Directory",
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
+          ClipRRect(
+            borderRadius: const BorderRadius.vertical(bottom: Radius.circular(30)),
+            child: ImageFiltered(
+              imageFilter: ui.ImageFilter.blur(sigmaX: 0.0, sigmaY: 0.0),
+              child: Image.asset(
+                'lib/assets/bg.jpeg',
+                fit: BoxFit.cover,
+              ),
             ),
           ),
-          Text(
-            "Monitor and manage your city's workforce",
-            style: TextStyle(color: Colors.white70, fontSize: 13),
+          Container(
+            decoration: BoxDecoration(
+              borderRadius: const BorderRadius.vertical(bottom: Radius.circular(30)),
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.white.withValues(alpha: 0.3),
+                  Colors.white.withValues(alpha: 0.1),
+                  Colors.white.withValues(alpha: 0.5),
+                ],
+              ),
+            ),
+          ),
+          const Padding(
+            padding: EdgeInsets.only(left: 25, right: 25, bottom: 20),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.end,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  "Staff List",
+                  style: TextStyle(
+                    color: Colors.black,
+                    fontSize: 28,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildStatementBar() {
+    return FadeInLeft(
+      duration: const Duration(milliseconds: 600),
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 25, vertical: 15),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        decoration: BoxDecoration(
+          color: const Color(0xFF0A714E).withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(15),
+          border: Border.all(color: const Color(0xFF0A714E).withValues(alpha: 0.2)),
+        ),
+        child: const Row(
+          children: [
+            Icon(Icons.people_outline, size: 18, color: Color(0xFF0A714E)),
+            SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                "Complete directory of all registered system personnel and managers.",
+                style: TextStyle(
+                  color: Color(0xFF0A714E),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'dart:ui' as ui;
 import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../auth/login_screen.dart';
 import 'nearby_bins_page.dart';
+
 class CivillianPage extends StatefulWidget {
   const CivillianPage({super.key});
 
@@ -145,40 +147,33 @@ class _CivillianPageState extends State<CivillianPage> {
   }
 
   Widget _buildParallaxHeader() => SliverAppBar(
-    expandedHeight: 220.0,
+    expandedHeight: 180.0,
     pinned: true,
-    backgroundColor: leafGreen,
-    elevation: 10,
-    // Ensure the title is not centered by the system
-    centerTitle: false,
-    actions: [
-      IconButton(
-        icon: const Icon(Icons.logout_rounded, color: Colors.white),
-        onPressed: () => _logout(context),
+    backgroundColor: Colors.white,
+    elevation: 0,
+    leading: IconButton(
+      icon: const Icon(Icons.logout_rounded, color: Colors.black87),
+      onPressed: () {
+        _logout(context);
+      },
+    ),
+    centerTitle: true,
+    title: const Text(
+      "SWCS CITIZEN HUB",
+      style: TextStyle(
+        fontWeight: FontWeight.w900,
+        fontSize: 16,
+        color: Colors.black87,
+        letterSpacing: 1.2,
       ),
-    ],
+    ),
     flexibleSpace: FlexibleSpaceBar(
-      // Ensure left alignment during expansion/contraction
-      centerTitle: false,
-      // Padding ensures the text aligns with your grid content below
-      titlePadding: const EdgeInsets.only(left: 20, bottom: 16),
-      title: Text(
-        "Hello, $userName",
-        // Force single line and add "..." if name is too long
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: const TextStyle(
-          color: Colors.white,
-          fontWeight: FontWeight.bold,
-          fontSize: 18,
-        ),
-      ),
       background: Stack(
         fit: StackFit.expand,
         children: [
-          Image.network(
-            'https://images.unsplash.com/photo-1518005020951-eccb494ad742?q=80&w=1000',
-            fit: BoxFit.cover,
+          ImageFiltered(
+            imageFilter: ui.ImageFilter.blur(sigmaX: 3, sigmaY: 3),
+            child: Image.asset('lib/assets/bg.jpeg', fit: BoxFit.cover),
           ),
           Container(
             decoration: BoxDecoration(
@@ -186,17 +181,41 @@ class _CivillianPageState extends State<CivillianPage> {
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: [
-                  Colors.black.withValues(alpha: 0.2),
-                  Colors.transparent,
-                  leafGreen.withValues(alpha: 0.6),
+                  Colors.white.withValues(alpha: 0.3),
+                  Colors.white.withValues(alpha: 0.1),
+                  Colors.white.withValues(alpha: 0.5),
                 ],
               ),
             ),
+          ),
+          Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const SizedBox(height: 35),
+              Text(
+                "Welcome, $userName",
+                style: const TextStyle(
+                  color: Colors.black87,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 22,
+                ),
+              ),
+              const Text(
+                "Sadiqabad Cleanliness Drive 🌿",
+                style: TextStyle(
+                  color: Colors.black54,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1,
+                ),
+              ),
+            ],
           ),
         ],
       ),
     ),
   );
+
   Widget _buildReportGrid() => Row(
     children: [
       Expanded(child: _reportOption("Overflow", "🗑️", Colors.orange)),
@@ -246,7 +265,10 @@ class _CivillianPageState extends State<CivillianPage> {
         borderRadius: BorderRadius.circular(22),
         border: Border.all(color: leafGreen.withValues(alpha: 0.2)),
         boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 10),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 10,
+          ),
         ],
       ),
       child: const Row(
@@ -365,18 +387,23 @@ class _CivillianPageState extends State<CivillianPage> {
           final Uri emailUri = Uri(
             scheme: 'mailto',
             path: 'adminswcs@gmail.com',
-            query: 'subject=Complaint%20Regarding%20Driver/Manager&body=Dear%20Admin,%0A%0AI%20would%20like%20to%20report%20an%20issue.%0A%0AMy%20Details:%0AName:%0APhone:%0A%0AIssue:%0A',
+            query:
+                'subject=Complaint%20Regarding%20Driver/Manager&body=Dear%20Admin,%0A%0AI%20would%20like%20to%20report%20an%20issue.%0A%0AMy%20Details:%0AName:%0APhone:%0A%0AIssue:%0A',
           );
           if (await canLaunchUrl(emailUri)) {
             await launchUrl(emailUri);
           } else {
-             messenger.showSnackBar(const SnackBar(content: Text("Could not open Mail app")));
+            messenger.showSnackBar(
+              const SnackBar(content: Text("Could not open Mail app")),
+            );
           }
         },
         child: Container(
           padding: const EdgeInsets.all(25),
           decoration: BoxDecoration(
-            gradient: const LinearGradient(colors: [Color(0xFFD32F2F), Color(0xFFEF5350)]),
+            gradient: const LinearGradient(
+              colors: [Color(0xFFD32F2F), Color(0xFFEF5350)],
+            ),
             borderRadius: BorderRadius.circular(25),
           ),
           child: const Row(
@@ -393,7 +420,10 @@ class _CivillianPageState extends State<CivillianPage> {
                       fontSize: 18,
                     ),
                   ),
-                  Text("Direct Email to Admin", style: TextStyle(color: Colors.white70)),
+                  Text(
+                    "Direct Email to Admin",
+                    style: TextStyle(color: Colors.white70),
+                  ),
                 ],
               ),
               CircleAvatar(
@@ -547,72 +577,126 @@ class _ScheduleExplorerState extends State<ScheduleExplorer> {
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAF8),
-      appBar: AppBar(
-        title: const Text(
-          "🔍 Area Explorer",
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        backgroundColor: const Color(0xFF4CAF50),
-        elevation: 0,
-      ),
-      body: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.fromLTRB(20, 10, 20, 25),
-            decoration: const BoxDecoration(
-              color: Color(0xFF4CAF50),
-              borderRadius: BorderRadius.only(
-                bottomLeft: Radius.circular(30),
-                bottomRight: Radius.circular(30),
+      body: NestedScrollView(
+        headerSliverBuilder: (context, innerBoxIsScrolled) => [
+          SliverAppBar(
+            expandedHeight: 180.0,
+            pinned: true,
+            elevation: 0,
+            backgroundColor: Colors.white,
+            centerTitle: true,
+            title: const Text(
+              "AREA EXPLORER",
+              style: TextStyle(
+                fontWeight: FontWeight.w900,
+                fontSize: 16,
+                color: Colors.black87,
               ),
             ),
-            child: TextField(
-              onChanged: (v) => setState(() => query = v),
-              decoration: InputDecoration(
-                hintText: "Search your area...",
-                prefixIcon: const Icon(Icons.search, color: Color(0xFF4CAF50)),
-                filled: true,
-                fillColor: Colors.white,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(15),
-                  borderSide: BorderSide.none,
-                ),
-              ),
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back, color: Colors.black87),
+              onPressed: () => Navigator.pop(context),
             ),
-          ),
-          Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.all(15),
-              itemCount: list.length,
-              itemBuilder: (context, index) {
-                var s = list[index];
-                return Card(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(20),
-                    side: const BorderSide(color: Color(0xFFE8F5E9), width: 2),
+            flexibleSpace: FlexibleSpaceBar(
+              background: Stack(
+                fit: StackFit.expand,
+                children: [
+                  ImageFiltered(
+                    imageFilter: ui.ImageFilter.blur(sigmaX: 3, sigmaY: 3),
+                    child: Image.asset('lib/assets/bg.jpeg', fit: BoxFit.cover),
                   ),
-                  child: Theme(
-                    data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-                    child: ExpansionTile(
-                      leading: const CircleAvatar(
-                        backgroundColor: Color(0xFFE8F5E9),
-                        child: Text("🏙️"),
+                  Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.white.withValues(alpha: 0.3),
+                          Colors.white.withValues(alpha: 0.1),
+                          Colors.white.withValues(alpha: 0.5),
+                        ],
                       ),
-                      title: Text(
-                        s['area'],
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      subtitle: Text("⏰ ${s['day']} at ${s['time']}"),
-                      children: [_buildRatingSection(s, drivers, index)],
                     ),
                   ),
-                );
-              },
+                ],
+              ),
             ),
           ),
         ],
+        body: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 25),
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.only(
+                  bottomLeft: Radius.circular(30),
+                  bottomRight: Radius.circular(30),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black12,
+                    blurRadius: 10,
+                    offset: Offset(0, 5),
+                  ),
+                ],
+              ),
+              child: TextField(
+                onChanged: (v) => setState(() => query = v),
+                decoration: InputDecoration(
+                  hintText: "Search your area...",
+                  prefixIcon: const Icon(
+                    Icons.search,
+                    color: Color(0xFF4CAF50),
+                  ),
+                  filled: true,
+                  fillColor: const Color(0xFFF1F8E9),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(15),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              ),
+            ),
+            Expanded(
+              child: ListView.builder(
+                padding: const EdgeInsets.all(15),
+                itemCount: list.length,
+                itemBuilder: (context, index) {
+                  var s = list[index];
+                  return Card(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                      side: const BorderSide(
+                        color: Color(0xFFE8F5E9),
+                        width: 2,
+                      ),
+                    ),
+                    child: Theme(
+                      data: Theme.of(
+                        context,
+                      ).copyWith(dividerColor: Colors.transparent),
+                      child: ExpansionTile(
+                        leading: const CircleAvatar(
+                          backgroundColor: Color(0xFFE8F5E9),
+                          child: Text("🏙️"),
+                        ),
+                        title: Text(
+                          s['area'],
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        subtitle: Text("⏰ ${s['day']} at ${s['time']}"),
+                        children: [_buildRatingSection(s, drivers, index)],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -631,7 +715,9 @@ class _ScheduleExplorerState extends State<ScheduleExplorer> {
 
     return FutureBuilder<Position>(
       future: Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+        ),
       ),
       builder: (context, geoSnapshot) {
         if (!geoSnapshot.hasData) {

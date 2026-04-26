@@ -5,6 +5,7 @@ import '../approvals/manager_approvals.dart';
 import '../user_management/staff_directory.dart';
 import '../reports/report_center.dart';
 import '../settings/profile_settings.dart';
+import '../../services/monitoring_service.dart';
 
 class AdminMainShell extends StatefulWidget {
   const AdminMainShell({super.key});
@@ -25,6 +26,15 @@ class _AdminMainShellState extends State<AdminMainShell> {
     super.initState();
     // Pure database ki aik hi stream banai jo broadcast hai (multiple listeners allowed)
     _globalStream = FirebaseDatabase.instance.ref().onValue.asBroadcastStream();
+    
+    // Start Monitoring Alerts
+    MonitoringService.startMonitoring();
+  }
+
+  @override
+  void dispose() {
+    MonitoringService.stopMonitoring();
+    super.dispose();
   }
 
   @override

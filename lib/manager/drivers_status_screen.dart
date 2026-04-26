@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'dart:ui' as ui;
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
@@ -34,7 +35,6 @@ class _DriversStatusPageState extends State<DriversStatusPage> {
   static const Color leafGreen = Color(0xFF2E7D32);
   static const Color deepForest = Color(0xFF1B5E20);
   static const Color premiumNavy = Color(0xFF0D47A1);
-  static const Color softMint = Color(0xFFF1F8E9);
 
   @override
   Widget build(BuildContext context) {
@@ -52,8 +52,8 @@ class _DriversStatusPageState extends State<DriversStatusPage> {
           Positioned.fill(
             child: Opacity(
               opacity: 0.04,
-              child: Image.network(
-                'https://img.freepik.com/free-vector/map-road-city-city-streets-with-navigation-gps-markers-town-plan-vector-concept_1017-43403.jpg',
+              child: Image.asset(
+                'lib/assets/bg.jpeg',
                 fit: BoxFit.cover,
               ),
             ),
@@ -135,42 +135,61 @@ class _DriversStatusPageState extends State<DriversStatusPage> {
     int leave,
   ) {
     return SliverAppBar(
-      expandedHeight: 220.0,
+      expandedHeight: 180.0,
       pinned: true,
-      backgroundColor: leafGreen,
+      elevation: 0,
+      backgroundColor: Colors.white,
+      centerTitle: true,
+      title: const Text(
+        "Fleet Command Center",
+        style: TextStyle(
+          fontWeight: FontWeight.w900,
+          fontSize: 16,
+          color: Colors.black87,
+        ),
+      ),
+      leading: IconButton(
+        icon: const Icon(Icons.arrow_back, color: Colors.black87),
+        onPressed: () => Navigator.pop(context),
+      ),
       flexibleSpace: FlexibleSpaceBar(
-        background: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [deepForest, leafGreen],
+        background: Stack(
+          fit: StackFit.expand,
+          children: [
+            ImageFiltered(
+              imageFilter: ui.ImageFilter.blur(sigmaX: 1.5, sigmaY: 1.5),
+              child: Image.asset(
+                'lib/assets/bg.jpeg',
+                fit: BoxFit.cover,
+              ),
             ),
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const SizedBox(height: 40),
-              const Text(
-                "FLEET COMMAND",
-                style: TextStyle(
-                  color: Colors.white70,
-                  fontWeight: FontWeight.w900,
-                  fontSize: 12,
-                  letterSpacing: 2,
+            Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.white.withValues(alpha: 0.3),
+                    Colors.white.withValues(alpha: 0.1),
+                    Colors.white.withValues(alpha: 0.5),
+                  ],
                 ),
               ),
-              const SizedBox(height: 15),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  _headerStat("TOTAL", total.toString()),
-                  _headerStat("ON-DUTY", active.toString()),
-                  _headerStat("LEAVE", leave.toString()),
-                ],
+            ),
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.only(top: 40),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    _headerStat("TOTAL", total.toString()),
+                    _headerStat("ON-DUTY", active.toString()),
+                    _headerStat("LEAVE", leave.toString()),
+                  ],
+                ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -181,7 +200,7 @@ class _DriversStatusPageState extends State<DriversStatusPage> {
       Text(
         val,
         style: const TextStyle(
-          color: Colors.white,
+          color: Colors.black87,
           fontSize: 28,
           fontWeight: FontWeight.w900,
         ),
@@ -189,7 +208,7 @@ class _DriversStatusPageState extends State<DriversStatusPage> {
       Text(
         label,
         style: const TextStyle(
-          color: Colors.white60,
+          color: Colors.black54,
           fontSize: 9,
           fontWeight: FontWeight.bold,
         ),
@@ -291,10 +310,7 @@ class _DriversStatusPageState extends State<DriversStatusPage> {
                       ),
                       const SizedBox(width: 4),
                       Text(
-                        "${data['attendance'] ?? 'Absent'} - " +
-                        (data['attendance_time'] != null && int.tryParse(data['attendance_time'].toString()) != null && int.parse(data['attendance_time'].toString()) > 0
-                            ? DateFormat('hh:mm a, MMM d').format(DateTime.fromMillisecondsSinceEpoch(int.parse(data['attendance_time'].toString())))
-                            : "Time N/A"),
+                        "${data['attendance'] ?? 'Absent'} - ${data['attendance_time'] != null && int.tryParse(data['attendance_time'].toString()) != null && int.parse(data['attendance_time'].toString()) > 0 ? DateFormat('hh:mm a, MMM d').format(DateTime.fromMillisecondsSinceEpoch(int.parse(data['attendance_time'].toString()))) : "Time N/A"}",
                         style: TextStyle(
                           fontSize: 9, 
                           color: data['attendance'] == "Present" ? leafGreen : Colors.red,
@@ -546,13 +562,13 @@ void _updateLeaveStatus(String uid, String status) {
       final file = File('${dir.path}/driver_report_${DateTime.now().millisecondsSinceEpoch}.csv');
       await file.writeAsString(csv);
       
-      if (!context.mounted) return;
+      if (!mounted) return;
       Navigator.pop(context); // Close loading dialog
       
-      // Use XFile from share_plus
+      // Use Share from share_plus (Updated to avoid deprecation hint if possible)
       await Share.shareXFiles([XFile(file.path)], text: 'Verified Drivers Collection & Attendance Report');
     } catch (e) {
-      if (context.mounted) {
+      if (mounted) {
         Navigator.pop(context); // Close loading dialog
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error generating report: $e")));
       }

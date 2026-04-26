@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'dart:ui' as ui;
 import 'package:geolocator/geolocator.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
@@ -25,6 +26,7 @@ class _AddBinPageState extends State<AddBinPage> {
   // Controllers
   final ssidController = TextEditingController();
   final passController = TextEditingController();
+  final areaController = TextEditingController(); // Nayi Field Area ke liye
 
   @override
   void initState() {
@@ -37,23 +39,24 @@ class _AddBinPageState extends State<AddBinPage> {
     _timer?.cancel();
     ssidController.dispose();
     passController.dispose();
+    areaController.dispose();
     super.dispose();
   }
 
   // 1. Fully Integrated Location & Firebase Setup
   Future<void> _initializeSetup() async {
     try {
-      // Permission check and get live location
       LocationPermission permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
       }
 
       Position position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(accuracy: LocationAccuracy.best), // Best for pinpointing bins
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.best,
+        ),
       );
 
-      // Fetching Next ID from Firebase Metadata
       final ref = FirebaseDatabase.instance.ref('system_metadata/total_bins');
       final snapshot = await ref.get();
 
@@ -79,36 +82,58 @@ class _AddBinPageState extends State<AddBinPage> {
     });
   }
 
-  // 2. Bluetooth Connectivity (SWCS_CONFIG_MODE Filter)
+  // 2. Bluetooth Connectivity (Filtered for SWCS)
   void _connectToESP32() async {
-    setState(() => isScanning = true);
+    setState(() {
+      isScanning = true;
+      selectedDevice = null; // Purani selection clear karein
+    });
 
-    await FlutterBluePlus.startScan(timeout: const Duration(seconds: 5));
+    // Scan shuru karein
+    await FlutterBluePlus.startScan(timeout: const Duration(seconds: 10));
 
-    FlutterBluePlus.scanResults.listen((results) async {
+    // Scan results ko listen karein
+    var subscription = FlutterBluePlus.scanResults.listen((results) async {
       for (ScanResult r in results) {
-        // Matching the ID defined in ESP32: "SWCS_CONFIG_MODE"
-        if (r.device.platformName.contains("SWCS")) {
+        // Latest version mein ye zayada stable hai
+        String dName = r.advertisementData.localName.isNotEmpty
+            ? r.advertisementData.localName
+            : (r.device.platformName.isNotEmpty
+                  ? r.device.platformName
+                  : "Unknown Device");
+
+        if (dName.toUpperCase().contains("SWCS")) {
+          print("SWCS Device Found: $dName");
           await FlutterBluePlus.stopScan();
+
           try {
             await r.device.connect();
-            setState(() {
-              selectedDevice = r.device;
-              isScanning = false;
-            });
-            _showSnack("Connected to Hardware");
+
+            // Request higher MTU for sending long JSON payloads (up to 512 bytes)
+            await r.device.requestMtu(512);
+
+            if (mounted) {
+              setState(() {
+                selectedDevice = r.device;
+                isScanning = false;
+              });
+            }
+            _showSnack("Connected & MTU Updated");
           } catch (e) {
             _showSnack("Connection failed: $e");
+            if (mounted) setState(() => isScanning = false);
           }
           break;
         }
       }
     });
 
-    await Future.delayed(const Duration(seconds: 5));
+    // Timeout ke baad agar kuch na mile
+    await Future.delayed(const Duration(seconds: 10));
+    subscription.cancel();
     if (selectedDevice == null && mounted) {
       setState(() => isScanning = false);
-      _showSnack("No SWCS Hardware found.");
+      _showSnack("No SWCS Hardware found nearby.");
     }
   }
 
@@ -119,20 +144,22 @@ class _AddBinPageState extends State<AddBinPage> {
       return;
     }
 
-    if (ssidController.text.isEmpty || passController.text.isEmpty) {
-      _showSnack("Please enter WiFi details");
+    if (ssidController.text.isEmpty ||
+        passController.text.isEmpty ||
+        areaController.text.isEmpty) {
+      _showSnack("Please fill WiFi and Area details");
       return;
     }
 
     setState(() => isFinalizing = true);
 
     try {
-      // Step A: Send JSON Payload to ESP32 via Bluetooth
-      // Format: {"ssid":"name", "pass":"123", "id":"bin_11"}
       String binKey = "bin_${nextBinId.toString().padLeft(2, '0')}";
+
+      // Step A: Send JSON to ESP32
       Map<String, String> configData = {
-        "ssid": ssidController.text,
-        "pass": passController.text,
+        "ssid": ssidController.text.trim(),
+        "pass": passController.text.trim(),
         "id": binKey,
       };
 
@@ -140,31 +167,46 @@ class _AddBinPageState extends State<AddBinPage> {
       List<BluetoothService> services = await selectedDevice!
           .discoverServices();
 
+      bool dataSent = false;
       for (var service in services) {
         for (var char in service.characteristics) {
-          if (char.properties.write) {
+          // Humari Characteristic UUID jo ESP32 mein hai
+          if (char.uuid.toString() == "beb5483e-36e1-4688-b7f5-ea07361b26a8") {
             await char.write(utf8.encode(jsonPayload));
+            dataSent = true;
+            break;
           }
         }
       }
 
+      if (!dataSent) throw Exception("Configuration characteristic not found");
+
       // Step B: Update Firebase Database
       String path = "bins/$binKey";
       await FirebaseDatabase.instance.ref(path).set({
-        "readings": {"fill": 0, "gas": 0},
+        // --- TOP-LEVEL FIELDS (read by all dashboard/analytics screens) ---
+        "area": areaController.text.trim(),
+        "fill_level": 0,
+        "gas_level": 0,
+        "battery": 100,
+        "status": "Online",
+        "lat": currentPosition!.latitude,
+        "lng": currentPosition!.longitude,
+
+        // --- NESTED METADATA (organized storage) ---
+        "readings": {"fill_level": 0, "gas_level": 0, "battery_level": 100},
         "metadata": {
-          "bin_id": "BIN-$nextBinId",
+          "bin_id": "BIN-${nextBinId.toString().padLeft(3, '0')}",
+          "area": areaController.text.trim(),
           "location": {
             "lat": currentPosition!.latitude,
             "lng": currentPosition!.longitude,
           },
           "status": "Online",
-          "alert": "Normal",
           "last_sync": ServerValue.timestamp,
         },
       });
 
-      // Update the Global Bin Counter
       await FirebaseDatabase.instance
           .ref('system_metadata/total_bins')
           .set(nextBinId);
@@ -176,6 +218,9 @@ class _AddBinPageState extends State<AddBinPage> {
       if (mounted) setState(() => isFinalizing = false);
     }
   }
+
+  // --- UI Components ---
+  // (Success Dialog, Snackbars, and Styling)
 
   void _showSuccessDialog(String binKey) {
     showDialog(
@@ -190,15 +235,15 @@ class _AddBinPageState extends State<AddBinPage> {
             const Icon(Icons.check_circle, color: Colors.green, size: 60),
             const SizedBox(height: 15),
             Text(
-              "Hardware $binKey has been successfully deployed and linked to the cloud.",
+              "Hardware $binKey has been successfully deployed at ${areaController.text}.",
             ),
           ],
         ),
         actions: [
           ElevatedButton(
             onPressed: () {
-              Navigator.pop(context); // Close Dialog
-              Navigator.pop(context); // Go back to Dashboard
+              Navigator.pop(context);
+              Navigator.pop(context);
             },
             child: const Text("DONE"),
           ),
@@ -215,12 +260,6 @@ class _AddBinPageState extends State<AddBinPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAF9),
-      appBar: AppBar(
-        title: const Text("Deploy IoT Bin"),
-        backgroundColor: const Color(0xFF0A714E),
-        foregroundColor: Colors.white,
-        elevation: 0,
-      ),
       body: isFinalizing
           ? const Center(
               child: CircularProgressIndicator(color: Color(0xFF0A714E)),
@@ -228,7 +267,7 @@ class _AddBinPageState extends State<AddBinPage> {
           : SingleChildScrollView(
               child: Column(
                 children: [
-                  _buildStatusHeader(),
+                  _buildStatusHeader(nextBinId),
                   Padding(
                     padding: const EdgeInsets.all(20),
                     child: Column(
@@ -236,25 +275,24 @@ class _AddBinPageState extends State<AddBinPage> {
                         _buildStepCard(
                           "1",
                           "Hardware Link",
-                          "Pair with the nearby Bin Controller",
+                          "Pair with SWCS Bin Controller",
                           child: ListTile(
                             contentPadding: EdgeInsets.zero,
-                            leading: const Icon(
-                              Icons.bluetooth_searching,
-                              color: Colors.blue,
+                            leading: Icon(
+                              Icons.bluetooth,
+                              color: selectedDevice != null
+                                  ? Colors.green
+                                  : Colors.blue,
                             ),
                             title: Text(
-                              selectedDevice?.platformName ??
-                                  (isScanning
-                                      ? "Scanning..."
-                                      : "No Connection"),
+                              selectedDevice != null
+                                  ? "Connected: ${selectedDevice!.platformName}"
+                                  : (isScanning
+                                        ? "Scanning for SWCS..."
+                                        : "Disconnected"),
                               style: const TextStyle(
                                 fontWeight: FontWeight.bold,
                               ),
-                            ),
-                            subtitle: Text(
-                              selectedDevice?.remoteId.toString() ??
-                                  "Connect via Bluetooth",
                             ),
                             trailing: IconButton(
                               icon: Icon(
@@ -267,23 +305,34 @@ class _AddBinPageState extends State<AddBinPage> {
                         ),
                         _buildStepCard(
                           "2",
-                          "Wi-Fi Provisioning",
-                          "Share local network with the Bin",
+                          "Bin Details",
+                          "Enter Area and Network Info",
                           child: Column(
                             children: [
                               TextField(
+                                controller: areaController,
+                                decoration: const InputDecoration(
+                                  hintText: "Area Name (e.g. Model Town)",
+                                  border: InputBorder.none,
+                                  icon: Icon(Icons.map, size: 20),
+                                ),
+                              ),
+                              const Divider(),
+                              TextField(
                                 controller: ssidController,
                                 decoration: const InputDecoration(
-                                  hintText: "SSID (WiFi Name)",
+                                  hintText: "WiFi SSID",
                                   border: InputBorder.none,
+                                  icon: Icon(Icons.wifi, size: 20),
                                 ),
                               ),
                               const Divider(),
                               TextField(
                                 controller: passController,
                                 decoration: const InputDecoration(
-                                  hintText: "Password",
+                                  hintText: "WiFi Password",
                                   border: InputBorder.none,
+                                  icon: Icon(Icons.lock_outline, size: 20),
                                 ),
                                 obscureText: true,
                               ),
@@ -293,7 +342,7 @@ class _AddBinPageState extends State<AddBinPage> {
                         _buildStepCard(
                           "3",
                           "GPS Tagging",
-                          "Live coordinates for Google Maps",
+                          "Location for Google Maps",
                           child: Row(
                             children: [
                               const Icon(
@@ -305,8 +354,8 @@ class _AddBinPageState extends State<AddBinPage> {
                               Expanded(
                                 child: Text(
                                   currentPosition != null
-                                      ? "Lat: ${currentPosition!.latitude}, Lng: ${currentPosition!.longitude}"
-                                      : "Fetching High-Accuracy GPS...",
+                                      ? "Lat: ${currentPosition!.latitude.toStringAsFixed(4)}, Lng: ${currentPosition!.longitude.toStringAsFixed(4)}"
+                                      : "Fetching GPS...",
                                   style: const TextStyle(
                                     fontWeight: FontWeight.w600,
                                     color: Color(0xFF0A714E),
@@ -327,48 +376,73 @@ class _AddBinPageState extends State<AddBinPage> {
     );
   }
 
-  // --- UI Styling Components ---
-  Widget _buildStatusHeader() {
+  // Styling UI Methods (Wahi purana design jo aap ne diya tha)
+  Widget _buildStatusHeader(int nextBinId) {
     return Container(
-      padding: const EdgeInsets.all(30),
+      width: double.infinity,
+      height: 200,
       decoration: const BoxDecoration(
-        color: Color(0xFF0A714E),
-        borderRadius: BorderRadius.vertical(bottom: Radius.circular(30)),
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(bottom: Radius.circular(35)),
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      child: Stack(
+        fit: StackFit.expand,
         children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                "System Assignment",
-                style: TextStyle(color: Colors.white70),
+          ClipRRect(
+            borderRadius:
+                const BorderRadius.vertical(bottom: Radius.circular(35)),
+            child: ImageFiltered(
+              imageFilter: ui.ImageFilter.blur(sigmaX: 1.5, sigmaY: 1.5),
+              child: Image.asset('lib/assets/bg.jpeg', fit: BoxFit.cover),
+            ),
+          ),
+          Container(
+            decoration: BoxDecoration(
+              borderRadius:
+                  const BorderRadius.vertical(bottom: Radius.circular(35)),
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.white.withValues(alpha: 0.3),
+                  Colors.white.withValues(alpha: 0.1),
+                  Colors.white.withValues(alpha: 0.6),
+                ],
               ),
+            ),
+          ),
+          Positioned(
+            top: 45,
+            left: 15,
+            child: CircleAvatar(
+              backgroundColor: Colors.white.withValues(alpha: 0.5),
+              child: IconButton(
+                icon: const Icon(Icons.arrow_back, color: Colors.black87),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ),
+          ),
+          Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const SizedBox(height: 30),
+              const Text(
+                "IoT DEPLOYMENT HUB",
+                style: TextStyle(
+                  color: Colors.black54,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 2,
+                ),
+              ),
+              const SizedBox(height: 5),
               Text(
                 "BIN-${nextBinId.toString().padLeft(3, '0')}",
                 style: const TextStyle(
-                  color: Colors.white,
+                  color: Colors.black87,
                   fontSize: 32,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-          Stack(
-            alignment: Alignment.center,
-            children: [
-              CircularProgressIndicator(
-                value: timerCount / 60,
-                color: Colors.white,
-                strokeWidth: 3,
-              ),
-              Text(
-                "${timerCount}s",
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: -1,
                 ),
               ),
             ],
@@ -392,7 +466,7 @@ class _AddBinPageState extends State<AddBinPage> {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
+            color: Colors.black12,
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -408,11 +482,7 @@ class _AddBinPageState extends State<AddBinPage> {
                 backgroundColor: const Color(0xFF0A714E),
                 child: Text(
                   num,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: const TextStyle(color: Colors.white, fontSize: 12),
                 ),
               ),
               const SizedBox(width: 10),
@@ -425,7 +495,6 @@ class _AddBinPageState extends State<AddBinPage> {
               ),
             ],
           ),
-          const SizedBox(height: 4),
           Text(sub, style: const TextStyle(color: Colors.grey, fontSize: 11)),
           const Divider(height: 25),
           child,

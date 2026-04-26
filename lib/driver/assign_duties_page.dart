@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'dart:ui' as ui;
 import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../manager/live_map_screen.dart';
+import '../manager/bin_utils.dart';
 
 class AssignDutiesPage extends StatefulWidget {
   const AssignDutiesPage({super.key});
@@ -47,48 +49,90 @@ class _AssignDutiesPageState extends State<AssignDutiesPage>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF4F7F4),
-      appBar: AppBar(
-        title: const Text(
-          "MISSION CONTROL",
-          style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1.5),
-        ),
-        centerTitle: true,
-        backgroundColor: const Color(0xFF1B5E20),
-        elevation: 8,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
-        bottom: TabBar(
-          controller: _tabController,
-          indicatorColor: Colors.yellowAccent,
-          indicatorWeight: 4,
-          labelStyle: const TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 14,
+      body: NestedScrollView(
+        headerSliverBuilder: (context, innerBoxIsScrolled) => [
+          SliverAppBar(
+            expandedHeight: 180.0,
+            pinned: true,
+            backgroundColor: Colors.white,
+            elevation: 0,
+            centerTitle: true,
+            title: const Text(
+              "MISSION CONTROL",
+              style: TextStyle(
+                fontWeight: FontWeight.w900,
+                fontSize: 16,
+                color: Colors.black87,
+              ),
+            ),
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back, color: Colors.black87),
+              onPressed: () => Navigator.pop(context),
+            ),
+            flexibleSpace: FlexibleSpaceBar(
+              background: Stack(
+                fit: StackFit.expand,
+                children: [
+                  ImageFiltered(
+                    imageFilter: ui.ImageFilter.blur(sigmaX: 1.5, sigmaY: 1.5),
+                    child: Image.asset(
+                      'lib/assets/bg.jpeg',
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                  Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.white.withValues(alpha: 0.3),
+                          Colors.white.withValues(alpha: 0.1),
+                          Colors.white.withValues(alpha: 0.5),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            bottom: PreferredSize(
+              preferredSize: const Size.fromHeight(48),
+              child: Container(
+                color: Colors.white.withValues(alpha: 0.8),
+                child: TabBar(
+                  controller: _tabController,
+                  indicatorColor: Colors.green,
+                  indicatorWeight: 4,
+                  labelColor: Colors.green,
+                  unselectedLabelColor: Colors.black54,
+                  labelStyle: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                  tabs: const [
+                    Tab(icon: Icon(Icons.calendar_month_rounded), text: "Collection"),
+                    Tab(
+                      icon: Icon(Icons.bolt_rounded),
+                      text: "Emergency",
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
-          tabs: const [
-            Tab(icon: Icon(Icons.calendar_month_rounded), text: "Collection"),
-            Tab(
-              icon: Icon(Icons.bolt_rounded, color: Colors.yellowAccent),
-              text: "Emergency",
-            ),
-          ],
-        ),
-      ),
-      body: Container(
-        decoration: BoxDecoration(
-          image: DecorationImage(
-            image: const NetworkImage(
-              'https://images.unsplash.com/photo-1449965408869-eaa3f722e40d?q=80&w=1000',
-            ),
-            fit: BoxFit.cover,
-            colorFilter: ColorFilter.mode(
-              Colors.white.withValues(alpha: 0.85),
-              BlendMode.lighten,
+        ],
+        body: Container(
+          decoration: BoxDecoration(
+            image: DecorationImage(
+              image: const AssetImage('lib/assets/bg.jpeg'),
+              fit: BoxFit.cover,
+              colorFilter: ColorFilter.mode(
+                Colors.white.withValues(alpha: 0.92),
+                BlendMode.lighten,
+              ),
             ),
           ),
-        ),
         child: TabBarView(
           controller: _tabController,
           children: [
@@ -105,8 +149,9 @@ class _AssignDutiesPageState extends State<AssignDutiesPage>
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   void _showStartDialog(String area) {
     showDialog(
@@ -287,7 +332,7 @@ class _EmergencyTabState extends State<_EmergencyTab>
         var criticalTasks = bins.entries.where((e) {
           var val = e.value;
           return val['assigned_to'] == widget.userId &&
-              ((val['fill_level'] ?? 0) >= 80 || (val['gas_level'] ?? 0) > 400);
+              (BinData.fillLevel(val) >= 80 || BinData.gasLevel(val) > 400);
         }).toList();
 
         if (criticalTasks.isEmpty) {
@@ -302,9 +347,10 @@ class _EmergencyTabState extends State<_EmergencyTab>
           itemCount: criticalTasks.length,
           itemBuilder: (context, index) {
             var bin = criticalTasks[index].value;
-            bool isGas = (bin['gas_level'] ?? 0) > 400;
+            String area = BinData.area(bin);
+            bool isGas = BinData.gasLevel(bin) > 400;
             return _dutyCard(
-              title: bin['area'] ?? "Critical Zone",
+              title: area,
               subtitle: isGas
                   ? "⚠️ DANGER: HIGH GAS DETECTED"
                   : "🚨 ALERT: BIN OVERFLOW",
@@ -313,7 +359,7 @@ class _EmergencyTabState extends State<_EmergencyTab>
                   ? Icons.gas_meter_rounded
                   : Icons.warning_amber_rounded,
               color: Colors.redAccent,
-              onTap: () => widget.onAction(bin['area'] ?? "Critical Zone"),
+              onTap: () => widget.onAction(area),
             );
           },
         );

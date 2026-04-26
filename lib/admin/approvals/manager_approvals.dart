@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:ui' as ui;
 import 'package:firebase_database/firebase_database.dart';
 import 'package:animate_do/animate_do.dart';
 
@@ -12,21 +13,11 @@ class ManagerApprovals extends StatelessWidget {
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAF9),
       body: Container(
-        decoration: BoxDecoration(
-          image: DecorationImage(
-            image: const NetworkImage(
-              'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?q=80&w=1000',
-            ),
-            fit: BoxFit.cover,
-            colorFilter: ColorFilter.mode(
-              Colors.white.withValues(alpha: 0.85),
-              BlendMode.lighten,
-            ),
-          ),
-        ),
+        color: const Color(0xFFF8FAF9),
         child: Column(
           children: [
             _buildPremiumHeader(),
+            _buildStatementBar(),
             Expanded(
               child: StreamBuilder(
                 stream: globalStream,
@@ -76,27 +67,87 @@ class ManagerApprovals extends StatelessWidget {
   Widget _buildPremiumHeader() {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.only(top: 60, left: 25, right: 25, bottom: 30),
+      height: 180,
       decoration: const BoxDecoration(
-        color: Color(0xFF0A714E),
+        color: Colors.white,
         borderRadius: BorderRadius.vertical(bottom: Radius.circular(35)),
       ),
-      child: const Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Stack(
+        fit: StackFit.expand,
         children: [
-          Text(
-            "Manager Approvals",
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
+          ClipRRect(
+            borderRadius: const BorderRadius.vertical(bottom: Radius.circular(35)),
+            child: ImageFiltered(
+              imageFilter: ui.ImageFilter.blur(sigmaX: 0.0, sigmaY: 0.0),
+              child: Image.asset(
+                'lib/assets/bg.jpeg',
+                fit: BoxFit.cover,
+              ),
             ),
           ),
-          Text(
-            "Verify and authorize staff access",
-            style: TextStyle(color: Colors.white70, fontSize: 13),
+          Container(
+            decoration: BoxDecoration(
+              borderRadius: const BorderRadius.vertical(bottom: Radius.circular(35)),
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.white.withValues(alpha: 0.3),
+                  Colors.white.withValues(alpha: 0.1),
+                  Colors.white.withValues(alpha: 0.5),
+                ],
+              ),
+            ),
+          ),
+          const Padding(
+            padding: EdgeInsets.only(left: 25, right: 25, bottom: 25),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.end,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  "Approvals",
+                  style: TextStyle(
+                    color: Colors.black,
+                    fontSize: 28,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildStatementBar() {
+    return FadeInLeft(
+      duration: const Duration(milliseconds: 600),
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 25, vertical: 15),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        decoration: BoxDecoration(
+          color: const Color(0xFF0A714E).withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(15),
+          border: Border.all(color: const Color(0xFF0A714E).withValues(alpha: 0.2)),
+        ),
+        child: const Row(
+          children: [
+            Icon(Icons.verified_user_outlined, size: 18, color: Color(0xFF0A714E)),
+            SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                "Review and authorize new staff registration requests.",
+                style: TextStyle(
+                  color: Color(0xFF0A714E),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

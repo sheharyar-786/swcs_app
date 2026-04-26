@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:ui' as ui;
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 
@@ -9,123 +10,129 @@ class LeaderboardPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF0F4F0),
-      appBar: AppBar(
-        title: const Text(
-          "SWCS LEADERBOARD",
-          style: TextStyle(
-            fontWeight: FontWeight.w900,
-            letterSpacing: 2,
-            color: Colors.white,
-          ),
-        ),
-        centerTitle: true,
-        backgroundColor: const Color(0xFF1B5E20),
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
-      body: Container(
-        decoration: BoxDecoration(
-          image: DecorationImage(
-            image: const NetworkImage(
-              'https://images.unsplash.com/photo-1554774853-719586f82d77?q=80&w=1000',
-            ),
-            fit: BoxFit.cover,
-            colorFilter: ColorFilter.mode(
-              Colors.white.withValues(alpha: 0.85),
-              BlendMode.lighten,
-            ),
-          ),
-        ),
-        child: StreamBuilder(
-          stream: FirebaseDatabase.instance.ref('verified_drivers').onValue,
-          builder: (context, AsyncSnapshot<DatabaseEvent> snapshot) {
-            if (!snapshot.hasData || snapshot.data!.snapshot.value == null) {
-              return const Center(
-                child: CircularProgressIndicator(color: Colors.green),
-              );
-            }
-
-            Map data = snapshot.data!.snapshot.value as Map;
-            List<MapEntry> drivers = data.entries.toList();
-
-            // Sorting drivers by points (descending)
-            drivers.sort(
-              (a, b) =>
-                  (b.value['points'] ?? 0).compareTo(a.value['points'] ?? 0),
+      body: StreamBuilder(
+        stream: FirebaseDatabase.instance.ref('verified_drivers').onValue,
+        builder: (context, AsyncSnapshot<DatabaseEvent> snapshot) {
+          if (!snapshot.hasData || snapshot.data!.snapshot.value == null) {
+            return const Center(
+              child: CircularProgressIndicator(color: Colors.green),
             );
+          }
 
-            if (drivers.isEmpty) return _emptyState();
+          Map data = snapshot.data!.snapshot.value as Map;
+          List<MapEntry> drivers = data.entries.toList();
 
-            return SingleChildScrollView(
-              physics: const BouncingScrollPhysics(),
-              child: Column(
-                children: [
-                  _buildTopPodium(drivers),
-                  const SizedBox(height: 10),
-                  AnimationLimiter(
-                    child: ListView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 15,
-                        vertical: 10,
-                      ),
-                      itemCount: drivers.length > 3 ? drivers.length - 3 : 0,
-                      itemBuilder: (context, index) {
-                        int actualIndex = index + 3;
-                        var driver = drivers[actualIndex].value;
-                        int rank = actualIndex + 1;
-                        String displayName = _getDisplayName(driver);
+          // Sorting drivers by points (descending)
+          drivers.sort(
+            (a, b) =>
+                (b.value['points'] ?? 0).compareTo(a.value['points'] ?? 0),
+          );
 
-                        return AnimationConfiguration.staggeredList(
-                          position: index,
-                          duration: const Duration(milliseconds: 500),
-                          child: SlideAnimation(
-                            verticalOffset: 50.0,
-                            child: FadeInAnimation(
-                              child: _buildRankCard(
-                                displayName,
-                                rank,
-                                driver['points'] ?? 0,
-                                driver['vehicleId'] ?? "N/A",
-                              ),
+          if (drivers.isEmpty) return _emptyState();
+
+          return CustomScrollView(
+            physics: const BouncingScrollPhysics(),
+            slivers: [
+              _buildSliverAppBar(context, drivers),
+              SliverToBoxAdapter(
+                child: AnimationLimiter(
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    padding: const EdgeInsets.fromLTRB(15, 20, 15, 80),
+                    itemCount: drivers.length > 3 ? drivers.length - 3 : 0,
+                    itemBuilder: (context, index) {
+                      int actualIndex = index + 3;
+                      var driver = drivers[actualIndex].value;
+                      int rank = actualIndex + 1;
+                      String displayName = _getDisplayName(driver);
+
+                      return AnimationConfiguration.staggeredList(
+                        position: index,
+                        duration: const Duration(milliseconds: 500),
+                        child: SlideAnimation(
+                          verticalOffset: 50.0,
+                          child: FadeInAnimation(
+                            child: _buildRankCard(
+                              displayName,
+                              rank,
+                              driver['points'] ?? 0,
+                              driver['vehicleId'] ?? "N/A",
                             ),
                           ),
-                        );
-                      },
-                    ),
+                        ),
+                      );
+                    },
                   ),
-                  const SizedBox(height: 20),
-                ],
+                ),
               ),
-            );
-          },
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildSliverAppBar(BuildContext context, List drivers) {
+    return SliverAppBar(
+      expandedHeight: 180.0,
+      pinned: true,
+      elevation: 0,
+      backgroundColor: Colors.white,
+      centerTitle: true,
+      title: const Text(
+        "SWCS LEADERBOARD",
+        style: TextStyle(
+          fontWeight: FontWeight.w900,
+          fontSize: 16,
+          color: Colors.black87,
+        ),
+      ),
+      leading: IconButton(
+        icon: const Icon(Icons.arrow_back, color: Colors.black87),
+        onPressed: () => Navigator.pop(context),
+      ),
+      flexibleSpace: FlexibleSpaceBar(
+        background: Stack(
+          fit: StackFit.expand,
+          children: [
+            ImageFiltered(
+              imageFilter: ui.ImageFilter.blur(sigmaX: 1.5, sigmaY: 1.5),
+              child: Image.asset(
+                'lib/assets/bg.jpeg',
+                fit: BoxFit.cover,
+              ),
+            ),
+            Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.white.withValues(alpha: 0.3),
+                    Colors.white.withValues(alpha: 0.1),
+                    Colors.white.withValues(alpha: 0.5),
+                  ],
+                ),
+              ),
+            ),
+            _buildTopPodiumOverlay(drivers),
+          ],
         ),
       ),
     );
   }
 
-  // --- TOP 3 PODIUM DESIGN (FIXED OVERFLOW) ---
-  Widget _buildTopPodium(List drivers) {
+  // --- TOP 3 PODIUM DESIGN ---
+  Widget _buildTopPodiumOverlay(List drivers) {
     if (drivers.isEmpty) return const SizedBox.shrink();
 
     var first = drivers.isNotEmpty ? drivers[0].value : null;
     var second = drivers.length > 1 ? drivers[1].value : null;
     var third = drivers.length > 2 ? drivers[2].value : null;
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(15, 10, 15, 30),
-      decoration: const BoxDecoration(
-        color: Color(0xFF1B5E20),
-        borderRadius: BorderRadius.only(
-          bottomLeft: Radius.circular(45),
-          bottomRight: Radius.circular(45),
-        ),
-      ),
+    return Padding(
+      padding: const EdgeInsets.only(top: 80, bottom: 10),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         crossAxisAlignment: CrossAxisAlignment.end,
@@ -137,7 +144,7 @@ class LeaderboardPage extends StatelessWidget {
               "2",
               Colors.grey.shade300,
               second['points'] ?? 0,
-              130,
+              75,
             ),
 
           // 1st Place
@@ -147,7 +154,7 @@ class LeaderboardPage extends StatelessWidget {
               "1",
               Colors.amberAccent,
               first['points'] ?? 0,
-              170,
+              95,
             ),
 
           // 3rd Place
@@ -157,7 +164,7 @@ class LeaderboardPage extends StatelessWidget {
               "3",
               Colors.orangeAccent.shade100,
               third['points'] ?? 0,
-              125, // FIXED: Increased height to prevent 4.0 pixel overflow
+              70,
             ),
         ],
       ),
@@ -200,26 +207,23 @@ class LeaderboardPage extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               // FIX: FittedBox prevents text from pushing borders out
-              SizedBox(
-                height: 20,
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Text(
-                    name,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                    ),
-                  ),
-                ),
-              ),
               Text(
-                "$pts XP",
+                name,
                 style: const TextStyle(
-                  color: Colors.white70,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
+                  color: Colors.black87,
+                  fontSize: 8,
+                  fontWeight: FontWeight.bold,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 2),
+              Text(
+                "$pts pts",
+                style: const TextStyle(
+                  color: Colors.black54,
+                  fontSize: 8,
+                  fontWeight: FontWeight.w900,
                 ),
               ),
             ],

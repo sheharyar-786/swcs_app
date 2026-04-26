@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'package:url_launcher/url_launcher.dart';
+import 'dart:ui' as ui;
 import 'dart:math' show cos, sqrt, asin;
 import 'package:flutter/material.dart';
 import 'package:firebase_database/firebase_database.dart';
@@ -14,7 +16,8 @@ import 'simulation_screen.dart';
 import 'bin_details.dart';
 import 'drivers_status_screen.dart';
 import 'collection_history_screen.dart';
-import 'add_bin_page.dart'; // ADDED: AddBinPage import
+import 'add_bin_page.dart';
+import 'bin_utils.dart';
 import '../auth/login_screen.dart';
 import '../widgets/summary_card.dart';
 
@@ -70,38 +73,6 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
         c((lat2 - lat1) * p) / 2 +
         c(lat1 * p) * c(lat2 * p) * (1 - c((lon2 - lon1) * p)) / 2;
     return 12742 * asin(sqrt(a));
-  }
-
-  void _showMissionBriefing(BuildContext context, int count) {
-    showDialog(
-      context: context,
-      builder: (c) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
-        title: const Row(
-          children: [
-            Icon(Icons.radar_rounded, color: alertRed),
-            SizedBox(width: 10),
-            Text(
-              "System Alert",
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-          ],
-        ),
-        content: Text(
-          "Attention Manager!\n\nThere are currently $count bins that have exceeded 75% capacity. Immediate driver assignment is recommended.",
-          style: const TextStyle(fontSize: 14, height: 1.5),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(c),
-            child: const Text(
-              "UNDERSTOOD",
-              style: TextStyle(color: deepForest, fontWeight: FontWeight.bold),
-            ),
-          ),
-        ],
-      ),
-    );
   }
 
   void _openAssignmentSheet(
@@ -251,15 +222,9 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
         Map pending = snapshotValue['pending_drivers'] as Map? ?? {};
         Map verifiedDrivers = snapshotValue['verified_drivers'] as Map? ?? {};
 
-        var unassignedCritical = bins.entries.where((e) {
-          double level = (e.value['fill_level'] ?? 0).toDouble();
-          String status = e.value['status'] ?? "";
-          return level >= 75 && status != 'Assigned' && status != 'On Route';
-        }).toList();
-
         String activityMsg =
             snapshotValue['latest_activity']?.toString() ??
-            "System Monitoring... 🟢";
+            "System Monitoring Active";
 
         return Scaffold(
           key: _scaffoldKey,
@@ -289,7 +254,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
               ),
             ],
           ),
-          drawer: _buildDrawer(activityMsg),
+          drawer: _buildDrawer(activityMsg, bins, verifiedDrivers),
           body: CustomScrollView(
             controller: _scrollController,
             physics: const BouncingScrollPhysics(),
@@ -301,8 +266,8 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
                     Positioned.fill(
                       child: Opacity(
                         opacity: 0.15,
-                        child: Image.network(
-                          'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?q=80&w=1000',
+                        child: Image.asset(
+                          'lib/assets/bg.jpeg',
                           fit: BoxFit.cover,
                         ),
                       ),
@@ -361,79 +326,446 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildDrawer(String msg) => Drawer(
-    child: Column(
-      children: [
-        const DrawerHeader(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(colors: [deepForest, leafGreen]),
-          ),
-          child: Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+  Widget _buildDrawer(String msg, Map bins, Map drivers) {
+    final user = FirebaseAuth.instance.currentUser;
+    return Drawer(
+      backgroundColor: Colors.white,
+      child: Column(
+        children: [
+          // 1. PREMIUM USER PROFILE HEADER
+          Container(
+            padding: const EdgeInsets.only(
+              top: 60,
+              left: 20,
+              right: 20,
+              bottom: 25,
+            ),
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [leafGreen, deepForest],
+              ),
+              borderRadius: BorderRadius.only(bottomRight: Radius.circular(50)),
+            ),
+            child: Row(
               children: [
-                Icon(
-                  Icons.manage_accounts_rounded,
-                  size: 50,
-                  color: Colors.white,
-                ),
-                SizedBox(height: 10),
-                Text(
-                  "MANAGER MENU",
-                  style: TextStyle(
+                Container(
+                  padding: const EdgeInsets.all(3),
+                  decoration: const BoxDecoration(
                     color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 18,
+                    shape: BoxShape.circle,
+                  ),
+                  child: CircleAvatar(
+                    radius: 35,
+                    backgroundColor: softMint,
+                    child: Text(
+                      user?.email?.substring(0, 1).toUpperCase() ?? "M",
+                      style: const TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: leafGreen,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 15),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        "System Manager",
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      Text(
+                        user?.email ?? "swcsproviders@gmail.com",
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.8),
+                          fontSize: 11,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 5),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Text(
+                          "VERIFIED ADMIN",
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 8,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
             ),
           ),
+
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.all(15),
+              children: [
+                // 2. SYSTEM INTELLIGENCE (THRESHOLDS)
+                _drawerSectionLabel("SYSTEM THRESHOLDS"),
+                _thresholdCard(
+                  "Critical Capacity",
+                  "80%",
+                  Icons.speed_rounded,
+                  alertRed,
+                ),
+                _thresholdCard(
+                  "Gas Warning",
+                  "400 ppm",
+                  Icons.waves_rounded,
+                  Colors.purple,
+                ),
+                _thresholdCard(
+                  "Battery Alert",
+                  "20%",
+                  Icons.battery_alert_rounded,
+                  Colors.orange,
+                ),
+
+                const SizedBox(height: 25),
+
+                // 3. REAL-TIME ACTIVITY FEED
+                _drawerSectionLabel("LIVE MISSION FEED"),
+                Container(
+                  padding: const EdgeInsets.all(15),
+                  decoration: BoxDecoration(
+                    color: softMint.withValues(alpha: 0.5),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: leafGreen.withValues(alpha: 0.1)),
+                  ),
+                  child: Column(
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.history_rounded,
+                            size: 16,
+                            color: leafGreen,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              msg,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Colors.black87,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const Divider(height: 20),
+                      _activityItem(
+                        "New Report",
+                        "Citizen reported overflow in Sector 4",
+                        Colors.orange,
+                      ),
+                      _activityItem(
+                        "Driver Online",
+                        "Driver Shary is now on mission",
+                        leafGreen,
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 25),
+
+                // 4. CORE CONTROLS
+                _drawerSectionLabel("SYSTEM TOOLS"),
+                _drawerItem(
+                  "IoT Simulation",
+                  Icons.settings_remote_rounded,
+                  leafGreen,
+                  () {
+                    Navigator.pop(context);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (c) => const SimulationScreen(),
+                      ),
+                    );
+                  },
+                ),
+                _drawerItem(
+                  "Cloud Analytics",
+                  Icons.cloud_done_rounded,
+                  Colors.blue,
+                  () {
+                    Navigator.pop(context);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (c) => const AnalyticsPage()),
+                    );
+                  },
+                ),
+
+                const SizedBox(height: 10),
+                _drawerItem(
+                  "Support & Help",
+                  Icons.support_agent_rounded,
+                  Colors.purple,
+                  () {
+                    Navigator.pop(context);
+                    _showSupportDialog();
+                  },
+                ),
+              ],
+            ),
+          ),
+
+          // 5. FOOTER & LOGOUT
+          const Divider(),
+          ListTile(
+            onTap: _handleLogout,
+            leading: const Icon(
+              Icons.power_settings_new_rounded,
+              color: alertRed,
+            ),
+            title: const Text(
+              "TERMINATE SESSION",
+              style: TextStyle(
+                color: alertRed,
+                fontWeight: FontWeight.w900,
+                fontSize: 13,
+                letterSpacing: 1,
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+        ],
+      ),
+    );
+  }
+
+  // --- SUPPORT & HELP DIALOG ---
+  void _showSupportDialog() {
+    final TextEditingController _supportMsg = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (c) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(
+          children: [
+            Icon(Icons.support_agent_rounded, color: Colors.purple),
+            SizedBox(width: 10),
+            Text(
+              "Mission Support",
+              style: TextStyle(fontWeight: FontWeight.w900),
+            ),
+          ],
         ),
-        Container(
-          margin: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              "Need technical assistance or want to report a system bug? Send a message to the High Command.",
+              style: TextStyle(fontSize: 11, color: Colors.grey),
+            ),
+            const SizedBox(height: 15),
+            TextField(
+              controller: _supportMsg,
+              maxLines: 4,
+              decoration: InputDecoration(
+                hintText: "Describe your issue...",
+                filled: true,
+                fillColor: Colors.grey.withValues(alpha: 0.1),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(15),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(c),
+            child: const Text("CANCEL"),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.purple,
+              shape: const StadiumBorder(),
+            ),
+            onPressed: () async {
+              if (_supportMsg.text.isEmpty) return;
+              final user = FirebaseAuth.instance.currentUser;
+
+              // 1. Save to Firebase (Real-time)
+              await FirebaseDatabase.instance
+                  .ref('support_messages')
+                  .push()
+                  .set({
+                    'sender': user?.email ?? "Unknown Manager",
+                    'message': _supportMsg.text,
+                    'timestamp': ServerValue.timestamp,
+                    'status': 'Pending',
+                  });
+
+              // 2. Prepare Email Link
+              final Uri emailLaunchUri = Uri(
+                scheme: 'mailto',
+                path: 'swcsproviders@gmail.com',
+                query:
+                    'subject=SUPPORT REQUEST: ${user?.email}&body=${_supportMsg.text}',
+              );
+
+              if (await canLaunchUrl(emailLaunchUri)) {
+                await launchUrl(emailLaunchUri);
+              }
+
+              Navigator.pop(c);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text("Support Request Dispatched!"),
+                  backgroundColor: Colors.purple,
+                ),
+              );
+            },
+            child: const Text(
+              "SEND TO ADMIN",
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _drawerSectionLabel(String label) => Padding(
+    padding: const EdgeInsets.only(left: 5, bottom: 10),
+    child: Text(
+      label,
+      style: TextStyle(
+        fontSize: 10,
+        fontWeight: FontWeight.w900,
+        color: Colors.grey.shade400,
+        letterSpacing: 1.5,
+      ),
+    ),
+  );
+
+  Widget _thresholdCard(String title, String val, IconData icon, Color col) =>
+      Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: Colors.blue.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.blue.withValues(alpha: 0.3)),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Row(
-                children: [
-                  Icon(Icons.notifications_active_rounded, color: Colors.blue, size: 16),
-                  SizedBox(width: 8),
-                  Text("LATEST ALERTS & UPDATES", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blue)),
-                ],
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(15),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.03),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
               ),
-              const SizedBox(height: 8),
-              Text(msg, style: const TextStyle(fontSize: 12, color: deepForest, fontWeight: FontWeight.bold)),
+            ],
+          ),
+          child: Row(
+            children: [
+              Icon(icon, size: 18, color: col),
+              const SizedBox(width: 12),
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black54,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                val,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w900,
+                  color: col,
+                ),
+              ),
             ],
           ),
         ),
-        const Divider(),
-        ListTile(
-          leading: const Icon(Icons.settings_remote, color: leafGreen),
-          title: const Text("IoT Simulation"),
-          onTap: () {
-            Navigator.pop(context);
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (c) => const SimulationScreen()),
-            );
-          },
+      );
+
+  Widget _activityItem(String title, String sub, Color col) => Padding(
+    padding: const EdgeInsets.only(bottom: 10),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 4,
+          height: 25,
+          decoration: BoxDecoration(
+            color: col,
+            borderRadius: BorderRadius.circular(10),
+          ),
         ),
-        const Divider(),
-        const Spacer(),
-        ListTile(
-          leading: const Icon(Icons.logout, color: alertRed),
-          title: const Text("Logout"),
-          onTap: _handleLogout,
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              Text(
+                sub,
+                style: const TextStyle(fontSize: 9, color: Colors.grey),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
         ),
-        const SizedBox(height: 20),
       ],
+    ),
+  );
+
+  Widget _drawerItem(
+    String title,
+    IconData icon,
+    Color col,
+    VoidCallback onTap,
+  ) => ListTile(
+    onTap: onTap,
+    dense: true,
+    leading: Icon(icon, color: col, size: 22),
+    title: Text(
+      title,
+      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+    ),
+    trailing: const Icon(
+      Icons.arrow_forward_ios_rounded,
+      size: 12,
+      color: Colors.grey,
     ),
   );
 
@@ -442,27 +774,31 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
       expandedHeight: 180.0,
       pinned: true,
       elevation: 0,
-      backgroundColor: leafGreen,
+      backgroundColor: Colors.white,
       centerTitle: true,
       title: const Text(
         "Welcome back, Manager!",
         style: TextStyle(
           fontWeight: FontWeight.w900,
           fontSize: 16,
-          color: Colors.white,
+          color: Colors.black87,
         ),
       ),
       leading: IconButton(
         icon: const Icon(
           Icons.menu_open_rounded,
-          color: Colors.white,
+          color: Colors.black87,
           size: 28,
         ),
         onPressed: () => _scaffoldKey.currentState?.openDrawer(),
       ),
       actions: [
         IconButton(
-          icon: const Icon(Icons.logout_rounded, size: 22, color: Colors.white),
+          icon: const Icon(
+            Icons.logout_rounded,
+            size: 22,
+            color: Colors.black87,
+          ),
           onPressed: _handleLogout,
         ),
       ],
@@ -470,9 +806,9 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
         background: Stack(
           fit: StackFit.expand,
           children: [
-            Image.network(
-              'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?q=80&w=1000',
-              fit: BoxFit.cover,
+            ImageFiltered(
+              imageFilter: ui.ImageFilter.blur(sigmaX: 1.5, sigmaY: 1.5),
+              child: Image.asset('lib/assets/bg.jpeg', fit: BoxFit.cover),
             ),
             Container(
               decoration: BoxDecoration(
@@ -480,14 +816,13 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: [
-                    Colors.black.withValues(alpha: 0.2),
-                    Colors.transparent,
-                    leafGreen.withValues(alpha: 0.6),
+                    Colors.white.withValues(alpha: 0.3),
+                    Colors.white.withValues(alpha: 0.1),
+                    Colors.white.withValues(alpha: 0.5),
                   ],
                 ),
               ),
             ),
-
           ],
         ),
       ),
@@ -496,7 +831,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
 
   Widget _buildSummarySection(Map bins, Map reports) {
     int critical = bins.values
-        .where((b) => (b['fill_level'] ?? 0) >= 80)
+        .where((b) => b != null && BinData.fillLevel(b) >= 80)
         .length;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
@@ -643,9 +978,11 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
 
   Widget _buildSmartCriticalList(Map bins) {
     var list = bins.entries.where((e) {
-      double level = (e.value['fill_level'] ?? 0).toDouble();
-      String status = e.value['status'] ?? "";
-      return level >= 75 && status != "Assigned" && status != "On Route";
+      if (e.value == null) return false;
+      double level = BinData.fillLevel(e.value);
+      String status = BinData.status(e.value);
+      // Show bins above 75% or those that are Assigned/On Route but still critical
+      return level >= 75;
     }).toList();
     if (list.isEmpty) {
       return const Center(
@@ -665,10 +1002,9 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
 
     return Column(
       children: list.map((e) {
-        double bLat =
-            double.tryParse(e.value['lat']?.toString() ?? "0.0") ?? 0.0;
-        double bLng =
-            double.tryParse(e.value['lng']?.toString() ?? "0.0") ?? 0.0;
+        double bLat = BinData.lat(e.value);
+        double bLng = BinData.lng(e.value);
+        String status = BinData.status(e.value);
         return AnimationConfiguration.staggeredList(
           position: list.indexOf(e),
           duration: const Duration(milliseconds: 400),
@@ -696,40 +1032,85 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
                   ),
                 ),
                 title: Text(
-                  e.value['area']?.toString() ?? "Sector",
+                  BinData.area(e.value),
                   style: const TextStyle(
                     fontWeight: FontWeight.w800,
                     fontSize: 14,
                   ),
                 ),
-                subtitle: Text(
-                  "Level: ${e.value['fill_level']}% • Action Needed",
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: alertRed,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                trailing: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: deepForest,
-                    shape: const StadiumBorder(),
-                  ),
-                  onPressed: () => _openAssignmentSheet(
-                    e.key,
-                    e.value['area'].toString(),
-                    bLat,
-                    bLng,
-                  ),
-                  child: const Text(
-                    "Assign",
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
+                subtitle: Row(
+                  children: [
+                    Container(
+                      width: 6,
+                      height: 6,
+                      decoration: BoxDecoration(
+                        color: BinData.isOnline(e.value)
+                            ? Colors.green
+                            : Colors.grey,
+                        shape: BoxShape.circle,
+                      ),
                     ),
-                  ),
+                    const SizedBox(width: 6),
+                    Text(
+                      BinData.isOnline(e.value) ? "ONLINE" : "OFFLINE",
+                      style: TextStyle(
+                        fontSize: 9,
+                        color: BinData.isOnline(e.value)
+                            ? Colors.green
+                            : Colors.grey,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      "Level: ${BinData.fillLevel(e.value).toInt()}%",
+                      style: const TextStyle(
+                        fontSize: 10,
+                        color: alertRed,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
                 ),
+                trailing: status == "Assigned" || status == "On Route"
+                    ? Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: const Text(
+                          "Tracking",
+                          style: TextStyle(
+                            color: Colors.blue,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      )
+                    : ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: deepForest,
+                          shape: const StadiumBorder(),
+                        ),
+                        onPressed: () => _openAssignmentSheet(
+                          e.key,
+                          e.value['area'].toString(),
+                          bLat,
+                          bLng,
+                        ),
+                        child: const Text(
+                          "Assign",
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
               ),
             ),
           ),
@@ -757,7 +1138,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
 
   void _handleLogout() async {
     await FirebaseAuth.instance.signOut();
-    if (!context.mounted) return;
+    if (!mounted) return;
     Navigator.pushAndRemoveUntil(
       context,
       MaterialPageRoute(builder: (c) => const AuthPage()),

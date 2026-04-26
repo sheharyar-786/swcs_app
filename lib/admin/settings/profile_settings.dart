@@ -1,9 +1,11 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'dart:ui' as ui;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:animate_do/animate_do.dart';
-import 'package:image_picker/image_picker.dart'; // flutter pub add image_picker
+import 'package:image_picker/image_picker.dart';
+import 'dart:convert';
 
 class ProfileSettings extends StatefulWidget {
   const ProfileSettings({super.key});
@@ -16,12 +18,30 @@ class _ProfileSettingsState extends State<ProfileSettings> {
   final user = FirebaseAuth.instance.currentUser;
   final _emailController = TextEditingController();
   final _passController = TextEditingController();
-  File? _image; // Profile Picture state
+  File? _image;
+  String? _base64Image; // Base64 state
+  Map? _userData; // Realtime DB user data
 
   @override
   void initState() {
     super.initState();
     _emailController.text = user?.email ?? "";
+    _fetchUserData();
+  }
+
+  void _fetchUserData() {
+    if (user != null) {
+      FirebaseDatabase.instance.ref('users/${user!.uid}').onValue.listen((
+        event,
+      ) {
+        if (mounted && event.snapshot.value != null) {
+          setState(() {
+            _userData = event.snapshot.value as Map;
+            _base64Image = _userData?['profilePic'];
+          });
+        }
+      });
+    }
   }
 
   @override
@@ -31,17 +51,37 @@ class _ProfileSettingsState extends State<ProfileSettings> {
     super.dispose();
   }
 
-  // --- NEW: Profile Picture Picker ---
+  // --- FINALIZED: Profile Picture as Base64 in Realtime DB ---
   Future<void> _pickImage() async {
     final picker = ImagePicker();
-    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+    final pickedFile = await picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 50,
+    ); // Reduce quality for RTDB
 
     if (pickedFile != null) {
-      setState(() {
-        _image = File(pickedFile.path);
-      });
-      _showSnack("Profile picture updated locally!", Colors.green);
-      // Note: Yahan aap Firebase Storage logic add kar saktay hain image upload ke liye.
+      File file = File(pickedFile.path);
+      List<int> imageBytes = await file.readAsBytes();
+      String base64String = base64Encode(imageBytes);
+
+      try {
+        _showSnack("Saving profile picture...", Colors.blue);
+
+        // Save directly to Realtime Database 'users' node
+        await FirebaseDatabase.instance.ref('users/${user!.uid}').update({
+          'profilePic': base64String,
+        });
+
+        if (mounted) {
+          setState(() {
+            _image = file;
+            _base64Image = base64String;
+          });
+          _showSnack("Profile picture saved to Database!", Colors.green);
+        }
+      } catch (e) {
+        _showSnack("Save failed: $e", Colors.red);
+      }
     }
   }
 
@@ -54,87 +94,57 @@ class _ProfileSettingsState extends State<ProfileSettings> {
     }
   }
 
-  // --- FINALIZED: Alert Thresholds ---
-  void _showThresholdDialog() {
-    double currentThreshold = 80;
+  // --- FINALIZED: App Information ---
+  void _showAboutApp() {
     showDialog(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          title: const Text("Alert Threshold (%)"),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                "Current: ${currentThreshold.toInt()}%",
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF0A714E),
-                ),
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text(
+          "About the App",
+          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black),
+        ),
+        content: const Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              "SWCS Admin Suite",
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF0A714E),
+                fontSize: 18,
               ),
-              Slider(
-                value: currentThreshold,
-                min: 50,
-                max: 100,
-                divisions: 10,
-                activeColor: const Color(0xFF0A714E),
-                onChanged: (val) =>
-                    setDialogState(() => currentThreshold = val),
-              ),
-              const Text(
-                "Notification will trigger when bins exceed this level.",
-                style: TextStyle(fontSize: 10, color: Colors.grey),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text("CANCEL"),
             ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF0A714E),
-              ),
-              onPressed: () {
-                FirebaseDatabase.instance
-                    .ref('system_metadata/threshold')
-                    .set(currentThreshold.toInt());
-                Navigator.pop(context);
-                _showSnack(
-                  "Threshold updated to ${currentThreshold.toInt()}%",
-                  Colors.green,
-                );
-              },
-              child: const Text("SAVE", style: TextStyle(color: Colors.white)),
+            SizedBox(height: 10),
+            Text("Smart Waste Collection System (IoT Based)"),
+            SizedBox(height: 15),
+            Divider(),
+            SizedBox(height: 15),
+            Text(
+              "Version: 1.0.5 (Stable)",
+              style: TextStyle(color: Colors.grey, fontSize: 12),
+            ),
+            SizedBox(height: 5),
+            Text(
+              "Developed for high-efficiency waste management and live monitoring.",
+              style: TextStyle(color: Colors.grey, fontSize: 12),
             ),
           ],
         ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text(
+              "CLOSE",
+              style: TextStyle(
+                color: Color(0xFF0A714E),
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
       ),
-    );
-  }
-
-  // --- FINALIZED: App Information ---
-  void _showAboutApp() {
-    showAboutDialog(
-      context: context,
-      applicationName: "SWCS Admin Suite",
-      applicationVersion: "1.0.5 (Stable)",
-      applicationIcon: const Icon(
-        Icons.recycling_rounded,
-        color: Color(0xFF0A714E),
-        size: 40,
-      ),
-      children: [
-        const Text("Smart Waste Collection System (IoT Based)"),
-        const SizedBox(height: 10),
-        const Text("Lead Developer: Shary"),
-        const Text("Support: support@swcs-iot.com"),
-        const Text("Backend: Firebase Realtime DB"),
-      ],
     );
   }
 
@@ -143,57 +153,55 @@ class _ProfileSettingsState extends State<ProfileSettings> {
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAF9),
       body: Container(
-        decoration: BoxDecoration(
-          image: DecorationImage(
-            image: const NetworkImage(
-              'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?q=80&w=1000',
-            ),
-            fit: BoxFit.cover,
-            colorFilter: ColorFilter.mode(
-              Colors.white.withValues(alpha: 0.85),
-              BlendMode.lighten,
-            ),
-          ),
-        ),
+        color: const Color(0xFFF8FAF9),
         child: SingleChildScrollView(
           child: Column(
             children: [
               _buildPremiumHeader(),
+              _buildStatementBar(),
               Padding(
                 padding: const EdgeInsets.all(25),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _buildSectionTitle("Account Security"),
-                    _buildSettingTile(
-                      "Change Password",
-                      Icons.lock_outline,
-                      () => _showUpdateDialog(
-                        "Update Password",
-                        "New Password",
-                        true,
+                    FadeInLeft(
+                      duration: const Duration(milliseconds: 400),
+                      delay: const Duration(milliseconds: 100),
+                      child: _buildSettingTile(
+                        "Change Password",
+                        Icons.lock_outline,
+                        () => _showPasswordChangeDialog(),
                       ),
                     ),
-                    _buildSettingTile(
-                      "Update Email",
-                      Icons.alternate_email_rounded,
-                      () => _showUpdateDialog(
+                    FadeInLeft(
+                      duration: const Duration(milliseconds: 400),
+                      delay: const Duration(milliseconds: 200),
+                      child: _buildSettingTile(
                         "Update Email",
-                        "New Email Address",
-                        false,
+                        Icons.alternate_email_rounded,
+                        () => _showEmailChangeDialog(),
                       ),
                     ),
                     const SizedBox(height: 30),
                     _buildSectionTitle("System Configuration"),
-                    _buildSettingTile(
-                      "Alert Thresholds",
-                      Icons.notifications_active_outlined,
-                      _showThresholdDialog, // Finalized
+                    FadeInLeft(
+                      duration: const Duration(milliseconds: 400),
+                      delay: const Duration(milliseconds: 300),
+                      child: _buildSettingTile(
+                        "Alert Thresholds",
+                        Icons.notifications_active_outlined,
+                        _showThresholdDialog,
+                      ),
                     ),
-                    _buildSettingTile(
-                      "App Information",
-                      Icons.info_outline_rounded,
-                      _showAboutApp, // Finalized
+                    FadeInLeft(
+                      duration: const Duration(milliseconds: 400),
+                      delay: const Duration(milliseconds: 400),
+                      child: _buildSettingTile(
+                        "About the App",
+                        Icons.info_outline_rounded,
+                        _showAboutApp,
+                      ),
                     ),
                     const SizedBox(height: 50),
                     _buildLogoutButton(),
@@ -212,66 +220,148 @@ class _ProfileSettingsState extends State<ProfileSettings> {
   Widget _buildPremiumHeader() {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.only(top: 80, bottom: 40),
+      height: 180,
       decoration: const BoxDecoration(
-        color: Color(0xFF0A714E),
+        color: Colors.white,
         borderRadius: BorderRadius.vertical(bottom: Radius.circular(40)),
       ),
-      child: Column(
+      child: Stack(
+        fit: StackFit.expand,
         children: [
-          FadeInDown(
-            child: Stack(
-              alignment: Alignment.bottomRight,
+          ClipRRect(
+            borderRadius: const BorderRadius.vertical(
+              bottom: Radius.circular(40),
+            ),
+            child: ImageFiltered(
+              imageFilter: ui.ImageFilter.blur(sigmaX: 0.0, sigmaY: 0.0),
+              child: Image.asset('lib/assets/bg.jpeg', fit: BoxFit.cover),
+            ),
+          ),
+          Container(
+            decoration: BoxDecoration(
+              borderRadius: const BorderRadius.vertical(
+                bottom: Radius.circular(40),
+              ),
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.white.withValues(alpha: 0.3),
+                  Colors.white.withValues(alpha: 0.1),
+                  Colors.white.withValues(alpha: 0.5),
+                ],
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 25),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                GestureDetector(
-                  onTap: _pickImage, // Editable profile picture
-                  child: CircleAvatar(
-                    radius: 55,
-                    backgroundColor: Colors.white24,
-                    backgroundImage: _image != null ? FileImage(_image!) : null,
-                    child: _image == null
-                        ? const Icon(
-                            Icons.person,
-                            size: 60,
-                            color: Colors.white,
-                          )
-                        : null,
+                const Text(
+                  "PROFILE SETTING",
+                  style: TextStyle(
+                    color: Colors.black54,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 2,
                   ),
                 ),
-                GestureDetector(
-                  onTap: _pickImage,
-                  child: const CircleAvatar(
-                    radius: 18,
-                    backgroundColor: Colors.white,
-                    child: Icon(
-                      Icons.camera_alt,
-                      size: 16,
-                      color: Color(0xFF0A714E),
+                const SizedBox(height: 20),
+                FadeInDown(
+                  child: Center(
+                    child: Stack(
+                      alignment: Alignment.bottomRight,
+                      children: [
+                        GestureDetector(
+                          onTap: _pickImage,
+                          child: CircleAvatar(
+                            radius: 45,
+                            backgroundColor: const Color(
+                              0xFF0A714E,
+                            ).withValues(alpha: 0.1),
+                            backgroundImage: _base64Image != null
+                                ? MemoryImage(base64Decode(_base64Image!))
+                                : null,
+                            child: _base64Image == null
+                                ? const Icon(
+                                    Icons.person,
+                                    size: 50,
+                                    color: Color(0xFF0A714E),
+                                  )
+                                : null,
+                          ),
+                        ),
+                        GestureDetector(
+                          onTap: _pickImage,
+                          child: const CircleAvatar(
+                            radius: 14,
+                            backgroundColor: Color(0xFF0A714E),
+                            child: Icon(
+                              Icons.camera_alt,
+                              size: 14,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
+                  ),
+                ),
+                const SizedBox(height: 15),
+                Text(
+                  (_userData?['name'] ?? "Admin Account")
+                      .toString()
+                      .toUpperCase(),
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Colors.black,
+                    fontSize: 24,
+                    fontWeight: FontWeight.w900,
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 15),
-          const Text(
-            "SUPER ADMIN",
-            style: TextStyle(
-              color: Colors.white70,
-              fontSize: 12,
-              letterSpacing: 2,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          Text(
-            user?.email ?? "admin@swcs.com",
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 18,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildStatementBar() {
+    return FadeInLeft(
+      duration: const Duration(milliseconds: 600),
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 25, vertical: 15),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        decoration: BoxDecoration(
+          color: const Color(0xFF0A714E).withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(15),
+          border: Border.all(
+            color: const Color(0xFF0A714E).withValues(alpha: 0.2),
+          ),
+        ),
+        child: Row(
+          children: [
+            const Icon(
+              Icons.security_outlined,
+              size: 18,
+              color: Color(0xFF0A714E),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                "Logged in as: ${user?.email ?? 'System Administrator'}",
+                style: const TextStyle(
+                  color: Color(0xFF0A714E),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -295,14 +385,34 @@ class _ProfileSettingsState extends State<ProfileSettings> {
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(15),
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF0A714E).withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: ListTile(
         onTap: onTap,
-        leading: Icon(icon, color: const Color(0xFF0A714E)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        hoverColor: const Color(0xFF0A714E).withValues(alpha: 0.05),
+        leading: Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: const Color(0xFF0A714E).withValues(alpha: 0.1),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(icon, color: const Color(0xFF0A714E), size: 20),
+        ),
         title: Text(
           title,
-          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
+          style: const TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFF1A1A1A),
+          ),
         ),
         trailing: const Icon(
           Icons.arrow_forward_ios_rounded,
@@ -333,6 +443,228 @@ class _ProfileSettingsState extends State<ProfileSettings> {
             style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
           ),
         ),
+      ),
+    );
+  }
+
+  // --- SECURE: Email Change Logic ---
+  void _showEmailChangeDialog() {
+    final currentPassController = TextEditingController();
+    final newEmailController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text(
+          "Update Email",
+          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: currentPassController,
+              obscureText: true,
+              decoration: const InputDecoration(
+                labelText: "Current Password",
+                prefixIcon: Icon(Icons.lock_open, color: Colors.black87),
+              ),
+            ),
+            const SizedBox(height: 15),
+            TextField(
+              controller: newEmailController,
+              decoration: const InputDecoration(
+                labelText: "New Email Address",
+                prefixIcon: Icon(Icons.email_outlined, color: Colors.black87),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("CANCEL"),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF0A714E),
+            ),
+            onPressed: () async {
+              if (currentPassController.text.isEmpty ||
+                  newEmailController.text.isEmpty) {
+                _showSnack("Please fill all fields", Colors.orange);
+                return;
+              }
+
+              try {
+                // 1. Re-authenticate
+                AuthCredential credential = EmailAuthProvider.credential(
+                  email: user!.email!,
+                  password: currentPassController.text,
+                );
+                await user!.reauthenticateWithCredential(credential);
+
+                // 2. Update Firebase Auth
+                await user!.verifyBeforeUpdateEmail(newEmailController.text);
+
+                // 3. Update Realtime DB
+                await FirebaseDatabase.instance
+                    .ref('users/${user!.uid}')
+                    .update({'email': newEmailController.text});
+
+                if (!mounted) return;
+                Navigator.pop(context);
+                _showSnack(
+                  "Verification email sent to new address!",
+                  Colors.green,
+                );
+              } catch (e) {
+                _showSnack("Error: $e", Colors.red);
+              }
+            },
+            child: const Text("UPDATE", style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // --- SECURE: Password Change Logic with Database Sync ---
+  void _showPasswordChangeDialog() {
+    final currentPassController = TextEditingController();
+    final newPassController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text(
+          "Change Password",
+          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              "Email Account:",
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            Text(
+              user?.email ?? "",
+              style: const TextStyle(
+                fontSize: 14,
+                color: Color(0xFF0A714E),
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const Divider(height: 25),
+            TextField(
+              controller: currentPassController,
+              obscureText: true,
+              decoration: const InputDecoration(
+                labelText: "Current Password",
+                prefixIcon: Icon(Icons.lock_open, color: Colors.black87),
+              ),
+            ),
+            const SizedBox(height: 15),
+            TextField(
+              controller: newPassController,
+              obscureText: true,
+              decoration: const InputDecoration(
+                labelText: "New Password",
+                prefixIcon: Icon(Icons.lock_outline, color: Colors.black87),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: () async {
+                  try {
+                    await FirebaseAuth.instance.sendPasswordResetEmail(
+                      email: user!.email!,
+                    );
+                    if (!mounted) return;
+                    Navigator.pop(context);
+                    _showSnack(
+                      "Reset link sent to ${user!.email}!",
+                      Colors.green,
+                    );
+                  } catch (e) {
+                    _showSnack("Error: $e", Colors.red);
+                  }
+                },
+                child: const Text(
+                  "Forgot Current Password?",
+                  style: TextStyle(
+                    color: Color(0xFF0A714E),
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("CANCEL"),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF0A714E),
+            ),
+            onPressed: () async {
+              if (currentPassController.text.isEmpty ||
+                  newPassController.text.isEmpty) {
+                _showSnack("Please fill all fields", Colors.orange);
+                return;
+              }
+
+              if (newPassController.text.length < 6) {
+                _showSnack(
+                  "Password must be at least 6 characters",
+                  Colors.orange,
+                );
+                return;
+              }
+
+              try {
+                // 1. Re-authenticate
+                AuthCredential credential = EmailAuthProvider.credential(
+                  email: user!.email!,
+                  password: currentPassController.text,
+                );
+                await user!.reauthenticateWithCredential(credential);
+
+                // 2. Update Firebase Auth
+                await user!.updatePassword(newPassController.text);
+
+                // 3. Sync with Realtime Database (as requested)
+                await FirebaseDatabase.instance
+                    .ref('users/${user!.uid}')
+                    .update({'password': newPassController.text});
+
+                if (!mounted) return;
+                Navigator.pop(context);
+                _showSnack(
+                  "Password updated in Auth & Database!",
+                  Colors.green,
+                );
+              } catch (e) {
+                _showSnack("Error: Check current password", Colors.red);
+              }
+            },
+            child: const Text("UPDATE", style: TextStyle(color: Colors.white)),
+          ),
+        ],
       ),
     );
   }
@@ -372,6 +704,148 @@ class _ProfileSettingsState extends State<ProfileSettings> {
           ),
         ],
       ),
+    );
+  }
+
+  // --- NEW: System Thresholds Logic (Admin Governance) ---
+  void _showThresholdDialog() {
+    // Default values if not found in DB
+    double approvalHours = 24;
+    double escalationHours = 48;
+    double minRating = 3.5;
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(25),
+            ),
+            title: const Text(
+              "System Thresholds",
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: Colors.black,
+              ),
+            ),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    "Manage governance triggers and staff alerts.",
+                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                  const Divider(height: 30),
+
+                  _buildThresholdSlider(
+                    "Approval Timeout",
+                    "Notify if staff pending for > ${approvalHours.toInt()}h",
+                    approvalHours,
+                    1,
+                    72,
+                    (val) => setDialogState(() => approvalHours = val),
+                  ),
+
+                  const SizedBox(height: 20),
+                  _buildThresholdSlider(
+                    "Complaint Escalation",
+                    "Escalate to Admin after ${escalationHours.toInt()}h",
+                    escalationHours,
+                    1,
+                    168,
+                    (val) => setDialogState(() => escalationHours = val),
+                  ),
+
+                  const SizedBox(height: 20),
+                  _buildThresholdSlider(
+                    "Staff Performance Flag",
+                    "Flag staff if rating drops below ${minRating.toStringAsFixed(1)}",
+                    minRating,
+                    1.0,
+                    5.0,
+                    (val) => setDialogState(() => minRating = val),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text("CANCEL"),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF0A714E),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                onPressed: () async {
+                  try {
+                    await FirebaseDatabase.instance
+                        .ref('system_settings/thresholds')
+                        .update({
+                          'approval_timeout_hours': approvalHours.toInt(),
+                          'complaint_escalation_hours': escalationHours.toInt(),
+                          'min_staff_rating': minRating,
+                          'last_updated': DateTime.now().toString(),
+                        });
+                    if (!mounted) return;
+                    Navigator.pop(context);
+                    _showSnack(
+                      "Thresholds updated successfully!",
+                      Colors.green,
+                    );
+                  } catch (e) {
+                    _showSnack("Update failed: $e", Colors.red);
+                  }
+                },
+                child: const Text(
+                  "SAVE SETTINGS",
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildThresholdSlider(
+    String title,
+    String subtitle,
+    double value,
+    double min,
+    double max,
+    ValueChanged<double> onChanged,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+        ),
+        Text(
+          subtitle,
+          style: const TextStyle(fontSize: 11, color: Colors.black54),
+        ),
+        Slider(
+          value: value,
+          min: min,
+          max: max,
+          activeColor: const Color(0xFF0A714E),
+          inactiveColor: const Color(0xFF0A714E).withValues(alpha: 0.1),
+          onChanged: onChanged,
+        ),
+      ],
     );
   }
 

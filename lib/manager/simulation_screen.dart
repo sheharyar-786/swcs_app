@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:ui' as ui;
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 
@@ -49,48 +50,100 @@ class _SimulationScreenState extends State<SimulationScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF9FBF9),
-      appBar: AppBar(
-        title: const Text(
-          "TEST SIMULATOR",
-          style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1.2),
-        ),
-        centerTitle: true,
-        backgroundColor: leafGreen,
-        elevation: 0,
-        foregroundColor: Colors.white,
-      ),
-      body: StreamBuilder(
-        stream: FirebaseDatabase.instance.ref('bins').onValue,
-        builder: (context, AsyncSnapshot<DatabaseEvent> snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return Center(child: CircularProgressIndicator(color: leafGreen));
-          }
+      body: CustomScrollView(
+        physics: const BouncingScrollPhysics(),
+        slivers: [
+          _buildSliverAppBar(),
+          SliverToBoxAdapter(
+            child: StreamBuilder(
+              stream: FirebaseDatabase.instance.ref('bins').onValue,
+              builder: (context, AsyncSnapshot<DatabaseEvent> snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 100),
+                    child: Center(child: CircularProgressIndicator(color: leafGreen)),
+                  );
+                }
 
-          Map bins = (snapshot.data?.snapshot.value as Map?) ?? {};
+                Map bins = (snapshot.data?.snapshot.value as Map?) ?? {};
 
-          return AnimationLimiter(
-            child: ListView.builder(
-              padding: const EdgeInsets.all(20),
-              itemCount: sadiqabadGrid.length,
-              itemBuilder: (context, index) {
-                var config = sadiqabadGrid[index];
-                var bData =
-                    bins[config['id']] ?? {'fill_level': 0, 'gas_level': 0};
+                return AnimationLimiter(
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    padding: const EdgeInsets.all(20),
+                    itemCount: sadiqabadGrid.length,
+                    itemBuilder: (context, index) {
+                      var config = sadiqabadGrid[index];
+                      var bData =
+                          bins[config['id']] ?? {'fill_level': 0, 'gas_level': 0};
 
-                return AnimationConfiguration.staggeredList(
-                  position: index,
-                  duration: const Duration(milliseconds: 500),
-                  child: SlideAnimation(
-                    verticalOffset: 50.0,
-                    child: FadeInAnimation(
-                      child: _buildControlCard(config, bData),
-                    ),
+                      return AnimationConfiguration.staggeredList(
+                        position: index,
+                        duration: const Duration(milliseconds: 500),
+                        child: SlideAnimation(
+                          verticalOffset: 50.0,
+                          child: FadeInAnimation(
+                            child: _buildControlCard(config, bData),
+                          ),
+                        ),
+                      );
+                    },
                   ),
                 );
               },
             ),
-          );
-        },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSliverAppBar() {
+    return SliverAppBar(
+      expandedHeight: 180.0,
+      pinned: true,
+      elevation: 0,
+      backgroundColor: Colors.white,
+      centerTitle: true,
+      title: const Text(
+        "TEST SIMULATOR",
+        style: TextStyle(
+          fontWeight: FontWeight.w900,
+          fontSize: 16,
+          color: Colors.black87,
+        ),
+      ),
+      leading: IconButton(
+        icon: const Icon(Icons.arrow_back, color: Colors.black87),
+        onPressed: () => Navigator.pop(context),
+      ),
+      flexibleSpace: FlexibleSpaceBar(
+        background: Stack(
+          fit: StackFit.expand,
+          children: [
+            ImageFiltered(
+              imageFilter: ui.ImageFilter.blur(sigmaX: 1.5, sigmaY: 1.5),
+              child: Image.asset(
+                'lib/assets/bg.jpeg',
+                fit: BoxFit.cover,
+              ),
+            ),
+            Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.white.withValues(alpha: 0.3),
+                    Colors.white.withValues(alpha: 0.1),
+                    Colors.white.withValues(alpha: 0.5),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -197,12 +250,16 @@ class _SimulationScreenState extends State<SimulationScreen> {
 
   // --- Logic: Backend Sync ---
   void _updateFirebase(Map loc, String field, int val) {
+    // Update both paths for simulation to ensure all screens (IoT-aware or legacy) work
     FirebaseDatabase.instance.ref('bins/${loc['id']}').update({
-      field: val,
+      field: val, // flat path
+      if (field == 'fill_level') 'readings/fill_level': val, // nested path
+      if (field == 'gas_level') 'readings/gas_level': val, // nested path
       'lat': loc['lat'],
       'lng': loc['lng'],
       'area': loc['area'],
       'last_update': ServerValue.timestamp,
+      'metadata/last_sync': ServerValue.timestamp, // Support online detection
     });
 
     // Smart Alert Trigger

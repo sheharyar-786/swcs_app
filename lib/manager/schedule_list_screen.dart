@@ -1,5 +1,5 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
+import 'dart:ui' as ui;
 import 'package:firebase_database/firebase_database.dart';
 import 'add_schedule_screen.dart';
 import '../widgets/schedule_card.dart';
@@ -47,43 +47,14 @@ class _ScheduleManagementPageState extends State<ScheduleManagementPage>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: leafGreen,
-      appBar: AppBar(
-        title: const Text(
-          "📅 Collection Hub",
-          style: TextStyle(
-            fontWeight: FontWeight.w900,
-            fontSize: 20,
-            letterSpacing: 0.5,
-          ),
-        ),
-        backgroundColor: leafGreen,
-        foregroundColor: Colors.white,
-        centerTitle: true,
-        elevation: 0,
-        bottom: TabBar(
-          controller: _tabController,
-          indicatorColor: Colors.white,
-          indicatorWeight: 4,
-          indicatorSize: TabBarIndicatorSize.label,
-          labelStyle: const TextStyle(
-            fontWeight: FontWeight.w900,
-            fontSize: 13,
-          ),
-          unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w400),
-          tabs: const [
-            Tab(text: "ACTIVE DUTIES"),
-            Tab(text: "PAST HISTORY"),
-          ],
-        ),
-      ),
-      body: Container(
-        margin: const EdgeInsets.only(top: 10),
-        decoration: const BoxDecoration(
-          color: Color(0xFFF9FBF9), // Premium off-white
-          borderRadius: BorderRadius.vertical(top: Radius.circular(35)),
-        ),
-        child: TabBarView(
+      backgroundColor: const Color(0xFFF9FBF9),
+      body: NestedScrollView(
+        headerSliverBuilder: (context, innerBoxIsScrolled) {
+          return [
+            _buildSliverAppBar(),
+          ];
+        },
+        body: TabBarView(
           controller: _tabController,
           children: [
             KeepAliveWrapper(child: _buildLiveScheduleList("Active")),
@@ -103,6 +74,76 @@ class _ScheduleManagementPageState extends State<ScheduleManagementPage>
             fontWeight: FontWeight.w900,
             color: Colors.white,
             letterSpacing: 1,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSliverAppBar() {
+    return SliverAppBar(
+      expandedHeight: 180.0,
+      pinned: true,
+      elevation: 0,
+      backgroundColor: Colors.white,
+      centerTitle: true,
+      title: const Text(
+        "Collection Hub",
+        style: TextStyle(
+          fontWeight: FontWeight.w900,
+          fontSize: 16,
+          color: Colors.black87,
+        ),
+      ),
+      leading: IconButton(
+        icon: const Icon(Icons.arrow_back, color: Colors.black87),
+        onPressed: () => Navigator.pop(context),
+      ),
+      flexibleSpace: FlexibleSpaceBar(
+        background: Stack(
+          fit: StackFit.expand,
+          children: [
+            ImageFiltered(
+              imageFilter: ui.ImageFilter.blur(sigmaX: 1.5, sigmaY: 1.5),
+              child: Image.asset(
+                'lib/assets/bg.jpeg',
+                fit: BoxFit.cover,
+              ),
+            ),
+            Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.white.withValues(alpha: 0.3),
+                    Colors.white.withValues(alpha: 0.1),
+                    Colors.white.withValues(alpha: 0.5),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+      bottom: PreferredSize(
+        preferredSize: const Size.fromHeight(48),
+        child: Container(
+          color: Colors.white.withValues(alpha: 0.8),
+          child: TabBar(
+            controller: _tabController,
+            indicatorColor: leafGreen,
+            indicatorWeight: 4,
+            labelColor: leafGreen,
+            unselectedLabelColor: Colors.grey,
+            labelStyle: const TextStyle(
+              fontWeight: FontWeight.w900,
+              fontSize: 12,
+            ),
+            tabs: const [
+              Tab(text: "ACTIVE DUTIES"),
+              Tab(text: "PAST HISTORY"),
+            ],
           ),
         ),
       ),

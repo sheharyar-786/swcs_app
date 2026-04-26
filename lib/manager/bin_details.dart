@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'dart:ui' as ui;
 import 'package:firebase_database/firebase_database.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import 'manager_dashboard.dart';
+import 'bin_record_page.dart';
+import 'bin_utils.dart';
 
 class BinDetailsPage extends StatefulWidget {
   final String binId;
@@ -35,16 +38,20 @@ class _BinDetailsPageState extends State<BinDetailsPage>
           snapshot.data!.snapshot.value as Map,
         );
 
-        // --- REAL-TIME DATA MAPPING ---
-        double fillLevel = (data['fill_level'] ?? 0).toDouble();
-        int gasLevel = data['gas_level'] ?? 0;
-        String status = data['status'] ?? "Unknown";
-        String area = data['area'] ?? "Unknown Location";
+        // --- REAL-TIME DATA MAPPING via BinData utility ---
+        double fillLevel  = BinData.fillLevel(data);
+        int    gasLevel   = BinData.gasLevel(data);
+        String status     = BinData.status(data);
+        String area       = BinData.area(data);
+        String connStatus = BinData.connectionStatus(data);
+        bool isOnline     = BinData.isOnline(data);
 
-        // Battery Logic: Show N/A if data is missing or out of bounds
-        var batteryData = data['battery'];
-        String batteryDisplay = (batteryData == null) ? "N/A" : "$batteryData%";
-        int batteryVal = (batteryData is int) ? batteryData : 0;
+        // Battery
+        var batteryRaw     = BinData.battery(data);
+        String batteryDisplay = BinData.batteryDisplay(data);
+        int batteryVal = batteryRaw == null
+            ? 0
+            : (int.tryParse(batteryRaw.toString()) ?? 0);
 
         // Analytics Data
         int fillCountToday = data['fill_count_today'] ?? 0;
@@ -55,104 +62,145 @@ class _BinDetailsPageState extends State<BinDetailsPage>
 
         return Scaffold(
           backgroundColor: const Color(0xFFF4F7F4),
-          appBar: AppBar(
-            elevation: 0,
-            backgroundColor: Colors.white,
-            foregroundColor: Colors.black,
-            title: Column(
-              children: [
-                Text(
-                  widget.binId.toUpperCase(),
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 18,
-                  ),
-                ),
-                Text(
-                  area,
-                  style: const TextStyle(fontSize: 10, color: Colors.grey),
-                ),
-              ],
-            ),
-            centerTitle: true,
-          ),
-          body: AnimationLimiter(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                children: AnimationConfiguration.toStaggeredList(
-                  duration: const Duration(milliseconds: 500),
-                  childAnimationBuilder: (widget) => SlideAnimation(
-                    verticalOffset: 50.0,
-                    child: FadeInAnimation(child: widget),
-                  ),
-                  children: [
-                    // 1. Alert Banner
-                    _buildStatusBanner(context, isOnRoute, isCritical, area),
-                    const SizedBox(height: 20),
+          body: Column(
+            children: [
+              _buildPremiumHeader(context, area),
+              Expanded(
+                child: AnimationLimiter(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      children: AnimationConfiguration.toStaggeredList(
+                        duration: const Duration(milliseconds: 500),
+                        childAnimationBuilder: (widget) => SlideAnimation(
+                          verticalOffset: 50.0,
+                          child: FadeInAnimation(child: widget),
+                        ),
+                        children: [
+                          // 1. Alert Banner
+                          _buildStatusBanner(
+                            context,
+                            isOnRoute,
+                            isCritical,
+                            area,
+                          ),
+                          const SizedBox(height: 20),
 
-                    // 2. Main Capacity Card
-                    _buildFillCard(context, fillLevel),
-                    const SizedBox(height: 20),
+                          // 2. Main Capacity Card
+                          _buildFillCard(context, fillLevel),
+                          const SizedBox(height: 20),
 
-                    // 3. Daily Analytics Card
-                    _buildDailyStatsCard(fillCountToday, lastFillTime),
-                    const SizedBox(height: 20),
+                          // 3. Daily Analytics Card
+                          _buildDailyStatsCard(fillCountToday, lastFillTime),
+                          const SizedBox(height: 20),
 
-                    // 4. Info Grid (Live Battery, Gas, etc)
-                    GridView.count(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      crossAxisCount: 2,
-                      crossAxisSpacing: 15,
-                      mainAxisSpacing: 15,
-                      childAspectRatio: 1.4,
-                      children: [
-                        _infoBox(
-                          "Gas Level",
-                          "$gasLevel ppm",
-                          Icons.cloud_outlined,
-                          gasLevel > 800 ? warningOrange : Colors.teal,
-                        ),
-                        _infoBox(
-                          "Battery",
-                          batteryDisplay,
-                          Icons.battery_charging_full,
-                          batteryVal < 20 ? alertRed : leafGreen,
-                        ),
-                        _infoBox(
-                          "Last Action",
-                          data['last_cleaned_by'] ?? "N/A",
-                          Icons.history,
-                          premiumNavy,
-                        ),
-                        _infoBox(
-                          "Bin Status",
-                          status,
-                          Icons.info_outline,
-                          isOnRoute ? leafGreen : Colors.blueGrey,
-                        ),
-                      ],
+                          // 4. Info Grid (Live Battery, Gas, etc)
+                          GridView.count(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            crossAxisCount: 2,
+                            crossAxisSpacing: 15,
+                            mainAxisSpacing: 15,
+                            childAspectRatio: 1.4,
+                            children: [
+                              _infoBox(
+                                "Gas Level",
+                                "$gasLevel ppm",
+                                Icons.cloud_outlined,
+                                gasLevel > 800 ? warningOrange : Colors.teal,
+                              ),
+                              _infoBox(
+                                "Battery",
+                                batteryDisplay,
+                                Icons.battery_charging_full,
+                                batteryVal < 20 ? alertRed : leafGreen,
+                              ),
+                              _infoBox(
+                                "Last Action",
+                                data['last_cleaned_by'] ?? "N/A",
+                                Icons.history,
+                                premiumNavy,
+                              ),
+                              _infoBox(
+                                "Bin Status",
+                                connStatus,
+                                isOnline ? Icons.sensors : Icons.sensors_off,
+                                isOnline ? leafGreen : Colors.grey,
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 25),
+
+                          // 5. Weekly Trend Chart
+                          _buildTimeTrendChart(
+                            fillLevel >= 80 ? alertRed : leafGreen,
+                            fillLevel,
+                          ),
+                          const SizedBox(height: 20),
+
+                          // 6. View Full Record Button
+                          InkWell(
+                            onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (c) => BinRecordPage(
+                                  binId: widget.binId,
+                                  area: area,
+                                ),
+                              ),
+                            ),
+                            borderRadius: BorderRadius.circular(20),
+                            child: Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(18),
+                              decoration: BoxDecoration(
+                                gradient: const LinearGradient(
+                                  colors: [Color(0xFF0D47A1), Color(0xFF1565C0)],
+                                ),
+                                borderRadius: BorderRadius.circular(20),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Color(0xFF0D47A1).withValues(alpha: 0.3),
+                                    blurRadius: 15,
+                                    offset: Offset(0, 6),
+                                  ),
+                                ],
+                              ),
+                              child: const Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.history_edu_rounded,
+                                      color: Colors.white, size: 22),
+                                  SizedBox(width: 10),
+                                  Text(
+                                    "VIEW FULL RECORD",
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w900,
+                                      fontSize: 14,
+                                      letterSpacing: 1,
+                                    ),
+                                  ),
+                                  SizedBox(width: 10),
+                                  Icon(Icons.chevron_right_rounded,
+                                      color: Colors.white70, size: 22),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                    const SizedBox(height: 25),
-
-                    // 5. Weekly Trend Chart
-                    _buildTimeTrendChart(
-                      fillLevel >= 80 ? alertRed : leafGreen,
-                      fillLevel,
-                    ),
-                    const SizedBox(height: 30),
-                  ],
+                  ),
                 ),
               ),
-            ),
+            ],
           ),
         );
       },
     );
   }
 
-  // FIXED: Navigation now correctly passes scrollToUrgent to the AdminPage constructor
   void _handleManualRedirect() {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
@@ -164,6 +212,94 @@ class _BinDetailsPageState extends State<BinDetailsPage>
       context,
       MaterialPageRoute(
         builder: (context) => const AdminPage(scrollToUrgent: true),
+      ),
+    );
+  }
+
+  // --- 1. AREA UPDATE LOGIC (FIXED) ---
+  Future<void> updateBinArea(String binId, String currentArea) async {
+    TextEditingController areaEditController = TextEditingController(
+      text: currentArea,
+    );
+
+    return showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text("Update Bin Location"),
+        content: TextField(
+          controller: areaEditController,
+          decoration: const InputDecoration(
+            labelText: "Area Name",
+            border: OutlineInputBorder(),
+            prefixIcon: Icon(Icons.map_outlined),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Cancel"),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: leafGreen),
+            onPressed: () async {
+              // Path 1: metadata folder
+              await FirebaseDatabase.instance
+                  .ref('bins/$binId/metadata/area')
+                  .set(areaEditController.text.trim());
+              // Path 2: root area (for lists)
+              await FirebaseDatabase.instance
+                  .ref('bins/$binId/area')
+                  .set(areaEditController.text.trim());
+
+              if (!context.mounted) return;
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text("Area Updated Successfully!"),
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
+            },
+            child: const Text("Save", style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // --- 2. BIN DELETE LOGIC ---
+  Future<void> deleteBin(String binId) async {
+    return showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text("Confirm Delete"),
+        content: const Text(
+          "Dhyan dein! Is se Firebase se bin ka data mukammal khatam ho jayega. Kya aap waqai delete karna chahte hain?",
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Back"),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: alertRed),
+            onPressed: () async {
+              await FirebaseDatabase.instance.ref('bins/$binId').remove();
+              if (!context.mounted) return;
+              Navigator.pop(context);
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text("Bin Deleted from System"),
+                  backgroundColor: alertRed,
+                ),
+              );
+            },
+            child: const Text("Delete", style: TextStyle(color: Colors.white)),
+          ),
+        ],
       ),
     );
   }
@@ -324,7 +460,11 @@ class _BinDetailsPageState extends State<BinDetailsPage>
                   fontSize: 12,
                 ),
               ),
-              Icon(Icons.sensors, color: color.withValues(alpha: 0.5), size: 16),
+              Icon(
+                Icons.sensors,
+                color: color.withValues(alpha: 0.5),
+                size: 16,
+              ),
             ],
           ),
           Text(
@@ -458,11 +598,9 @@ class _BinDetailsPageState extends State<BinDetailsPage>
                           'Sat',
                           'Sun',
                         ];
-                        // FIXED: Added the required 'meta' parameter to SideTitleWidget
                         return SideTitleWidget(
-                          meta: meta, // Pass the meta object directly
-                          space:
-                              10, // Adds some breathing room between graph and text
+                          meta: meta,
+                          space: 10,
                           child: Text(
                             days[value.toInt() % 7],
                             style: const TextStyle(
@@ -496,7 +634,10 @@ class _BinDetailsPageState extends State<BinDetailsPage>
                       gradient: LinearGradient(
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
-                        colors: [color.withValues(alpha: 0.2), color.withValues(alpha: 0)],
+                        colors: [
+                          color.withValues(alpha: 0.2),
+                          color.withValues(alpha: 0),
+                        ],
                       ),
                     ),
                   ),
@@ -513,6 +654,94 @@ class _BinDetailsPageState extends State<BinDetailsPage>
                 fontStyle: FontStyle.italic,
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPremiumHeader(BuildContext context, String area) {
+    return Container(
+      width: double.infinity,
+      height: 180,
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(bottom: Radius.circular(30)),
+      ),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          ClipRRect(
+            borderRadius: const BorderRadius.vertical(
+              bottom: Radius.circular(30),
+            ),
+            child: ImageFiltered(
+              imageFilter: ui.ImageFilter.blur(sigmaX: 1.5, sigmaY: 1.5),
+              child: Image.asset('lib/assets/bg.jpeg', fit: BoxFit.cover),
+            ),
+          ),
+          Container(
+            decoration: BoxDecoration(
+              borderRadius: const BorderRadius.vertical(
+                bottom: Radius.circular(30),
+              ),
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.white.withValues(alpha: 0.3),
+                  Colors.white.withValues(alpha: 0.1),
+                  Colors.white.withValues(alpha: 0.5),
+                ],
+              ),
+            ),
+          ),
+          Positioned(
+            top: 40,
+            left: 10,
+            child: IconButton(
+              icon: const Icon(Icons.arrow_back, color: Colors.black87),
+              onPressed: () => Navigator.pop(context),
+            ),
+          ),
+          Positioned(
+            top: 40,
+            right: 10,
+            child: Row(
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.edit_location_alt, color: leafGreen),
+                  onPressed: () => updateBinArea(widget.binId, area),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.delete_forever, color: alertRed),
+                  onPressed: () => deleteBin(widget.binId),
+                ),
+              ],
+            ),
+          ),
+          Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const SizedBox(height: 20),
+              Text(
+                widget.binId.toUpperCase(),
+                style: const TextStyle(
+                  color: Colors.black87,
+                  fontSize: 28,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 5),
+              Text(
+                area,
+                style: const TextStyle(
+                  color: Colors.black54,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
           ),
         ],
       ),

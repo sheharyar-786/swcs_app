@@ -5,6 +5,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:geolocator/geolocator.dart';
+import 'bin_utils.dart';
 
 class LiveMapScreen extends StatefulWidget {
   final String?
@@ -48,10 +49,13 @@ class _LiveMapScreenState extends State<LiveMapScreen>
 
     final String now = DateTime.now().toString().split('.')[0];
 
+    // Update both flat and nested paths for safety
     await FirebaseDatabase.instance.ref('bins/$binId').update({
       'fill_level': 0,
       'gas_level': 0,
       'assigned_to': "",
+      'readings/fill_level': 0,
+      'readings/gas_level': 0,
     });
 
     await FirebaseDatabase.instance
@@ -128,7 +132,7 @@ class _LiveMapScreenState extends State<LiveMapScreen>
     String? assignedEmergencyBinId;
     bins.forEach((id, val) {
       if (val['assigned_to'] == user?.uid &&
-          ((val['fill_level'] ?? 0) >= 90 || (val['gas_level'] ?? 0) > 450)) {
+          (BinData.fillLevel(val) >= 90 || BinData.gasLevel(val) > 450)) {
         assignedEmergencyBinId = id;
       }
     });
@@ -147,24 +151,22 @@ class _LiveMapScreenState extends State<LiveMapScreen>
     );
 
     bins.forEach((id, val) {
-      if (val['lat'] != null && val['lng'] != null) {
+      // Use BinData to get robust values
+      double bLat = BinData.lat(val);
+      double bLng = BinData.lng(val);
+      String area = BinData.area(val);
+      int fill = BinData.fillLevel(val).toInt();
+      int gas = BinData.gasLevel(val);
+
+      if (bLat != 0.0 && bLng != 0.0) {
         // --- UPDATED LOGIC: FILTER BY ASSIGNED AREA ---
-        // If an area is passed from AssignDutiesPage, ignore all other bins
         if (widget.assignedArea != null) {
-          String binArea = val['area'].toString().toLowerCase().trim();
+          String binArea = area.toLowerCase().trim();
           String targetArea = widget.assignedArea!.toLowerCase().trim();
-          if (binArea != targetArea) {
-            return; // Skip bins not in the current mission area
-          }
+          if (binArea != targetArea) return; 
         }
 
-        LatLng binPos = LatLng(
-          double.parse(val['lat'].toString()),
-          double.parse(val['lng'].toString()),
-        );
-        int fill = val['fill_level'] ?? 0;
-        int gas = val['gas_level'] ?? 0;
-
+        LatLng binPos = LatLng(bLat, bLng);
         bool isThisEmergency = (id == assignedEmergencyBinId);
         if (gas > 400 || fill >= 80) critCount++;
 
@@ -182,11 +184,10 @@ class _LiveMapScreenState extends State<LiveMapScreen>
             width: 80,
             height: 80,
             child: GestureDetector(
-              onTap: () =>
-                  _showBinDetails(id, val['area'] ?? "Sector", fill, gas),
+              onTap: () => _showBinDetails(id, area, fill, gas),
               child: isThisEmergency
                   ? _buildEmergencyMarker(fill, gas)
-                  : _buildSmartBinMarker(fill, gas, val['area'] ?? "Sector"),
+                  : _buildSmartBinMarker(fill, gas, area),
             ),
           ),
         );

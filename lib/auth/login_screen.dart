@@ -19,7 +19,7 @@ class AuthPage extends StatefulWidget {
 
 class _AuthPageState extends State<AuthPage> {
   bool isLogin = true;
-  bool showForm = false;
+  bool showForm = true;
   bool isLoading = false;
   bool obscurePassword = true;
 
@@ -31,6 +31,8 @@ class _AuthPageState extends State<AuthPage> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+  final TextEditingController _confirmPasswordController =
+      TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _cnicNumberController = TextEditingController();
 
@@ -88,21 +90,33 @@ class _AuthPageState extends State<AuthPage> {
   Future<void> _autoRouteUser(String uid, String email) async {
     final db = FirebaseDatabase.instance.ref();
 
-    // 1. Admin Bypass
-    if (email.toLowerCase() == "admin@gmail.com") {
+    // 2. Role Check from 'users' (Admin Approved roles: Manager, Driver, Civilian)
+    final userSnap = await db.child('users/$uid').get();
+
+    // --- Bootstrap Admin Logic: Auto-create entry if it doesn't exist ---
+    if (!userSnap.exists && email.toLowerCase() == "swcsproviders@gmail.com") {
+      await db.child('users/$uid').set({
+        "uid": uid,
+        "email": email,
+        "role": "admin",
+        "name": "Admin",
+        "isSuspended": false,
+        "regDate": DateTime.now().toString(),
+      });
       _navigate(const AdminMainShell());
       return;
     }
 
-    // 2. Role Check from 'users' (Admin Approved roles: Manager, Driver, Civilian)
-    final userSnap = await db.child('users/$uid').get();
     if (userSnap.exists) {
       String role = userSnap.child('role').value.toString();
       bool isSuspended = userSnap.child('isSuspended').value == true;
 
       if (isSuspended) {
         await FirebaseAuth.instance.signOut();
-        _showSnackBar("Your account is suspended. Contact Admin.", Colors.red);
+        _showErrorDialog(
+          "Account Suspended",
+          "Your account is suspended. Contact Admin.",
+        );
         return;
       }
 
@@ -124,7 +138,10 @@ class _AuthPageState extends State<AuthPage> {
       bool isSuspended = driverSnap.child('isSuspended').value == true;
       if (isSuspended) {
         await FirebaseAuth.instance.signOut();
-        _showSnackBar("Your account is suspended. Contact Admin.", Colors.red);
+        _showErrorDialog(
+          "Account Suspended",
+          "Your account is suspended. Contact Admin.",
+        );
         return;
       }
       _navigate(const DriverDashboard());
@@ -141,11 +158,11 @@ class _AuthPageState extends State<AuthPage> {
 
     if (isPendingManager || isPendingDriver) {
       await FirebaseAuth.instance.signOut();
-      _showSnackBar("Account pending admin approval.", Colors.orange);
+      _showErrorDialog("Pending Approval", "Account pending admin approval.");
       return;
     }
 
-    _showSnackBar("Record not found. Contact Admin.", Colors.redAccent);
+    _showErrorDialog("User Not Found", "Record not found. Contact Admin.");
   }
 
   void _navigate(Widget screen) {
@@ -157,16 +174,16 @@ class _AuthPageState extends State<AuthPage> {
 
   Future<void> _forgotPassword() async {
     if (_emailController.text.isEmpty) {
-      _showSnackBar("Enter email to receive reset link!", Colors.orange);
+      _showErrorDialog("Missing Email", "Enter email to receive reset link!");
       return;
     }
     try {
       await FirebaseAuth.instance.sendPasswordResetEmail(
         email: _emailController.text.trim(),
       );
-      _showSnackBar("Official Reset Link sent to your Email!", leafGreen);
+      _showErrorDialog("Success", "Official Reset Link sent to your Email!");
     } catch (e) {
-      _showSnackBar("Error sending link. Verify email.", Colors.redAccent);
+      _showErrorDialog("Reset Failed", "Error sending link. Verify email.");
     }
   }
 
@@ -174,8 +191,24 @@ class _AuthPageState extends State<AuthPage> {
     String email = _emailController.text.trim().toLowerCase();
     String password = _passwordController.text.trim();
 
-    if (email.isEmpty || password.isEmpty) {
-      _showSnackBar("Please fill all fields", Colors.redAccent);
+    if (email.isEmpty || !email.contains('@')) {
+      _showErrorDialog("Incorrect Email", "Please correct your email address.");
+      return;
+    }
+
+    if (password.isEmpty || password.length < 6) {
+      _showErrorDialog(
+        "Incorrect Password",
+        "Please enter a valid password (min 6 characters).",
+      );
+      return;
+    }
+
+    if (!isLogin && password != _confirmPasswordController.text.trim()) {
+      _showErrorDialog(
+        "Password Mismatch",
+        "Passwords do not match. Please try again.",
+      );
       return;
     }
 
@@ -192,9 +225,9 @@ class _AuthPageState extends State<AuthPage> {
             (!cnicUploaded ||
                 !licenseUploaded ||
                 _phoneController.text.isEmpty)) {
-          _showSnackBar(
+          _showErrorDialog(
+            "Missing Info",
             "Provide Phone, CNIC and License images",
-            Colors.redAccent,
           );
           setState(() => isLoading = false);
           return;
@@ -212,6 +245,7 @@ class _AuthPageState extends State<AuthPage> {
             "isApproved": false,
             "isSuspended": false,
             "regDate": DateTime.now().toString(),
+            "timestamp": DateTime.now().millisecondsSinceEpoch,
           };
 
           if (selectedRegRole == 'Driver') {
@@ -234,11 +268,11 @@ class _AuthPageState extends State<AuthPage> {
             await FirebaseDatabase.instance.ref('users/$uid').set(userData);
           }
 
-          _showStatusDialog("Registered! Wait for Admin Approval.");
+          _showStatusDialog("Signed Up! Wait for Admin Approval.");
         }
       }
     } catch (e) {
-      _showSnackBar(e.toString(), Colors.redAccent);
+      _showErrorDialog("Login/Signup Error", e.toString());
     } finally {
       setState(() => isLoading = false);
     }
@@ -249,32 +283,13 @@ class _AuthPageState extends State<AuthPage> {
     return Scaffold(
       body: Stack(
         children: [
-          // Background
           Container(
             decoration: const BoxDecoration(
-              image: DecorationImage(
-                image: NetworkImage(
-                  'https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?q=80&w=1000',
-                ),
-                fit: BoxFit.cover,
-              ),
-            ),
-          ),
-          Container(
-            decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
-                colors: [
-                  Colors.white.withValues(alpha: 0.1),
-                  leafGreen.withValues(alpha: 0.4),
-                  deepForest.withValues(alpha: 0.6),
-                ],
+                colors: [leafGreen, deepForest],
               ),
-            ),
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 2, sigmaY: 2),
-              child: Container(color: Colors.transparent),
             ),
           ),
           SafeArea(
@@ -284,17 +299,17 @@ class _AuthPageState extends State<AuthPage> {
                 child: Column(
                   children: [
                     // Logo
-                    Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.2),
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white30),
-                      ),
-                      child: const Icon(
-                        Icons.recycling_rounded,
-                        color: Colors.white,
-                        size: 70,
+                    CircleAvatar(
+                      radius: 45,
+                      backgroundColor: Colors.white.withValues(alpha: 0.2),
+                      child: Padding(
+                        padding: const EdgeInsets.all(5.0),
+                        child: ClipOval(
+                          child: Image.asset(
+                            'lib/assets/logo.png',
+                            fit: BoxFit.cover,
+                          ),
+                        ),
                       ),
                     ),
                     const SizedBox(height: 10),
@@ -302,12 +317,22 @@ class _AuthPageState extends State<AuthPage> {
                       "SWCS",
                       style: TextStyle(
                         color: Colors.white,
-                        fontSize: 36,
+                        fontSize: 34,
                         fontWeight: FontWeight.w900,
-                        letterSpacing: 4,
+                        letterSpacing: 3,
                       ),
                     ),
-                    const SizedBox(height: 40),
+                    const SizedBox(height: 5),
+                    const Text(
+                      "Smart Waste Collection System",
+                      style: TextStyle(
+                        color: Colors.white70,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w400,
+                        letterSpacing: 1.1,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
                     AnimatedSwitcher(
                       duration: const Duration(milliseconds: 500),
                       child: !showForm ? _buildChoiceBoxes() : _buildAuthForm(),
@@ -336,7 +361,7 @@ class _AuthPageState extends State<AuthPage> {
         ),
         const SizedBox(height: 20),
         _selectionCard(
-          title: "Join Us",
+          title: "Sign Up",
           subtitle: "Register as Staff or Civilian",
           icon: Icons.person_add_rounded,
           onTap: () => setState(() {
@@ -362,126 +387,159 @@ class _AuthPageState extends State<AuthPage> {
           ),
         ],
       ),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              IconButton(
-                onPressed: () => setState(() => showForm = false),
-                icon: const Icon(
-                  Icons.arrow_back_ios_new_rounded,
-                  color: leafGreen,
-                  size: 18,
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                const SizedBox(width: 40), // Spacing to keep title centered
+                const Spacer(),
+                Text(
+                  isLogin ? "Sign In" : "Sign Up",
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: deepForest,
+                  ),
                 ),
-              ),
-              const Spacer(),
-              Text(
-                isLogin ? "Welcome Back" : "Create Account",
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: deepForest,
-                ),
-              ),
-              const Spacer(flex: 2),
-            ],
-          ),
-          const SizedBox(height: 20),
-          if (!isLogin) _buildSignupRoleSelector(),
-          if (!isLogin) ...[
-            const SizedBox(height: 15),
-            _buildTextField(
-              controller: _nameController,
-              label: "Full Name",
-              icon: Icons.person_outline,
+                const Spacer(),
+                const SizedBox(width: 40), // Balance the other side
+              ],
             ),
-            if (selectedRegRole == 'Manager') ...[
+            const SizedBox(height: 20),
+            if (!isLogin) _buildSignupRoleSelector(),
+            if (!isLogin) ...[
               const SizedBox(height: 15),
               _buildTextField(
-                controller: _phoneController,
-                label: "Mobile Number",
-                icon: Icons.phone_android,
+                controller: _nameController,
+                label: "Full Name",
+                icon: Icons.person_outline,
+              ),
+              if (selectedRegRole == 'Manager') ...[
+                const SizedBox(height: 15),
+                _buildTextField(
+                  controller: _phoneController,
+                  label: "Mobile Number",
+                  icon: Icons.phone_android,
+                ),
+              ],
+            ],
+            const SizedBox(height: 15),
+            _buildTextField(
+              controller: _emailController,
+              label: "Email Address",
+              icon: Icons.email_outlined,
+            ),
+            const SizedBox(height: 15),
+            _buildTextField(
+              controller: _passwordController,
+              label: "Password",
+              icon: Icons.lock_outline,
+              isPassword: true,
+            ),
+            if (!isLogin) ...[
+              const SizedBox(height: 15),
+              _buildTextField(
+                controller: _confirmPasswordController,
+                label: "Confirm Password",
+                icon: Icons.lock_outline,
+                isPassword: true,
               ),
             ],
-          ],
-          const SizedBox(height: 15),
-          _buildTextField(
-            controller: _emailController,
-            label: "Email Address",
-            icon: Icons.email_outlined,
-          ),
-          const SizedBox(height: 15),
-          _buildTextField(
-            controller: _passwordController,
-            label: "Password",
-            icon: Icons.lock_outline,
-            isPassword: true,
-          ),
 
-          if (isLogin)
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton(
-                onPressed: _forgotPassword,
-                child: const Text(
-                  "Forgot Password?",
-                  style: TextStyle(
-                    color: leafGreen,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 12,
+            if (isLogin)
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: _forgotPassword,
+                  child: const Text(
+                    "Forgot Password?",
+                    style: TextStyle(
+                      color: leafGreen,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                    ),
                   ),
                 ),
               ),
-            ),
 
-          if (!isLogin && selectedRegRole == 'Driver') ...[
-            const SizedBox(height: 15),
-            _buildTextField(
-              controller: _cnicNumberController,
-              label: "CNIC (31303-xxxxxxx-x)",
-              icon: Icons.numbers,
+            if (!isLogin && selectedRegRole == 'Driver') ...[
+              const SizedBox(height: 15),
+              _buildTextField(
+                controller: _cnicNumberController,
+                label: "CNIC (31303-xxxxxxx-x)",
+                icon: Icons.numbers,
+              ),
+              const SizedBox(height: 15),
+              _buildDocButton(
+                "CNIC Front Image",
+                Icons.badge_outlined,
+                "CNIC",
+                cnicUploaded,
+              ),
+              const SizedBox(height: 10),
+              _buildDocButton(
+                "License Front Image",
+                Icons.drive_eta_outlined,
+                "License",
+                licenseUploaded,
+              ),
+            ],
+
+            const SizedBox(height: 25),
+            SizedBox(
+              width: double.infinity,
+              height: 55,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: leafGreen,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(15),
+                  ),
+                ),
+                onPressed: isLoading ? null : _handleSubmit,
+                child: isLoading
+                    ? const CircularProgressIndicator(color: Colors.white)
+                    : Text(
+                        isLogin ? "SIGN IN" : "SIGN UP",
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+              ),
             ),
             const SizedBox(height: 15),
-            _buildDocButton(
-              "CNIC Front Image",
-              Icons.badge_outlined,
-              "CNIC",
-              cnicUploaded,
-            ),
-            const SizedBox(height: 10),
-            _buildDocButton(
-              "License Front Image",
-              Icons.drive_eta_outlined,
-              "License",
-              licenseUploaded,
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  isLogin
+                      ? "Don't have an account? "
+                      : "Already have an account? ",
+                  style: const TextStyle(fontSize: 13, color: Colors.black54),
+                ),
+                GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      isLogin = !isLogin;
+                    });
+                  },
+                  child: Text(
+                    isLogin ? "Sign Up" : "Sign In",
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      color: leafGreen,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
-
-          const SizedBox(height: 25),
-          SizedBox(
-            width: double.infinity,
-            height: 55,
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: leafGreen,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(15),
-                ),
-              ),
-              onPressed: isLoading ? null : _handleSubmit,
-              child: isLoading
-                  ? const CircularProgressIndicator(color: Colors.white)
-                  : Text(
-                      isLogin ? "LOG IN" : "CONTINUE",
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                      ),
-                    ),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -637,14 +695,31 @@ class _AuthPageState extends State<AuthPage> {
     );
   }
 
-  void _showSnackBar(String m, Color c) =>
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(m),
-          backgroundColor: c,
-          behavior: SnackBarBehavior.floating,
+  void _showErrorDialog(String title, String message) {
+    showDialog(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: Text(
+          title,
+          style: const TextStyle(
+            color: Colors.redAccent,
+            fontWeight: FontWeight.bold,
+          ),
         ),
-      );
+        content: Text(message),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text(
+              "OK",
+              style: TextStyle(color: leafGreen, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   void _showStatusDialog(String m) {
     showDialog(
@@ -657,7 +732,7 @@ class _AuthPageState extends State<AuthPage> {
             onPressed: () {
               Navigator.pop(context);
               setState(() {
-                showForm = false;
+                showForm = true;
                 isLogin = true;
               });
             },

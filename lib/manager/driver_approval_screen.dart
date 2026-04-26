@@ -1,6 +1,7 @@
+import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'dart:typed_data';
-import 'package:flutter/material.dart';
+import 'dart:ui' as ui;
 import 'package:firebase_database/firebase_database.dart';
 
 class DriverApprovalScreen extends StatefulWidget {
@@ -92,70 +93,101 @@ class _DriverApprovalScreenState extends State<DriverApprovalScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: AppBar(
-        title: const Text(
-          "🛡️ Verification Hub",
-          style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 0.5),
-        ),
-        backgroundColor: leafGreen,
-        foregroundColor: Colors.white,
-        centerTitle: true,
-        elevation: 0,
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(bottom: Radius.circular(25)),
+      body: CustomScrollView(
+        physics: const BouncingScrollPhysics(),
+        slivers: [
+          _buildSliverAppBar(),
+          SliverToBoxAdapter(
+            child: StreamBuilder(
+              stream: _pendingDriversStream,
+              builder: (context, AsyncSnapshot<DatabaseEvent> snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Padding(
+                    padding: EdgeInsets.only(top: 100),
+                    child: Center(child: CircularProgressIndicator(color: leafGreen)),
+                  );
+                }
+
+                if (!snapshot.hasData || snapshot.data?.snapshot.value == null) {
+                  return _buildEmptyState();
+                }
+
+                Map<dynamic, dynamic> drivers =
+                    snapshot.data!.snapshot.value as Map<dynamic, dynamic>;
+                List<String> keys = drivers.keys.cast<String>().toList();
+
+                return ListView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  padding: const EdgeInsets.fromLTRB(15, 20, 15, 80),
+                  itemCount: keys.length,
+                  itemBuilder: (context, index) {
+                    String driverKey = keys[index];
+                    var driver = drivers[driverKey];
+
+                    _selectedDuties.putIfAbsent(driverKey, () => 'Collector');
+                    _controllers.putIfAbsent(
+                      driverKey,
+                      () => TextEditingController(),
+                    );
+                    _tileKeys.putIfAbsent(driverKey, () => GlobalKey());
+
+                    return _buildApprovalCard(driver, driverKey);
+                  },
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSliverAppBar() {
+    return SliverAppBar(
+      expandedHeight: 180.0,
+      pinned: true,
+      elevation: 0,
+      backgroundColor: Colors.white,
+      centerTitle: true,
+      title: const Text(
+        "Verification Hub",
+        style: TextStyle(
+          fontWeight: FontWeight.w900,
+          fontSize: 16,
+          color: Colors.black87,
         ),
       ),
-      body: Stack(
-        children: [
-          // 1. FADED BACKGROUND IMAGE
-          Positioned.fill(
-            child: Opacity(
-              opacity: 0.15,
-              child: Image.network(
-                'https://images.unsplash.com/photo-1554774853-719586f82d77?q=80&w=1000',
+      leading: IconButton(
+        icon: const Icon(Icons.arrow_back, color: Colors.black87),
+        onPressed: () => Navigator.pop(context),
+      ),
+      flexibleSpace: FlexibleSpaceBar(
+        background: Stack(
+          fit: StackFit.expand,
+          children: [
+            ImageFiltered(
+              imageFilter: ui.ImageFilter.blur(sigmaX: 1.5, sigmaY: 1.5),
+              child: Image.asset(
+                'lib/assets/bg.jpeg',
                 fit: BoxFit.cover,
               ),
             ),
-          ),
-
-          StreamBuilder(
-            stream: _pendingDriversStream,
-            builder: (context, AsyncSnapshot<DatabaseEvent> snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(
-                  child: CircularProgressIndicator(color: leafGreen),
-                );
-              }
-
-              if (!snapshot.hasData || snapshot.data?.snapshot.value == null) {
-                return _buildEmptyState();
-              }
-
-              Map<dynamic, dynamic> drivers =
-                  snapshot.data!.snapshot.value as Map<dynamic, dynamic>;
-              List<String> keys = drivers.keys.cast<String>().toList();
-
-              return ListView.builder(
-                padding: const EdgeInsets.fromLTRB(15, 20, 15, 80),
-                physics: const BouncingScrollPhysics(),
-                itemCount: keys.length,
-                itemBuilder: (context, index) {
-                  String driverKey = keys[index];
-                  var driver = drivers[driverKey];
-
-                  _selectedDuties.putIfAbsent(driverKey, () => 'Collector');
-                  _controllers.putIfAbsent(
-                    driverKey,
-                    () => TextEditingController(),
-                  );
-                  _tileKeys.putIfAbsent(driverKey, () => GlobalKey());
-
-                  return _buildApprovalCard(driver, driverKey);
-                },
-              );
-            },
-          ),
-        ],
+            Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.white.withValues(alpha: 0.3),
+                    Colors.white.withValues(alpha: 0.1),
+                    Colors.white.withValues(alpha: 0.5),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -421,7 +453,6 @@ class _DriverApprovalScreenState extends State<DriverApprovalScreen> {
           "status": "active",
           "attendance": "Inactive",
           "points": 0,
-          "distance_covered": 0.0,
           "approvalTimestamp": ServerValue.timestamp,
         });
         _msg("Driver Approved! 🚛", leafGreen);

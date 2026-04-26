@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:ui' as ui;
 import 'package:firebase_database/firebase_database.dart';
 import 'package:animate_do/animate_do.dart';
 
@@ -16,7 +17,8 @@ class _UserDetailsEditState extends State<UserDetailsEdit> {
   late TextEditingController _nameController;
   late bool _isSuspended;
 
-  String get _collection => widget.userData['role'] == 'driver' ? 'verified_drivers' : 'users';
+  String get _collection =>
+      widget.userData['role'] == 'driver' ? 'verified_drivers' : 'users';
 
   @override
   void initState() {
@@ -32,15 +34,17 @@ class _UserDetailsEditState extends State<UserDetailsEdit> {
       appBar: AppBar(
         title: const Text(
           "Manage Profile",
-          style: TextStyle(fontWeight: FontWeight.bold),
+          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black87),
         ),
-        backgroundColor: const Color(0xFF0A714E),
+        backgroundColor: Colors.white,
         elevation: 0,
+        iconTheme: const IconThemeData(color: Colors.black87),
       ),
       body: SingleChildScrollView(
         child: Column(
           children: [
             _buildHeaderSection(),
+            _buildStatementBar(),
             Padding(
               padding: const EdgeInsets.all(25),
               child: Column(
@@ -66,44 +70,110 @@ class _UserDetailsEditState extends State<UserDetailsEdit> {
   Widget _buildHeaderSection() {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 40),
+      height: 180,
       decoration: const BoxDecoration(
-        color: Color(0xFF0A714E),
+        color: Colors.white,
         borderRadius: BorderRadius.vertical(bottom: Radius.circular(40)),
       ),
-      child: Column(
+      child: Stack(
+        fit: StackFit.expand,
         children: [
-          FadeInDown(
-            child: CircleAvatar(
-              radius: 50,
-              backgroundColor: Colors.white24,
-              child: Text(
-                (widget.userData['name']?.toString().isNotEmpty == true 
-                    ? widget.userData['name'][0] 
-                    : "U").toUpperCase(),
-                style: const TextStyle(
-                  fontSize: 40,
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
+          ClipRRect(
+            borderRadius: const BorderRadius.vertical(
+              bottom: Radius.circular(40),
+            ),
+            child: ImageFiltered(
+              imageFilter: ui.ImageFilter.blur(sigmaX: 0.0, sigmaY: 0.0),
+              child: Image.asset('lib/assets/bg.jpeg', fit: BoxFit.cover),
+            ),
+          ),
+          Container(
+            decoration: BoxDecoration(
+              borderRadius: const BorderRadius.vertical(
+                bottom: Radius.circular(40),
+              ),
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.white.withValues(alpha: 0.3),
+                  Colors.white.withValues(alpha: 0.1),
+                  Colors.white.withValues(alpha: 0.5),
+                ],
               ),
             ),
           ),
-          const SizedBox(height: 15),
-          Text(
-            widget.userData['role'].toString().toUpperCase(),
-            style: const TextStyle(
-              color: Colors.white70,
-              letterSpacing: 2,
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 25),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                const SizedBox(height: 10),
+                FadeInDown(
+                  child: Center(
+                    child: CircleAvatar(
+                      radius: 45,
+                      backgroundColor: const Color(0xFF0A714E).withValues(alpha: 0.1),
+                      child: Text(
+                        (widget.userData['name']?.toString().isNotEmpty == true
+                                ? widget.userData['name'][0]
+                                : "U")
+                            .toUpperCase(),
+                        style: const TextStyle(
+                          fontSize: 40,
+                          color: Color(0xFF0A714E),
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 15),
+                Text(
+                  (widget.userData['name']?.toString() ?? "User Profile").toUpperCase(),
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Colors.black,
+                    fontSize: 24,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ],
             ),
           ),
-          Text(
-            widget.userData['email']?.toString() ?? "No Email",
-            style: const TextStyle(color: Colors.white, fontSize: 16),
-          ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildStatementBar() {
+    return FadeInLeft(
+      duration: const Duration(milliseconds: 600),
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 25, vertical: 15),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        decoration: BoxDecoration(
+          color: const Color(0xFF0A714E).withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(15),
+          border: Border.all(color: const Color(0xFF0A714E).withValues(alpha: 0.2)),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.badge_outlined, size: 18, color: Color(0xFF0A714E)),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                "Role: ${widget.userData['role'].toString().toUpperCase()} | Status: ${_isSuspended ? 'Suspended' : 'Active'}",
+                style: const TextStyle(
+                  color: Color(0xFF0A714E),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -118,7 +188,10 @@ class _UserDetailsEditState extends State<UserDetailsEdit> {
       children: [
         Text(
           label,
-          style: const TextStyle(color: Colors.grey, fontWeight: FontWeight.bold),
+          style: const TextStyle(
+            color: Colors.grey,
+            fontWeight: FontWeight.bold,
+          ),
         ),
         const SizedBox(height: 8),
         TextField(
@@ -168,9 +241,9 @@ class _UserDetailsEditState extends State<UserDetailsEdit> {
             activeThumbColor: Colors.red,
             onChanged: (val) {
               setState(() => _isSuspended = val);
-              FirebaseDatabase.instance.ref('$_collection/${widget.uid}').update({
-                'isSuspended': val,
-              });
+              FirebaseDatabase.instance
+                  .ref('$_collection/${widget.uid}')
+                  .update({'isSuspended': val});
             },
           ),
         ],
@@ -192,9 +265,9 @@ class _UserDetailsEditState extends State<UserDetailsEdit> {
               ),
             ),
             onPressed: () {
-              FirebaseDatabase.instance.ref('$_collection/${widget.uid}').update({
-                'name': _nameController.text,
-              });
+              FirebaseDatabase.instance
+                  .ref('$_collection/${widget.uid}')
+                  .update({'name': _nameController.text});
               Navigator.pop(context);
             },
             child: const Text(
@@ -234,7 +307,9 @@ class _UserDetailsEditState extends State<UserDetailsEdit> {
           ),
           TextButton(
             onPressed: () {
-              FirebaseDatabase.instance.ref('$_collection/${widget.uid}').remove();
+              FirebaseDatabase.instance
+                  .ref('$_collection/${widget.uid}')
+                  .remove();
               Navigator.pop(context); // Close dialog
               Navigator.pop(context); // Go back to list
             },
