@@ -58,10 +58,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
           Positioned.fill(
             child: Opacity(
               opacity: 0.05, // Very subtle so it doesn't distract
-              child: Image.asset(
-                'lib/assets/bg.jpeg',
-                fit: BoxFit.cover,
-              ),
+              child: Image.asset('lib/assets/bg.jpeg', fit: BoxFit.cover),
             ),
           ),
 
@@ -99,13 +96,9 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
 
                           const SizedBox(height: 25),
 
-                          // 4. BAR CHART COMPARISON
-                          _sectionLabel("Fleet Fill Comparison (%)"),
-                          _buildBarChartCard(),
-
                           const SizedBox(height: 25),
 
-                          // 5. VIEW BIN DETAILS — merged with fleet status
+                          // 4. VIEW BIN DETAILS — merged with fleet status
                           _sectionLabel("Bin Fleet Overview"),
                           _buildViewBinDetailsSection(),
 
@@ -149,10 +142,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
           children: [
             ImageFiltered(
               imageFilter: ui.ImageFilter.blur(sigmaX: 1.5, sigmaY: 1.5),
-              child: Image.asset(
-                'lib/assets/bg.jpeg',
-                fit: BoxFit.cover,
-              ),
+              child: Image.asset('lib/assets/bg.jpeg', fit: BoxFit.cover),
             ),
             Container(
               decoration: BoxDecoration(
@@ -203,8 +193,8 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
       child: Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 
-            0.9,
+          color: Colors.white.withValues(
+            alpha: 0.9,
           ), // Slight transparency for background blend
           borderRadius: BorderRadius.circular(24),
           boxShadow: [
@@ -257,139 +247,56 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
           double level = BinData.fillLevel(sortedBins[index].value);
           Color color = level >= 80 ? alertRed : leafGreen;
 
-          return GestureDetector(
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (c) => BinDetailsPage(binId: id)),
+          return Container(
+            width: 120,
+            margin: const EdgeInsets.only(right: 15, bottom: 5),
+            padding: const EdgeInsets.all(15),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.9),
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.02),
+                  blurRadius: 10,
+                ),
+              ],
             ),
-            child: Container(
-              width: 120,
-              margin: const EdgeInsets.only(right: 15, bottom: 5),
-              padding: const EdgeInsets.all(15),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.9),
-                borderRadius: BorderRadius.circular(24),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.02),
-                    blurRadius: 10,
-                  ),
-                ],
-              ),
-              child: Column(
-                children: [
-                  Expanded(
-                    child: Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        CircularProgressIndicator(
-                          value: level / 100,
-                          strokeWidth: 8,
-                          backgroundColor: color.withValues(alpha: 0.1),
+            child: Column(
+              children: [
+                Expanded(
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      CircularProgressIndicator(
+                        value: level / 100,
+                        strokeWidth: 8,
+                        backgroundColor: color.withValues(alpha: 0.1),
+                        color: color,
+                        strokeCap: StrokeCap.round,
+                      ),
+                      Text(
+                        "${level.toInt()}%",
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w900,
                           color: color,
-                          strokeCap: StrokeCap.round,
                         ),
-                        Text(
-                          "${level.toInt()}%",
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w900,
-                            color: color,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    id.toUpperCase(),
-                    style: const TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildBarChartCard() {
-    return Container(
-      height: 260,
-      padding: const EdgeInsets.fromLTRB(10, 25, 20, 10),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.95),
-        borderRadius: BorderRadius.circular(30),
-      ),
-      child: BarChart(
-        BarChartData(
-          alignment: BarChartAlignment.spaceAround,
-          maxY: 100,
-          barTouchData: const BarTouchData(enabled: true),
-          gridData: const FlGridData(show: false),
-          titlesData: FlTitlesData(
-            show: true,
-            bottomTitles: AxisTitles(
-              sideTitles: SideTitles(
-                showTitles: true,
-                getTitlesWidget: (v, m) => Padding(
-                  padding: const EdgeInsets.only(top: 8.0),
-                  child: Text(
-                    "B${v.toInt() + 1}",
-                    style: const TextStyle(
-                      fontSize: 9,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.grey,
-                    ),
+                      ),
+                    ],
                   ),
                 ),
-              ),
-            ),
-            leftTitles: AxisTitles(
-              sideTitles: SideTitles(
-                showTitles: true,
-                reservedSize: 35,
-                getTitlesWidget: (v, m) => Text(
-                  "${v.toInt()}%",
-                  style: const TextStyle(fontSize: 8, color: Colors.grey),
-                ),
-              ),
-            ),
-            topTitles: const AxisTitles(
-              sideTitles: SideTitles(showTitles: false),
-            ),
-            rightTitles: const AxisTitles(
-              sideTitles: SideTitles(showTitles: false),
-            ),
-          ),
-          borderData: FlBorderData(show: false),
-          barGroups: binData.entries.map((e) {
-            int index = binData.keys.toList().indexOf(e.key);
-            double level = BinData.fillLevel(e.value);
-            return BarChartGroupData(
-              x: index,
-              barRods: [
-                BarChartRodData(
-                  toY: level,
-                  color: level >= 80 ? alertRed : leafGreen,
-                  width: 16,
-                  borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(6),
-                  ),
-                  backDrawRodData: BackgroundBarChartRodData(
-                    show: true,
-                    toY: 100,
-                    color: softMint,
+                const SizedBox(height: 12),
+                Text(
+                  id.toUpperCase(),
+                  style: const TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w900,
                   ),
                 ),
               ],
-            );
-          }).toList(),
-        ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -436,7 +343,9 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
               gradient: const LinearGradient(
                 colors: [Color(0xFF2E7D32), Color(0xFF43A047)],
               ),
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(28),
+              ),
             ),
             child: Row(
               children: [
@@ -469,7 +378,8 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             itemCount: bins.length,
-            separatorBuilder: (_, __) => const Divider(height: 1, indent: 20, endIndent: 20),
+            separatorBuilder: (_, __) =>
+                const Divider(height: 1, indent: 20, endIndent: 20),
             itemBuilder: (context, index) {
               String binId = bins[index].key;
               var data = bins[index].value;
@@ -486,7 +396,10 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
                   ),
                 ),
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 14,
+                  ),
                   child: Row(
                     children: [
                       // Fill level badge
@@ -496,7 +409,10 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
                         decoration: BoxDecoration(
                           color: statusColor.withValues(alpha: 0.1),
                           shape: BoxShape.circle,
-                          border: Border.all(color: statusColor.withValues(alpha: 0.3), width: 2),
+                          border: Border.all(
+                            color: statusColor.withValues(alpha: 0.3),
+                            width: 2,
+                          ),
                         ),
                         child: Center(
                           child: Text(
@@ -545,7 +461,10 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
                           // Online/Offline status
                           Container(
                             margin: const EdgeInsets.only(bottom: 4),
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 3,
+                            ),
                             decoration: BoxDecoration(
                               color: BinData.isOnline(data)
                                   ? leafGreen.withValues(alpha: 0.1)
@@ -559,7 +478,9 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
                                   width: 5,
                                   height: 5,
                                   decoration: BoxDecoration(
-                                    color: BinData.isOnline(data) ? leafGreen : Colors.grey,
+                                    color: BinData.isOnline(data)
+                                        ? leafGreen
+                                        : Colors.grey,
                                     shape: BoxShape.circle,
                                   ),
                                 ),
@@ -569,7 +490,9 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
                                   style: TextStyle(
                                     fontSize: 8,
                                     fontWeight: FontWeight.w900,
-                                    color: BinData.isOnline(data) ? leafGreen : Colors.grey,
+                                    color: BinData.isOnline(data)
+                                        ? leafGreen
+                                        : Colors.grey,
                                   ),
                                 ),
                               ],
@@ -577,7 +500,10 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
                           ),
                           // Critical/Stable status
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 4,
+                            ),
                             decoration: BoxDecoration(
                               color: statusColor.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(20),
@@ -593,7 +519,11 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
                             ),
                           ),
                           const SizedBox(height: 4),
-                          Icon(Icons.chevron_right_rounded, color: Colors.grey.shade400, size: 20),
+                          Icon(
+                            Icons.chevron_right_rounded,
+                            color: Colors.grey.shade400,
+                            size: 20,
+                          ),
                         ],
                       ),
                     ],
@@ -606,8 +536,6 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
       ),
     );
   }
-
-
 
   Widget _sectionLabel(String t) => Padding(
     padding: const EdgeInsets.only(bottom: 15, top: 10),

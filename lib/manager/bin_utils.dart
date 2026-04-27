@@ -73,7 +73,8 @@ class BinData {
     if (ts == null) return false;
     try {
       final lastSync = DateTime.fromMillisecondsSinceEpoch((ts as num).toInt());
-      return DateTime.now().difference(lastSync).inMinutes < 5;
+      // Hardware heartbeats are frequent, so 2 minutes is a safe threshold
+      return DateTime.now().difference(lastSync).inMinutes < 2;
     } catch (_) {
       return false;
     }

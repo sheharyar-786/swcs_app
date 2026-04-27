@@ -109,7 +109,7 @@ class _ProfileSettingsState extends State<ProfileSettings> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              "SWCS Admin Suite",
+              "SWCS MISSION HUB",
               style: TextStyle(
                 fontWeight: FontWeight.bold,
                 color: Color(0xFF0A714E),
@@ -543,74 +543,76 @@ class _ProfileSettingsState extends State<ProfileSettings> {
           "Change Password",
           style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black),
         ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              "Email Account:",
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey,
-                fontWeight: FontWeight.bold,
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                "Email Account:",
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-            ),
-            Text(
-              user?.email ?? "",
-              style: const TextStyle(
-                fontSize: 14,
-                color: Color(0xFF0A714E),
-                fontWeight: FontWeight.bold,
+              Text(
+                user?.email ?? "",
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: Color(0xFF0A714E),
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-            ),
-            const Divider(height: 25),
-            TextField(
-              controller: currentPassController,
-              obscureText: true,
-              decoration: const InputDecoration(
-                labelText: "Current Password",
-                prefixIcon: Icon(Icons.lock_open, color: Colors.black87),
+              const Divider(height: 25),
+              TextField(
+                controller: currentPassController,
+                obscureText: true,
+                decoration: const InputDecoration(
+                  labelText: "Current Password",
+                  prefixIcon: Icon(Icons.lock_open, color: Colors.black87),
+                ),
               ),
-            ),
-            const SizedBox(height: 15),
-            TextField(
-              controller: newPassController,
-              obscureText: true,
-              decoration: const InputDecoration(
-                labelText: "New Password",
-                prefixIcon: Icon(Icons.lock_outline, color: Colors.black87),
+              const SizedBox(height: 15),
+              TextField(
+                controller: newPassController,
+                obscureText: true,
+                decoration: const InputDecoration(
+                  labelText: "New Password",
+                  prefixIcon: Icon(Icons.lock_outline, color: Colors.black87),
+                ),
               ),
-            ),
-            const SizedBox(height: 10),
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton(
-                onPressed: () async {
-                  try {
-                    await FirebaseAuth.instance.sendPasswordResetEmail(
-                      email: user!.email!,
-                    );
-                    if (!mounted) return;
-                    Navigator.pop(context);
-                    _showSnack(
-                      "Reset link sent to ${user!.email}!",
-                      Colors.green,
-                    );
-                  } catch (e) {
-                    _showSnack("Error: $e", Colors.red);
-                  }
-                },
-                child: const Text(
-                  "Forgot Current Password?",
-                  style: TextStyle(
-                    color: Color(0xFF0A714E),
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
+              const SizedBox(height: 10),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: () async {
+                    try {
+                      await FirebaseAuth.instance.sendPasswordResetEmail(
+                        email: user!.email!,
+                      );
+                      if (!mounted) return;
+                      Navigator.pop(context);
+                      _showSnack(
+                        "Reset link sent to ${user!.email}!",
+                        Colors.green,
+                      );
+                    } catch (e) {
+                      _showSnack("Error: $e", Colors.red);
+                    }
+                  },
+                  child: const Text(
+                    "Forgot Current Password?",
+                    style: TextStyle(
+                      color: Color(0xFF0A714E),
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
         actions: [
           TextButton(

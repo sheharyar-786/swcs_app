@@ -108,27 +108,12 @@ class _SplashScreen extends StatelessWidget {
   const _SplashScreen();
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xFF0A714E), Color(0xFF1B5E20)],
-          ),
-        ),
-        child: const Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              CircularProgressIndicator(color: Colors.white),
-              SizedBox(height: 20),
-              Text(
-                "Initializing Mission Hub...",
-                style: TextStyle(color: Colors.white70, letterSpacing: 1),
-              ),
-            ],
-          ),
+    return const Scaffold(
+      backgroundColor: Colors.white,
+      body: Center(
+        child: CircularProgressIndicator(
+          color: Color(0xFF0A714E),
+          strokeWidth: 3,
         ),
       ),
     );

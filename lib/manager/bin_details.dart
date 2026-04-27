@@ -60,6 +60,13 @@ class _BinDetailsPageState extends State<BinDetailsPage>
         bool isOnRoute = status == "On Route" || status == "Assigned";
         bool isCritical = fillLevel >= 80;
 
+        // --- HARDWARE SYNC LOGIC ---
+        // If the bin is offline, we should not show old/stale data values
+        String displayFill = isOnline ? "${fillLevel.toInt()}%" : "--";
+        String displayGas = isOnline ? "$gasLevel ppm" : "--";
+        String displayBattery = isOnline ? batteryDisplay : "--";
+        String displayLastAction = data['last_cleaned_by'] ?? "No History";
+
         return Scaffold(
           backgroundColor: const Color(0xFFF4F7F4),
           body: Column(
@@ -87,14 +94,10 @@ class _BinDetailsPageState extends State<BinDetailsPage>
                           const SizedBox(height: 20),
 
                           // 2. Main Capacity Card
-                          _buildFillCard(context, fillLevel),
+                          _buildFillCard(context, isOnline ? fillLevel : 0.0),
                           const SizedBox(height: 20),
 
-                          // 3. Daily Analytics Card
-                          _buildDailyStatsCard(fillCountToday, lastFillTime),
-                          const SizedBox(height: 20),
-
-                          // 4. Info Grid (Live Battery, Gas, etc)
+                          // 3. Info Grid (Live Battery, Gas, etc)
                           GridView.count(
                             shrinkWrap: true,
                             physics: const NeverScrollableScrollPhysics(),
@@ -105,25 +108,25 @@ class _BinDetailsPageState extends State<BinDetailsPage>
                             children: [
                               _infoBox(
                                 "Gas Level",
-                                "$gasLevel ppm",
+                                displayGas,
                                 Icons.cloud_outlined,
-                                gasLevel > 800 ? warningOrange : Colors.teal,
+                                (isOnline && gasLevel > 800) ? warningOrange : Colors.teal,
                               ),
                               _infoBox(
                                 "Battery",
-                                batteryDisplay,
+                                displayBattery,
                                 Icons.battery_charging_full,
-                                batteryVal < 20 ? alertRed : leafGreen,
+                                (isOnline && batteryVal < 20) ? alertRed : leafGreen,
                               ),
                               _infoBox(
                                 "Last Action",
-                                data['last_cleaned_by'] ?? "N/A",
+                                displayLastAction,
                                 Icons.history,
                                 premiumNavy,
                               ),
                               _infoBox(
                                 "Bin Status",
-                                connStatus,
+                                isOnline ? "Online" : "Offline",
                                 isOnline ? Icons.sensors : Icons.sensors_off,
                                 isOnline ? leafGreen : Colors.grey,
                               ),

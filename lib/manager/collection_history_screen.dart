@@ -176,7 +176,7 @@ class CollectionHistoryPage extends StatelessWidget {
                     "Driver",
                     (data['last_cleaned_by'] ?? "System Auto").toString(),
                   ),
-                  _logRow(
+                   _logRow(
                     Icons.access_time_rounded,
                     "Time",
                     (data['last_cleaned_time'] ?? "Recently").toString(),
@@ -184,7 +184,7 @@ class CollectionHistoryPage extends StatelessWidget {
                   _logRow(
                     Icons.analytics_outlined,
                     "Sensor Confirmation",
-                    "Fill Level: ${BinData.fillLevel(data).toInt()}%", // Fixed type mismatch
+                    "Cleaned at ${data['last_fill_level'] ?? 0}% Fill",
                   ),
                   const SizedBox(height: 10),
                   Text(

@@ -303,7 +303,45 @@ class _AddScheduleScreenState extends State<AddScheduleScreen> {
         if (!snapshot.hasData) {
           return const LinearProgressIndicator(color: leafGreen);
         }
-        Map drivers = (snapshot.data?.snapshot.value as Map?) ?? {};
+        
+        Map driversMap = (snapshot.data?.snapshot.value as Map?) ?? {};
+        
+        // --- CRITICAL FIX: DROPDOWN ASSERTION ERROR ---
+        // Ensure _selectedDriverEmail exists in current list of verified drivers
+        bool exists = driversMap.values.any((d) => d['email'] == _selectedDriverEmail);
+        if (!exists && _selectedDriverEmail != null) {
+          // If the previously selected driver is no longer verified or exists, reset selection
+          _selectedDriverEmail = null;
+        }
+
+        // Create unique list of items
+        List<DropdownMenuItem<String>> items = [];
+        Set<String> seenEmails = {};
+
+        driversMap.forEach((key, d) {
+          String? email = d['email'];
+          if (email != null && !seenEmails.contains(email)) {
+            seenEmails.add(email);
+            items.add(
+              DropdownMenuItem<String>(
+                value: email,
+                onTap: () {
+                  _selectedDriverName = d['name'];
+                  _selectedDriverUid = key;
+                },
+                child: Text(
+                  d['name'] ?? "Driver",
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                    color: deepForest,
+                  ),
+                ),
+              ),
+            );
+          }
+        });
+
         return Container(
           padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 4),
           decoration: BoxDecoration(
@@ -318,24 +356,7 @@ class _AddScheduleScreenState extends State<AddScheduleScreen> {
               ),
               value: _selectedDriverEmail,
               isExpanded: true,
-              items: drivers.entries.map((e) {
-                var d = e.value;
-                return DropdownMenuItem<String>(
-                  value: d['email'],
-                  onTap: () {
-                    _selectedDriverName = d['name'];
-                    _selectedDriverUid = e.key;
-                  },
-                  child: Text(
-                    d['name'] ?? "Driver",
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                      color: deepForest,
-                    ),
-                  ),
-                );
-              }).toList(),
+              items: items,
               onChanged: (val) => setState(() => _selectedDriverEmail = val),
             ),
           ),

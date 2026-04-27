@@ -3,6 +3,8 @@ import 'dart:ui' as ui;
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 
+const Color leafGreen = Color(0xFF0A714E);
+
 class LeaderboardPage extends StatelessWidget {
   const LeaderboardPage({super.key});
 
@@ -33,13 +35,19 @@ class LeaderboardPage extends StatelessWidget {
           return CustomScrollView(
             physics: const BouncingScrollPhysics(),
             slivers: [
-              _buildSliverAppBar(context, drivers),
+              _buildSliverAppBar(context),
+              
+              // 2. PREMIUM PODIUM SECTION (Now below header)
+              SliverToBoxAdapter(
+                child: _buildTopPodiumSection(drivers),
+              ),
+
               SliverToBoxAdapter(
                 child: AnimationLimiter(
                   child: ListView.builder(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
-                    padding: const EdgeInsets.fromLTRB(15, 20, 15, 80),
+                    padding: const EdgeInsets.fromLTRB(15, 10, 15, 80),
                     itemCount: drivers.length > 3 ? drivers.length - 3 : 0,
                     itemBuilder: (context, index) {
                       int actualIndex = index + 3;
@@ -73,9 +81,9 @@ class LeaderboardPage extends StatelessWidget {
     );
   }
 
-  Widget _buildSliverAppBar(BuildContext context, List drivers) {
+  Widget _buildSliverAppBar(BuildContext context) {
     return SliverAppBar(
-      expandedHeight: 180.0,
+      expandedHeight: 120.0,
       pinned: true,
       elevation: 0,
       backgroundColor: Colors.white,
@@ -109,14 +117,12 @@ class LeaderboardPage extends StatelessWidget {
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: [
-                    Colors.white.withValues(alpha: 0.3),
                     Colors.white.withValues(alpha: 0.1),
-                    Colors.white.withValues(alpha: 0.5),
+                    Colors.white.withValues(alpha: 0.8),
                   ],
                 ),
               ),
             ),
-            _buildTopPodiumOverlay(drivers),
           ],
         ),
       ),
@@ -124,15 +130,15 @@ class LeaderboardPage extends StatelessWidget {
   }
 
   // --- TOP 3 PODIUM DESIGN ---
-  Widget _buildTopPodiumOverlay(List drivers) {
+  Widget _buildTopPodiumSection(List drivers) {
     if (drivers.isEmpty) return const SizedBox.shrink();
 
     var first = drivers.isNotEmpty ? drivers[0].value : null;
     var second = drivers.length > 1 ? drivers[1].value : null;
     var third = drivers.length > 2 ? drivers[2].value : null;
 
-    return Padding(
-      padding: const EdgeInsets.only(top: 80, bottom: 10),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 25),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         crossAxisAlignment: CrossAxisAlignment.end,
@@ -142,9 +148,9 @@ class LeaderboardPage extends StatelessWidget {
             _podiumItem(
               _getDisplayName(second),
               "2",
-              Colors.grey.shade300,
+              const Color(0xFFC0C0C0), // Silver
               second['points'] ?? 0,
-              75,
+              120,
             ),
 
           // 1st Place
@@ -152,9 +158,9 @@ class LeaderboardPage extends StatelessWidget {
             _podiumItem(
               _getDisplayName(first),
               "1",
-              Colors.amberAccent,
+              const Color(0xFFFFD700), // Gold
               first['points'] ?? 0,
-              95,
+              150,
             ),
 
           // 3rd Place
@@ -162,9 +168,9 @@ class LeaderboardPage extends StatelessWidget {
             _podiumItem(
               _getDisplayName(third),
               "3",
-              Colors.orangeAccent.shade100,
+              const Color(0xFFCD7F32), // Bronze
               third['points'] ?? 0,
-              70,
+              110,
             ),
         ],
       ),
@@ -182,48 +188,61 @@ class LeaderboardPage extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         Container(
-          width: 95,
+          width: 100,
           height: boxHeight,
-          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 10),
+          padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.15),
-            borderRadius: BorderRadius.circular(25),
-            border: Border.all(color: Colors.white24),
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: leafGreen.withValues(alpha: 0.05),
+                blurRadius: 15,
+                offset: const Offset(0, 8),
+              ),
+            ],
+            border: Border.all(color: color.withValues(alpha: 0.3), width: 1),
           ),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
               CircleAvatar(
-                backgroundColor: color,
-                radius: rank == "1" ? 32 : 26,
+                backgroundColor: color.withValues(alpha: 0.1),
+                radius: rank == "1" ? 30 : 22,
                 child: Text(
-                  rank,
-                  style: const TextStyle(
+                  rank == "1" ? "👑" : rank,
+                  style: TextStyle(
                     fontWeight: FontWeight.w900,
-                    color: Colors.black,
-                    fontSize: 22,
+                    color: color,
+                    fontSize: rank == "1" ? 24 : 16,
                   ),
                 ),
               ),
               const SizedBox(height: 12),
-              // FIX: FittedBox prevents text from pushing borders out
               Text(
                 name,
                 style: const TextStyle(
                   color: Colors.black87,
-                  fontSize: 8,
-                  fontWeight: FontWeight.bold,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w900,
                 ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
-              const SizedBox(height: 2),
-              Text(
-                "$pts pts",
-                style: const TextStyle(
-                  color: Colors.black54,
-                  fontSize: 8,
-                  fontWeight: FontWeight.w900,
+              const SizedBox(height: 4),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  "$pts XP",
+                  style: TextStyle(
+                    color: color,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
               ),
             ],
@@ -239,46 +258,42 @@ class LeaderboardPage extends StatelessWidget {
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(22),
-        side: BorderSide(color: Colors.green.withValues(alpha: 0.1)),
+        side: BorderSide(color: leafGreen.withValues(alpha: 0.05)),
       ),
       child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
         leading: Container(
           width: 45,
           alignment: Alignment.center,
           child: Text(
             "#$rank",
             style: const TextStyle(
+              color: leafGreen,
               fontWeight: FontWeight.w900,
-              fontSize: 18,
-              color: Colors.grey,
+              fontSize: 16,
             ),
           ),
         ),
         title: Text(
           name,
-          style: const TextStyle(
-            fontWeight: FontWeight.bold,
-            color: Color(0xFF1B5E20),
-            fontSize: 15,
-          ),
+          style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14),
         ),
         subtitle: Text(
           "Vehicle ID: $vehicle",
-          style: const TextStyle(fontSize: 11),
+          style: const TextStyle(fontSize: 11, color: Colors.grey),
         ),
         trailing: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
-            color: Colors.orange.withValues(alpha: 0.1),
+            color: leafGreen.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(12),
           ),
           child: Text(
             "$pts XP",
             style: const TextStyle(
+              color: leafGreen,
               fontWeight: FontWeight.w900,
-              color: Colors.orange,
-              fontSize: 14,
+              fontSize: 12,
             ),
           ),
         ),

@@ -16,7 +16,7 @@ class CollectionHistoryPage extends StatelessWidget {
       body: CustomScrollView(
         slivers: [
           SliverAppBar(
-            expandedHeight: 180.0,
+            expandedHeight: 80.0,
             pinned: true,
             backgroundColor: Colors.white,
             elevation: 0,
@@ -26,39 +26,12 @@ class CollectionHistoryPage extends StatelessWidget {
               style: TextStyle(
                 fontWeight: FontWeight.w900,
                 fontSize: 16,
-                color: Colors.black87,
+                color: Color(0xFF0A714E),
               ),
             ),
             leading: IconButton(
-              icon: const Icon(Icons.arrow_back, color: Colors.black87),
+              icon: const Icon(Icons.arrow_back, color: Color(0xFF0A714E)),
               onPressed: () => Navigator.pop(context),
-            ),
-            flexibleSpace: FlexibleSpaceBar(
-              background: Stack(
-                fit: StackFit.expand,
-                children: [
-                  ImageFiltered(
-                  imageFilter: ui.ImageFilter.blur(sigmaX: 1.5, sigmaY: 1.5),
-                    child: Image.asset(
-                      'lib/assets/bg.jpeg',
-                      fit: BoxFit.cover,
-                    ),
-                  ),
-                  Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Colors.white.withValues(alpha: 0.3),
-                          Colors.white.withValues(alpha: 0.1),
-                          Colors.white.withValues(alpha: 0.5),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
             ),
           ),
           if (uid != null) SliverToBoxAdapter(child: _buildHeaderStats(uid)),
@@ -147,77 +120,55 @@ class CollectionHistoryPage extends StatelessWidget {
           total = (snapshot.data!.snapshot.value as Map).length;
         }
         return Container(
-          width: double.infinity,
-          height: 180,
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.only(
-              bottomLeft: Radius.circular(40),
-              bottomRight: Radius.circular(40),
-            ),
+          margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+          padding: const EdgeInsets.symmetric(vertical: 30),
+          decoration: BoxDecoration(
+            color: const Color(0xFF0A714E),
+            borderRadius: BorderRadius.circular(30),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF0A714E).withValues(alpha: 0.3),
+                blurRadius: 20,
+                offset: const Offset(0, 10),
+              ),
+            ],
           ),
-          child: Stack(
-            fit: StackFit.expand,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              ClipRRect(
-                borderRadius: const BorderRadius.only(
-                  bottomLeft: Radius.circular(40),
-                  bottomRight: Radius.circular(40),
-                ),
-                child: ImageFiltered(
-                  imageFilter: ui.ImageFilter.blur(sigmaX: 3, sigmaY: 3),
-                  child: Image.asset(
-                    'lib/assets/bg.jpeg',
-                    fit: BoxFit.cover,
-                  ),
+              const Text(
+                "TOTAL BINS CLEARED",
+                style: TextStyle(
+                  color: Colors.white70,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1.5,
                 ),
               ),
+              const SizedBox(height: 10),
+              Text(
+                "$total",
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 54,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 10),
               Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
-                  borderRadius: const BorderRadius.only(
-                    bottomLeft: Radius.circular(40),
-                    bottomRight: Radius.circular(40),
-                  ),
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.white.withValues(alpha: 0.3),
-                      Colors.white.withValues(alpha: 0.1),
-                      Colors.white.withValues(alpha: 0.5),
-                    ],
+                  color: Colors.white.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: const Text(
+                  "Eco-Mission Success 🏆",
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
-              ),
-              Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Text(
-                    "TOTAL BINS CLEARED",
-                    style: TextStyle(
-                      color: Colors.black54,
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 5),
-                  Text(
-                    "$total",
-                    style: const TextStyle(
-                      color: Colors.black87,
-                      fontSize: 45,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                  const Text(
-                    "Eco-Mission Success 🏆",
-                    style: TextStyle(
-                      color: Color(0xFF1B5E20),
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
               ),
             ],
           ),

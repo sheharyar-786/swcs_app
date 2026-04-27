@@ -5,6 +5,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:intl/intl.dart';
 import 'bin_utils.dart';
 
 class LiveMapScreen extends StatefulWidget {
@@ -49,11 +50,29 @@ class _LiveMapScreenState extends State<LiveMapScreen>
 
     final String now = DateTime.now().toString().split('.')[0];
 
+    // Fetch driver's name for last_cleaned_by field
+    final driverRef = FirebaseDatabase.instance.ref('verified_drivers/${user.uid}');
+    final driverSnap = await driverRef.get();
+    String driverName = "Driver";
+    if (driverSnap.exists) {
+      driverName = (driverSnap.value as Map)['name'] ?? "Driver";
+    }
+
+    // Fetch current fill level before reset to record in logs
+    final binSnap = await FirebaseDatabase.instance.ref('bins/$binId').get();
+    double currentFill = 0;
+    if (binSnap.exists) {
+      currentFill = BinData.fillLevel(binSnap.value);
+    }
+
     // Update both flat and nested paths for safety
     await FirebaseDatabase.instance.ref('bins/$binId').update({
       'fill_level': 0,
       'gas_level': 0,
       'assigned_to': "",
+      'last_cleaned_by': driverName,
+      'last_cleaned_time': DateFormat('hh:mm a, MMM dd').format(DateTime.now()), 
+      'last_fill_level': currentFill, // Record what was cleaned
       'readings/fill_level': 0,
       'readings/gas_level': 0,
     });
@@ -68,12 +87,21 @@ class _LiveMapScreenState extends State<LiveMapScreen>
           'points': 10,
         });
 
-    final driverRef = FirebaseDatabase.instance.ref(
-      'verified_drivers/${user.uid}/points',
-    );
-    final snapshot = await driverRef.get();
+    // --- CENTRAL SYSTEM HISTORY (for BinRecordPage) ---
+    await FirebaseDatabase.instance.ref('history').push().set({
+      'bin_id': binId,
+      'area_name': areaName,
+      'collected_by': driverName,
+      'cleaned_at': DateTime.now().millisecondsSinceEpoch,
+      'time': DateFormat('yyyy-MM-dd HH:mm:ss').format(DateTime.now()),
+      'fill_before': currentFill,
+      'status': 'Collected',
+    });
+
+    final pointsRef = driverRef.child('points');
+    final snapshot = await pointsRef.get();
     int currentPoints = (snapshot.value as int?) ?? 0;
-    await driverRef.set(currentPoints + 10);
+    await pointsRef.set(currentPoints + 10);
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -159,11 +187,13 @@ class _LiveMapScreenState extends State<LiveMapScreen>
       int gas = BinData.gasLevel(val);
 
       if (bLat != 0.0 && bLng != 0.0) {
-        // --- UPDATED LOGIC: FILTER BY ASSIGNED AREA ---
+        // --- UPDATED LOGIC: STRICT FILTER BY ASSIGNED AREA ---
         if (widget.assignedArea != null) {
           String binArea = area.toLowerCase().trim();
           String targetArea = widget.assignedArea!.toLowerCase().trim();
-          if (binArea != targetArea) return; 
+          if (!binArea.contains(targetArea) && !targetArea.contains(binArea)) {
+            return; // Skip bins outside assigned area
+          }
         }
 
         LatLng binPos = LatLng(bLat, bLng);

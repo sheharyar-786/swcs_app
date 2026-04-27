@@ -70,7 +70,7 @@ class AdminHomeView extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          "Admin Panel",
+                          "MANAGEMENT HUB",
                           style: TextStyle(
                             color: Colors.black,
                             fontSize: 28,
@@ -167,6 +167,9 @@ class AdminHomeView extends StatelessWidget {
                       snapshot.data!.snapshot.value != null) {
                     Map data = snapshot.data!.snapshot.value as Map;
 
+                    // Real-time counting of actual bins in the system
+                    int totalBins = (data['bins'] as Map?)?.length ?? 0;
+
                     // --- Logic: Safe Data Fetching ---
                     Map users = data['users'] ?? {};
                     Map verifiedDrivers = data['verified_drivers'] ?? {};
@@ -185,10 +188,6 @@ class AdminHomeView extends StatelessWidget {
                         .length;
 
                     // Safe fetching of metadata
-                    int totalBins = 0;
-                    if (data['system_metadata'] != null) {
-                      totalBins = data['system_metadata']['total_bins'] ?? 0;
-                    }
 
                     return GridView.count(
                       padding: const EdgeInsets.symmetric(horizontal: 25),

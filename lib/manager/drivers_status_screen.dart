@@ -62,16 +62,42 @@ class _DriversStatusPageState extends State<DriversStatusPage> {
           CustomScrollView(
             physics: const BouncingScrollPhysics(),
             slivers: [
-              // 2. Premium Animated Header
-              _buildSliverAppBar(context, totalDrivers, activeNow, onLeave),
+              _buildSliverAppBar(context),
 
-              // 3. Main Content
+              // 3. STATS SECTION (Now separated from header)
+              SliverToBoxAdapter(
+                child: Container(
+                  margin: const EdgeInsets.fromLTRB(20, 20, 20, 10),
+                  padding: const EdgeInsets.symmetric(vertical: 20),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(25),
+                    boxShadow: [
+                      BoxShadow(
+                        color: leafGreen.withValues(alpha: 0.05),
+                        blurRadius: 15,
+                        offset: const Offset(0, 10),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      _headerStat("TOTAL STAFF", totalDrivers.toString(), leafGreen),
+                      _headerStat("ON-DUTY", activeNow.toString(), Colors.blue),
+                      _headerStat("LEAVE", onLeave.toString(), Colors.orange),
+                    ],
+                  ),
+                ),
+              ),
+
+              // 4. Main Content
               SliverPadding(
                 padding: const EdgeInsets.all(20),
                 sliver: SliverList(
                   delegate: SliverChildListDelegate([
-                    _sectionLabel("Verified Fleet Members"),
-                    const SizedBox(height: 10),
+                    _sectionLabel("Verified Team Members"),
+                    const SizedBox(height: 15),
 
                     // 4. Staggered List of Drivers
                     AnimationLimiter(
@@ -130,18 +156,15 @@ class _DriversStatusPageState extends State<DriversStatusPage> {
 
   Widget _buildSliverAppBar(
     BuildContext context,
-    int total,
-    int active,
-    int leave,
   ) {
     return SliverAppBar(
-      expandedHeight: 180.0,
+      expandedHeight: 120.0,
       pinned: true,
       elevation: 0,
       backgroundColor: Colors.white,
       centerTitle: true,
       title: const Text(
-        "Fleet Command Center",
+        "STAFF DIRECTORY",
         style: TextStyle(
           fontWeight: FontWeight.w900,
           fontSize: 16,
@@ -169,22 +192,8 @@ class _DriversStatusPageState extends State<DriversStatusPage> {
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: [
-                    Colors.white.withValues(alpha: 0.3),
                     Colors.white.withValues(alpha: 0.1),
-                    Colors.white.withValues(alpha: 0.5),
-                  ],
-                ),
-              ),
-            ),
-            Center(
-              child: Padding(
-                padding: const EdgeInsets.only(top: 40),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    _headerStat("TOTAL", total.toString()),
-                    _headerStat("ON-DUTY", active.toString()),
-                    _headerStat("LEAVE", leave.toString()),
+                    Colors.white.withValues(alpha: 0.8),
                   ],
                 ),
               ),
@@ -195,12 +204,12 @@ class _DriversStatusPageState extends State<DriversStatusPage> {
     );
   }
 
-  Widget _headerStat(String label, String val) => Column(
+  Widget _headerStat(String label, String val, Color color) => Column(
     children: [
       Text(
         val,
-        style: const TextStyle(
-          color: Colors.black87,
+        style: TextStyle(
+          color: color,
           fontSize: 28,
           fontWeight: FontWeight.w900,
         ),
@@ -211,6 +220,7 @@ class _DriversStatusPageState extends State<DriversStatusPage> {
           color: Colors.black54,
           fontSize: 9,
           fontWeight: FontWeight.bold,
+          letterSpacing: 1,
         ),
       ),
     ],

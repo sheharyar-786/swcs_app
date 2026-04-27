@@ -1,6 +1,9 @@
 import 'dart:async';
 import 'package:url_launcher/url_launcher.dart';
 import 'dart:ui' as ui;
+import 'dart:convert';
+import 'dart:io';
+import 'package:image_picker/image_picker.dart';
 import 'dart:math' show cos, sqrt, asin;
 import 'package:flutter/material.dart';
 import 'package:firebase_database/firebase_database.dart';
@@ -97,29 +100,29 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
           }
           Map driversData = snapshot.data!.snapshot.value as Map? ?? {};
           var activeDrivers = driversData.entries
-              .where((d) {
-                var val = d.value;
-                bool isPresent = val['attendance'] == 'Present';
-                bool isActive = val['status'] == 'active';
-                return isPresent && isActive;
-              })
               .map((d) {
-                double dLat =
-                    double.tryParse(d.value['lat']?.toString() ?? "0.0") ?? 0.0;
-                double dLng =
-                    double.tryParse(d.value['lng']?.toString() ?? "0.0") ?? 0.0;
+                var val = d.value;
+                double dLat = double.tryParse(val['lat']?.toString() ?? "0.0") ?? 0.0;
+                double dLng = double.tryParse(val['lng']?.toString() ?? "0.0") ?? 0.0;
+                double dist = _calculateDistance(binLat, binLng, dLat, dLng);
+                
                 return {
                   'uid': d.key,
-                  'name': d.value['name'] ?? "Driver",
-                  'distance': _calculateDistance(binLat, binLng, dLat, dLng),
+                  'name': val['name'] ?? "Driver",
+                  'distance': dist,
                   'hasLocation': dLat != 0.0 && dLng != 0.0,
+                  'isPresent': val['attendance'] == 'Present',
                 };
               })
               .toList();
-          activeDrivers.sort(
-            (a, b) =>
-                (a['distance'] as double).compareTo(b['distance'] as double),
-          );
+
+          // Sorting by distance - Closest on TOP
+          activeDrivers.sort((a, b) {
+            // Drivers without location go to bottom
+            if (!(a['hasLocation'] as bool) && (b['hasLocation'] as bool)) return 1;
+            if ((a['hasLocation'] as bool) && !(b['hasLocation'] as bool)) return -1;
+            return (a['distance'] as double).compareTo(b['distance'] as double);
+          });
 
           return Container(
             padding: const EdgeInsets.all(25),
@@ -150,29 +153,62 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
                                 borderRadius: BorderRadius.circular(15),
                               ),
                               child: ListTile(
-                                leading: CircleAvatar(
-                                  backgroundColor: isNearest
-                                      ? Colors.blue
-                                      : leafGreen,
-                                  child: const Icon(
-                                    Icons.delivery_dining,
-                                    color: Colors.white,
-                                  ),
+                                leading: Stack(
+                                  children: [
+                                    CircleAvatar(
+                                      backgroundColor: isNearest
+                                          ? Colors.blue
+                                          : leafGreen,
+                                      child: const Icon(
+                                        Icons.delivery_dining,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                    if (driver['isPresent'] == true)
+                                      Positioned(
+                                        right: 0,
+                                        bottom: 0,
+                                        child: Container(
+                                          width: 12,
+                                          height: 12,
+                                          decoration: BoxDecoration(
+                                            color: Colors.green,
+                                            shape: BoxShape.circle,
+                                            border: Border.all(color: Colors.white, width: 2),
+                                          ),
+                                        ),
+                                      ),
+                                  ],
                                 ),
-                                title: Text(
-                                  driver['name'].toString(),
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                  ),
+                                title: Row(
+                                  children: [
+                                    Text(
+                                      driver['name'].toString(),
+                                      style: const TextStyle(fontWeight: FontWeight.bold),
+                                    ),
+                                    if (isNearest && (driver['hasLocation'] as bool))
+                                      Container(
+                                        margin: const EdgeInsets.only(left: 8),
+                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: Colors.blue,
+                                          borderRadius: BorderRadius.circular(5),
+                                        ),
+                                        child: const Text(
+                                          "NEAREST",
+                                          style: TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold),
+                                        ),
+                                      ),
+                                  ],
                                 ),
                                 subtitle: Text(
                                   driver['hasLocation'] == true
                                       ? "${(driver['distance'] as double).toStringAsFixed(2)} km away"
                                       : "Location unavailable",
                                 ),
-                                trailing: const Icon(
+                                trailing: Icon(
                                   Icons.send_rounded,
-                                  color: leafGreen,
+                                  color: isNearest ? Colors.blue : leafGreen,
                                 ),
                                 onTap: () => _finalizeDuty(
                                   binId,
@@ -203,6 +239,22 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     if (!mounted) return;
     Navigator.pop(context);
     _msg("Duty Assigned to $name Successfully!", leafGreen);
+  }
+
+  Future<void> _pickProfileImage() async {
+    final picker = ImagePicker();
+    final image = await picker.pickImage(source: ImageSource.gallery, imageQuality: 50);
+    if (image == null) return;
+
+    File file = File(image.path);
+    String base64Image = base64Encode(file.readAsBytesSync());
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      await FirebaseDatabase.instance.ref('users/${user.uid}').update({
+        'profile_pic': "data:image/jpeg;base64,$base64Image",
+      });
+      _msg("Profile Picture Updated!", leafGreen);
+    }
   }
 
   @override
@@ -241,11 +293,11 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
                 ),
                 backgroundColor: leafGreen,
                 icon: const Icon(
-                  Icons.add_location_alt_rounded,
+                  Icons.delete_sweep_rounded,
                   color: Colors.white,
                 ),
                 label: const Text(
-                  "SETUP BIN",
+                  "ADD BIN",
                   style: TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.bold,
@@ -254,7 +306,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
               ),
             ],
           ),
-          drawer: _buildDrawer(activityMsg, bins, verifiedDrivers),
+          drawer: _buildDrawer(activityMsg, bins, verifiedDrivers, snapshotValue['users'] as Map? ?? {}),
           body: CustomScrollView(
             controller: _scrollController,
             physics: const BouncingScrollPhysics(),
@@ -326,8 +378,12 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildDrawer(String msg, Map bins, Map drivers) {
+  Widget _buildDrawer(String msg, Map bins, Map drivers, Map users) {
     final user = FirebaseAuth.instance.currentUser;
+    final userData = users[user?.uid] as Map? ?? {};
+    final userName = userData['name']?.toString() ?? "System Manager";
+    final profilePic = userData['profile_pic']?.toString();
+
     return Drawer(
       backgroundColor: Colors.white,
       child: Column(
@@ -350,22 +406,40 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
             ),
             child: Row(
               children: [
-                Container(
-                  padding: const EdgeInsets.all(3),
-                  decoration: const BoxDecoration(
-                    color: Colors.white,
-                    shape: BoxShape.circle,
-                  ),
-                  child: CircleAvatar(
-                    radius: 35,
-                    backgroundColor: softMint,
-                    child: Text(
-                      user?.email?.substring(0, 1).toUpperCase() ?? "M",
-                      style: const TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        color: leafGreen,
-                      ),
+                GestureDetector(
+                  onTap: _pickProfileImage,
+                  child: Container(
+                    padding: const EdgeInsets.all(3),
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                    ),
+                    child: CircleAvatar(
+                      radius: 35,
+                      backgroundColor: softMint,
+                      backgroundImage: profilePic != null
+                          ? (profilePic.startsWith('data:image')
+                              ? MemoryImage(base64Decode(profilePic.split(',').last)) as ImageProvider
+                              : NetworkImage(profilePic))
+                          : null,
+                      child: profilePic == null
+                          ? Text(
+                              userName.substring(0, 1).toUpperCase(),
+                              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: leafGreen),
+                            )
+                          : Stack(
+                              children: [
+                                Positioned(
+                                  bottom: 0,
+                                  right: 0,
+                                  child: Container(
+                                    padding: const EdgeInsets.all(4),
+                                    decoration: const BoxDecoration(color: leafGreen, shape: BoxShape.circle),
+                                    child: const Icon(Icons.edit, size: 12, color: Colors.white),
+                                  ),
+                                ),
+                              ],
+                            ),
                     ),
                   ),
                 ),
@@ -374,16 +448,12 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        "System Manager",
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.w900,
-                        ),
+                      Text(
+                        userName,
+                        style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900),
                       ),
                       Text(
-                        user?.email ?? "swcsproviders@gmail.com",
+                        user?.email ?? "manager@swcs.com",
                         style: TextStyle(
                           color: Colors.white.withValues(alpha: 0.8),
                           fontSize: 11,
@@ -401,7 +471,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: const Text(
-                          "VERIFIED ADMIN",
+                          "VERIFIED MANAGER",
                           style: TextStyle(
                             color: Colors.white,
                             fontSize: 8,
@@ -507,18 +577,6 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
                     );
                   },
                 ),
-                _drawerItem(
-                  "Cloud Analytics",
-                  Icons.cloud_done_rounded,
-                  Colors.blue,
-                  () {
-                    Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (c) => const AnalyticsPage()),
-                    );
-                  },
-                ),
 
                 const SizedBox(height: 10),
                 _drawerItem(
@@ -539,11 +597,11 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
           ListTile(
             onTap: _handleLogout,
             leading: const Icon(
-              Icons.power_settings_new_rounded,
+              Icons.logout_rounded,
               color: alertRed,
             ),
             title: const Text(
-              "TERMINATE SESSION",
+              "Logout",
               style: TextStyle(
                 color: alertRed,
                 fontWeight: FontWeight.w900,
@@ -567,45 +625,47 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: const Row(
           children: [
-            Icon(Icons.support_agent_rounded, color: Colors.purple),
+            Icon(Icons.mark_as_unread_rounded, color: leafGreen),
             SizedBox(width: 10),
             Text(
-              "Mission Support",
+              "Support Inbox",
               style: TextStyle(fontWeight: FontWeight.w900),
             ),
           ],
         ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              "Need technical assistance or want to report a system bug? Send a message to the High Command.",
-              style: TextStyle(fontSize: 11, color: Colors.grey),
-            ),
-            const SizedBox(height: 15),
-            TextField(
-              controller: _supportMsg,
-              maxLines: 4,
-              decoration: InputDecoration(
-                hintText: "Describe your issue...",
-                filled: true,
-                fillColor: Colors.grey.withValues(alpha: 0.1),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(15),
-                  borderSide: BorderSide.none,
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                "Need technical assistance or want to report a system bug? Send a message to the High Command.",
+                style: TextStyle(fontSize: 11, color: Colors.grey),
+              ),
+              const SizedBox(height: 15),
+              TextField(
+                controller: _supportMsg,
+                maxLines: 4,
+                decoration: InputDecoration(
+                  hintText: "Describe your issue...",
+                  filled: true,
+                  fillColor: Colors.grey.withValues(alpha: 0.1),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(15),
+                    borderSide: BorderSide.none,
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(c),
-            child: const Text("CANCEL"),
+            child: const Text("CANCEL", style: TextStyle(color: Colors.grey)),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.purple,
+              backgroundColor: leafGreen,
               shape: const StadiumBorder(),
             ),
             onPressed: () async {
@@ -639,7 +699,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
                   content: Text("Support Request Dispatched!"),
-                  backgroundColor: Colors.purple,
+                  backgroundColor: leafGreen,
                 ),
               );
             },
@@ -792,16 +852,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
         ),
         onPressed: () => _scaffoldKey.currentState?.openDrawer(),
       ),
-      actions: [
-        IconButton(
-          icon: const Icon(
-            Icons.logout_rounded,
-            size: 22,
-            color: Colors.black87,
-          ),
-          onPressed: _handleLogout,
-        ),
-      ],
+      actions: const [],
       flexibleSpace: FlexibleSpaceBar(
         background: Stack(
           fit: StackFit.expand,

@@ -250,10 +250,12 @@ class _BinRecordPageState extends State<BinRecordPage>
       ),
       child: TabBar(
         controller: _tabController,
+        indicatorSize: TabBarIndicatorSize.tab,
         indicator: BoxDecoration(
           color: leafGreen,
           borderRadius: BorderRadius.circular(14),
         ),
+        indicatorPadding: const EdgeInsets.symmetric(vertical: 5, horizontal: 8),
         labelColor: Colors.white,
         unselectedLabelColor: Colors.grey,
         labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),

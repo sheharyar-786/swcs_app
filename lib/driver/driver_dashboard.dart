@@ -185,7 +185,17 @@ class _DriverDashboardState extends State<DriverDashboard> {
 
               final data = snapshot.data?.snapshot.value as Map? ?? {};
               Map bins = data['bins'] ?? {};
+              Map driversMap = data['verified_drivers'] ?? {};
               final user = FirebaseAuth.instance.currentUser;
+
+              // --- REAL-TIME RANK CALCULATION ---
+              int realRank = 0;
+              if (user != null && driversMap.isNotEmpty) {
+                List<MapEntry> sorted = driversMap.entries.toList();
+                sorted.sort((a, b) => (b.value['points'] ?? 0).compareTo(a.value['points'] ?? 0));
+                int index = sorted.indexWhere((e) => e.key == user.uid);
+                realRank = index != -1 ? index + 1 : 0;
+              }
 
               // Filter bins specifically for this driver's current mission list
               var myRouteBins = bins.entries
@@ -205,7 +215,7 @@ class _DriverDashboardState extends State<DriverDashboard> {
                     padding: const EdgeInsets.all(20),
                     sliver: SliverList(
                       delegate: SliverChildListDelegate([
-                        _buildStatsRow(),
+                        _buildStatsRow(realRank),
                         const SizedBox(height: 25),
                         _sectionLabel("LIVE BIN PLACEMENTS", "📍"),
                         _buildMap(bins),
@@ -246,7 +256,7 @@ class _DriverDashboardState extends State<DriverDashboard> {
     backgroundColor: Colors.white,
     centerTitle: true,
     title: const Text(
-      "SWCS COMMANDER",
+      "DRIVER DASHBOARD",
       style: TextStyle(
         fontWeight: FontWeight.w900,
         fontSize: 16,
@@ -347,12 +357,12 @@ class _DriverDashboardState extends State<DriverDashboard> {
     ),
   );
 
-  Widget _buildStatsRow() {
-    String rank = "#0${(driverPoints ~/ 500) + 1}";
+  Widget _buildStatsRow(int rankValue) {
+    String rankStr = rankValue > 0 ? "#$rankValue" : "--";
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        _statItem("Rank", rank, Colors.blue),
+        _statItem("Rank", rankStr, Colors.blue),
         _statItem("My Points", "$driverPoints", Colors.orange),
         _statItem("Tasks Left", "$dutyCount", Colors.purple),
       ],
