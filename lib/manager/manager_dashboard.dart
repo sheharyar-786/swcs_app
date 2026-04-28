@@ -1014,37 +1014,37 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     crossAxisSpacing: 15,
     childAspectRatio: 1.3,
     children: [
-      _gridItem("City Map", "📍", Colors.blue, const LiveMapScreen(isReadOnly: true)),
-      _gridItem("Analytics", "📊", Colors.purple, const AnalyticsPage()),
+      _gridItem("City Map", Icons.map_rounded, Colors.blue, const LiveMapScreen(isReadOnly: true)),
+      _gridItem("Analytics", Icons.insights_rounded, Colors.purple, const AnalyticsPage()),
       _gridItem(
         "Schedule",
-        "📅",
+        Icons.calendar_today_rounded,
         Colors.orange,
         const ScheduleManagementPage(),
       ),
       _gridItem(
         "Approvals",
-        "✅",
+        Icons.verified_user_rounded,
         leafGreen,
         const DriverApprovalScreen(),
         badge: pCount,
       ),
       _gridItem(
         "History",
-        "📂",
+        Icons.history_edu_rounded,
         Colors.indigo,
         const CollectionHistoryPage(),
       ),
       _gridItem(
         "Drivers",
-        "👤",
+        Icons.people_alt_rounded,
         Colors.brown,
         DriversStatusPage(drivers: drivers),
       ),
     ],
   );
 
-  Widget _gridItem(String t, String e, Color c, Widget? p, {int badge = 0}) =>
+  Widget _gridItem(String t, IconData icon, Color c, Widget? p, {int badge = 0}) =>
       InkWell(
         onTap: p == null
             ? null
@@ -1061,23 +1061,31 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
                 borderRadius: BorderRadius.circular(25),
                 boxShadow: [
                   BoxShadow(
-                    color: c.withValues(alpha: 0.12),
-                    blurRadius: 15,
-                    offset: const Offset(0, 8),
+                    color: c.withValues(alpha: 0.1),
+                    blurRadius: 20,
+                    offset: const Offset(0, 10),
                   ),
                 ],
+                border: Border.all(color: c.withValues(alpha: 0.05)),
               ),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text(e, style: const TextStyle(fontSize: 32)),
-                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: c.withValues(alpha: 0.08),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(icon, color: c, size: 28),
+                  ),
+                  const SizedBox(height: 12),
                   Text(
                     t,
                     style: TextStyle(
                       fontWeight: FontWeight.w900,
-                      fontSize: 13,
-                      color: c.withValues(alpha: 0.8),
+                      fontSize: 12,
+                      color: Colors.black.withValues(alpha: 0.7),
                       letterSpacing: 0.5,
                     ),
                   ),
