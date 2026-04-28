@@ -14,7 +14,7 @@ class ReportCenter extends StatelessWidget {
         backgroundColor: const Color(0xFFF8FAF9),
         body: Column(
           children: [
-            /// Premium Header (Safe Design - Square)
+            /// Premium Header (Safe Design - Square - Exact Match with UniversalHeader)
             Container(
               height: 180,
               width: double.infinity,
@@ -57,7 +57,7 @@ class ReportCenter extends StatelessWidget {
                         ),
                         const Spacer(),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                          padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
                           decoration: BoxDecoration(
                             color: Colors.black.withOpacity(0.2),
                             borderRadius: BorderRadius.circular(12),
@@ -68,7 +68,7 @@ class ReportCenter extends StatelessWidget {
                             textAlign: TextAlign.center,
                             style: TextStyle(
                               color: Colors.white,
-                              fontSize: 13,
+                              fontSize: 12.5,
                               fontWeight: FontWeight.w900,
                               letterSpacing: 1.5,
                               shadows: [Shadow(color: Colors.black26, offset: Offset(0, 2), blurRadius: 4)],
