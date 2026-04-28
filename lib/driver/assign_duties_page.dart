@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'dart:ui' as ui;
 import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../manager/live_map_screen.dart';
 import '../manager/bin_utils.dart';
+import '../widgets/universal_header.dart';
 
 class AssignDutiesPage extends StatefulWidget {
   const AssignDutiesPage({super.key});
@@ -51,73 +51,30 @@ class _AssignDutiesPageState extends State<AssignDutiesPage>
       backgroundColor: const Color(0xFFF4F7F4),
       body: NestedScrollView(
         headerSliverBuilder: (context, innerBoxIsScrolled) => [
-          SliverAppBar(
-            expandedHeight: 180.0,
-            pinned: true,
-            backgroundColor: Colors.white,
-            elevation: 0,
-            centerTitle: true,
-            title: const Text(
-              "MISSION CONTROL",
-              style: TextStyle(
-                fontWeight: FontWeight.w900,
-                fontSize: 16,
-                color: Colors.black87,
-              ),
-            ),
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back, color: Colors.black87),
-              onPressed: () => Navigator.pop(context),
-            ),
-            flexibleSpace: FlexibleSpaceBar(
-              background: Stack(
-                fit: StackFit.expand,
-                children: [
-                  ImageFiltered(
-                    imageFilter: ui.ImageFilter.blur(sigmaX: 1.5, sigmaY: 1.5),
-                    child: Image.asset(
-                      'lib/assets/bg.jpeg',
-                      fit: BoxFit.cover,
-                    ),
-                  ),
-                  Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Colors.white.withValues(alpha: 0.3),
-                          Colors.white.withValues(alpha: 0.1),
-                          Colors.white.withValues(alpha: 0.5),
-                        ],
-                      ),
-                    ),
+          UniversalHeader(
+            title: "Mission Control",
+            showBackButton: true,
+          ),
+          SliverToBoxAdapter(
+            child: Container(
+              color: Colors.white.withValues(alpha: 0.8),
+              child: TabBar(
+                controller: _tabController,
+                indicatorColor: Colors.green,
+                indicatorWeight: 4,
+                labelColor: Colors.green,
+                unselectedLabelColor: Colors.black54,
+                labelStyle: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+                tabs: const [
+                  Tab(icon: Icon(Icons.calendar_month_rounded), text: "Collection"),
+                  Tab(
+                    icon: Icon(Icons.bolt_rounded),
+                    text: "Emergency",
                   ),
                 ],
-              ),
-            ),
-            bottom: PreferredSize(
-              preferredSize: const Size.fromHeight(48),
-              child: Container(
-                color: Colors.white.withValues(alpha: 0.8),
-                child: TabBar(
-                  controller: _tabController,
-                  indicatorColor: Colors.green,
-                  indicatorWeight: 4,
-                  labelColor: Colors.green,
-                  unselectedLabelColor: Colors.black54,
-                  labelStyle: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                  ),
-                  tabs: const [
-                    Tab(icon: Icon(Icons.calendar_month_rounded), text: "Collection"),
-                    Tab(
-                      icon: Icon(Icons.bolt_rounded),
-                      text: "Emergency",
-                    ),
-                  ],
-                ),
               ),
             ),
           ),

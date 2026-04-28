@@ -6,6 +6,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../auth/login_screen.dart';
 import 'nearby_bins_page.dart';
+import '../widgets/universal_header.dart';
 
 class CivillianPage extends StatefulWidget {
   const CivillianPage({super.key});
@@ -146,74 +147,14 @@ class _CivillianPageState extends State<CivillianPage> {
     );
   }
 
-  Widget _buildParallaxHeader() => SliverAppBar(
-    expandedHeight: 180.0,
-    pinned: true,
-    backgroundColor: Colors.white,
-    elevation: 0,
-    leading: IconButton(
-      icon: const Icon(Icons.logout_rounded, color: Colors.black87),
-      onPressed: () {
-        _logout(context);
-      },
-    ),
-    centerTitle: true,
-    title: const Text(
-      "SWCS CITIZEN HUB",
-      style: TextStyle(
-        fontWeight: FontWeight.w900,
-        fontSize: 16,
-        color: Colors.black87,
-        letterSpacing: 1.2,
+  Widget _buildParallaxHeader() => UniversalHeader(
+    title: "SWCS CITIZEN HUB",
+    actions: [
+      IconButton(
+        icon: const Icon(Icons.logout_rounded, color: Colors.white),
+        onPressed: () => _logout(context),
       ),
-    ),
-    flexibleSpace: FlexibleSpaceBar(
-      background: Stack(
-        fit: StackFit.expand,
-        children: [
-          ImageFiltered(
-            imageFilter: ui.ImageFilter.blur(sigmaX: 3, sigmaY: 3),
-            child: Image.asset('lib/assets/bg.jpeg', fit: BoxFit.cover),
-          ),
-          Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Colors.white.withValues(alpha: 0.3),
-                  Colors.white.withValues(alpha: 0.1),
-                  Colors.white.withValues(alpha: 0.5),
-                ],
-              ),
-            ),
-          ),
-          Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const SizedBox(height: 35),
-              Text(
-                "Welcome, $userName",
-                style: const TextStyle(
-                  color: Colors.black87,
-                  fontWeight: FontWeight.w900,
-                  fontSize: 22,
-                ),
-              ),
-              const Text(
-                "Sadiqabad Cleanliness Drive 🌿",
-                style: TextStyle(
-                  color: Colors.black54,
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 1,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    ),
+    ],
   );
 
   Widget _buildReportGrid() => Row(
@@ -542,48 +483,9 @@ class _ScheduleExplorerState extends State<ScheduleExplorer> {
       backgroundColor: const Color(0xFFF8FAF8),
       body: NestedScrollView(
         headerSliverBuilder: (context, innerBoxIsScrolled) => [
-          SliverAppBar(
-            expandedHeight: 180.0,
-            pinned: true,
-            elevation: 0,
-            backgroundColor: Colors.white,
-            centerTitle: true,
-            title: const Text(
-              "AREA EXPLORER",
-              style: TextStyle(
-                fontWeight: FontWeight.w900,
-                fontSize: 16,
-                color: Colors.black87,
-              ),
-            ),
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back, color: Colors.black87),
-              onPressed: () => Navigator.pop(context),
-            ),
-            flexibleSpace: FlexibleSpaceBar(
-              background: Stack(
-                fit: StackFit.expand,
-                children: [
-                  ImageFiltered(
-                    imageFilter: ui.ImageFilter.blur(sigmaX: 3, sigmaY: 3),
-                    child: Image.asset('lib/assets/bg.jpeg', fit: BoxFit.cover),
-                  ),
-                  Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Colors.white.withValues(alpha: 0.3),
-                          Colors.white.withValues(alpha: 0.1),
-                          Colors.white.withValues(alpha: 0.5),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+          UniversalHeader(
+            title: "Area Explorer",
+            showBackButton: true,
           ),
         ],
         body: Column(

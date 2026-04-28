@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import '../manager/bin_utils.dart';
+import '../widgets/universal_header.dart';
 
 class NearbyBinsPage extends StatefulWidget {
   const NearbyBinsPage({super.key});
@@ -20,47 +21,85 @@ class _NearbyBinsPageState extends State<NearbyBinsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF9FBF9),
-      body: Column(
-        children: [
-          _buildSearchHeader(),
-
-          Expanded(
-            child: StreamBuilder(
-              // Direct Firebase Stream taake Sensors ka data Live nazar aaye
-              stream: FirebaseDatabase.instance.ref('bins').onValue,
-              builder: (context, AsyncSnapshot<DatabaseEvent> snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return Center(
+      body: CustomScrollView(
+        slivers: [
+          UniversalHeader(
+            title: "Area Bin Explorer",
+            showBackButton: true,
+          ),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
+              child: Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.05),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: TextField(
+                  onChanged: (v) => setState(() => binSearchQuery = v),
+                  decoration: InputDecoration(
+                    hintText: "Enter your area name...",
+                    prefixIcon: Icon(Icons.location_on_rounded, color: leafGreen),
+                    filled: true,
+                    fillColor: Colors.white,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(20),
+                      borderSide: BorderSide.none,
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(vertical: 15),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          StreamBuilder(
+            // Direct Firebase Stream taake Sensors ka data Live nazar aaye
+            stream: FirebaseDatabase.instance.ref('bins').onValue,
+            builder: (context, AsyncSnapshot<DatabaseEvent> snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return SliverFillRemaining(
+                  child: Center(
                     child: CircularProgressIndicator(color: leafGreen),
-                  );
-                }
+                  ),
+                );
+              }
 
-                if (!snapshot.hasData ||
-                    snapshot.data!.snapshot.value == null) {
-                  return _buildNoDataState(
+              if (!snapshot.hasData ||
+                  snapshot.data!.snapshot.value == null) {
+                return SliverFillRemaining(
+                  child: _buildNoDataState(
                     "No bins connected to the system.",
-                  );
-                }
+                  ),
+                );
+              }
 
-                Map bins = snapshot.data!.snapshot.value as Map;
+              Map bins = snapshot.data!.snapshot.value as Map;
 
-                // Filtering Logic based on Area Name
-                var filteredList = bins.entries.where((e) {
-                  String area = BinData.area(e.value).toLowerCase();
-                  return area.contains(binSearchQuery.toLowerCase());
-                }).toList();
+              // Filtering Logic based on Area Name
+              var filteredList = bins.entries.where((e) {
+                String area = BinData.area(e.value).toLowerCase();
+                return area.contains(binSearchQuery.toLowerCase());
+              }).toList();
 
-                if (filteredList.isEmpty) {
-                  return _buildNoDataState(
+              if (filteredList.isEmpty) {
+                return SliverFillRemaining(
+                  child: _buildNoDataState(
                     "No bins found in '$binSearchQuery'",
-                  );
-                }
+                  ),
+                );
+              }
 
-                return AnimationLimiter(
-                  child: ListView.builder(
-                    padding: const EdgeInsets.all(20),
-                    itemCount: filteredList.length,
-                    itemBuilder: (context, index) {
+              return SliverPadding(
+                padding: const EdgeInsets.all(20),
+                sliver: SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    (context, index) {
                       var bin = filteredList[index];
                       return AnimationConfiguration.staggeredList(
                         position: index,
@@ -78,104 +117,17 @@ class _NearbyBinsPageState extends State<NearbyBinsPage> {
                         ),
                       );
                     },
+                    childCount: filteredList.length,
                   ),
-                );
-              },
-            ),
+                ),
+              );
+            },
           ),
         ],
       ),
     );
   }
 
-  Widget _buildSearchHeader() {
-    return Container(
-      width: double.infinity,
-      height: 180,
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.only(
-          bottomLeft: Radius.circular(35),
-          bottomRight: Radius.circular(35),
-        ),
-      ),
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          ClipRRect(
-            borderRadius: const BorderRadius.only(
-              bottomLeft: Radius.circular(35),
-              bottomRight: Radius.circular(35),
-            ),
-            child: ImageFiltered(
-              imageFilter: ui.ImageFilter.blur(sigmaX: 1.5, sigmaY: 1.5),
-              child: Image.asset(
-                'lib/assets/bg.jpeg',
-                fit: BoxFit.cover,
-              ),
-            ),
-          ),
-          Container(
-            decoration: BoxDecoration(
-              borderRadius: const BorderRadius.only(
-                bottomLeft: Radius.circular(35),
-                bottomRight: Radius.circular(35),
-              ),
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Colors.white.withValues(alpha: 0.3),
-                  Colors.white.withValues(alpha: 0.1),
-                  Colors.white.withValues(alpha: 0.5),
-                ],
-              ),
-            ),
-          ),
-          Positioned(
-            top: 40,
-            left: 10,
-            child: IconButton(
-              icon: const Icon(Icons.arrow_back, color: Colors.black87),
-              onPressed: () => Navigator.pop(context),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const SizedBox(height: 20),
-                const Text(
-                  "AREA BIN EXPLORER",
-                  style: TextStyle(
-                    color: Colors.black87,
-                    fontWeight: FontWeight.w900,
-                    fontSize: 16,
-                  ),
-                ),
-                const SizedBox(height: 15),
-                TextField(
-                  onChanged: (v) => setState(() => binSearchQuery = v),
-                  decoration: InputDecoration(
-                    hintText: "Enter your area name...",
-                    prefixIcon: Icon(Icons.location_on_rounded, color: leafGreen),
-                    filled: true,
-                    fillColor: Colors.white,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(20),
-                      borderSide: BorderSide.none,
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(vertical: 15),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
   Widget _buildSensorCard({
     required String binId,

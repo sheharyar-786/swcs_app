@@ -43,6 +43,7 @@ class BinData {
             ? data['metadata']['area']?.toString()
             : null) ??
         data['area']?.toString() ??
+        data['area_name']?.toString() ??
         "Unknown Location";
   }
 

@@ -6,6 +6,8 @@ import 'package:geolocator/geolocator.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 
+import '../widgets/universal_header.dart';
+
 class AddBinPage extends StatefulWidget {
   const AddBinPage({super.key});
 
@@ -264,11 +266,14 @@ class _AddBinPageState extends State<AddBinPage> {
           ? const Center(
               child: CircularProgressIndicator(color: Color(0xFF0A714E)),
             )
-          : SingleChildScrollView(
-              child: Column(
-                children: [
-                  _buildStatusHeader(nextBinId),
-                  Padding(
+          : CustomScrollView(
+              slivers: [
+                UniversalHeader(
+                  title: "BIN-${nextBinId.toString().padLeft(3, '0')}",
+                  showBackButton: true,
+                ),
+                SliverToBoxAdapter(
+                  child: Padding(
                     padding: const EdgeInsets.all(20),
                     child: Column(
                       children: [
@@ -367,90 +372,17 @@ class _AddBinPageState extends State<AddBinPage> {
                         ),
                         const SizedBox(height: 25),
                         _buildSubmitButton(),
+                        const SizedBox(height: 50),
                       ],
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
     );
   }
 
-  // Styling UI Methods (Wahi purana design jo aap ne diya tha)
-  Widget _buildStatusHeader(int nextBinId) {
-    return Container(
-      width: double.infinity,
-      height: 200,
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(bottom: Radius.circular(35)),
-      ),
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          ClipRRect(
-            borderRadius:
-                const BorderRadius.vertical(bottom: Radius.circular(35)),
-            child: ImageFiltered(
-              imageFilter: ui.ImageFilter.blur(sigmaX: 1.5, sigmaY: 1.5),
-              child: Image.asset('lib/assets/bg.jpeg', fit: BoxFit.cover),
-            ),
-          ),
-          Container(
-            decoration: BoxDecoration(
-              borderRadius:
-                  const BorderRadius.vertical(bottom: Radius.circular(35)),
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Colors.white.withValues(alpha: 0.3),
-                  Colors.white.withValues(alpha: 0.1),
-                  Colors.white.withValues(alpha: 0.6),
-                ],
-              ),
-            ),
-          ),
-          Positioned(
-            top: 45,
-            left: 15,
-            child: CircleAvatar(
-              backgroundColor: Colors.white.withValues(alpha: 0.5),
-              child: IconButton(
-                icon: const Icon(Icons.arrow_back, color: Colors.black87),
-                onPressed: () => Navigator.pop(context),
-              ),
-            ),
-          ),
-          Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const SizedBox(height: 30),
-              const Text(
-                "IoT DEPLOYMENT HUB",
-                style: TextStyle(
-                  color: Colors.black54,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 2,
-                ),
-              ),
-              const SizedBox(height: 5),
-              Text(
-                "BIN-${nextBinId.toString().padLeft(3, '0')}",
-                style: const TextStyle(
-                  color: Colors.black87,
-                  fontSize: 32,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: -1,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
+
 
   Widget _buildStepCard(
     String num,

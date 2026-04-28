@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:intl/intl.dart';
 import 'bin_utils.dart';
+import '../widgets/universal_header.dart';
 
 class BinRecordPage extends StatefulWidget {
   final String binId;
@@ -92,11 +93,15 @@ class _BinRecordPageState extends State<BinRecordPage>
                 avgFillAtCollection = sum / records.length;
               }
 
-              return Column(
-                children: [
-                  _buildHeader(context),
-                  _buildTabBar(),
-                  Expanded(
+              return CustomScrollView(
+                slivers: [
+                  UniversalHeader(
+                    title: widget.binId.toUpperCase(),
+                    subtitle: widget.area,
+                    showBackButton: true,
+                  ),
+                  SliverToBoxAdapter(child: _buildTabBar()),
+                  SliverFillRemaining(
                     child: TabBarView(
                       controller: _tabController,
                       children: [
@@ -149,90 +154,6 @@ class _BinRecordPageState extends State<BinRecordPage>
   }
 
 
-  // ─── HEADER ──────────────────────────────────────────────────────────────
-  Widget _buildHeader(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      height: 200,
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(bottom: Radius.circular(35)),
-      ),
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          ClipRRect(
-            borderRadius:
-                const BorderRadius.vertical(bottom: Radius.circular(35)),
-            child: ImageFiltered(
-              imageFilter: ui.ImageFilter.blur(sigmaX: 1.5, sigmaY: 1.5),
-              child:
-                  Image.asset('lib/assets/bg.jpeg', fit: BoxFit.cover),
-            ),
-          ),
-          Container(
-            decoration: BoxDecoration(
-              borderRadius:
-                  const BorderRadius.vertical(bottom: Radius.circular(35)),
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Colors.white.withValues(alpha: 0.3),
-                  Colors.white.withValues(alpha: 0.1),
-                  Colors.white.withValues(alpha: 0.6),
-                ],
-              ),
-            ),
-          ),
-          Positioned(
-            top: 45,
-            left: 15,
-            child: CircleAvatar(
-              backgroundColor: Colors.white.withValues(alpha: 0.5),
-              child: IconButton(
-                icon: const Icon(Icons.arrow_back, color: Colors.black87),
-                onPressed: () => Navigator.pop(context),
-              ),
-            ),
-          ),
-          Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const SizedBox(height: 30),
-              const Text(
-                "BIN PERFORMANCE RECORD",
-                style: TextStyle(
-                  color: Colors.black54,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 2,
-                ),
-              ),
-              const SizedBox(height: 5),
-              Text(
-                widget.binId.toUpperCase(),
-                style: const TextStyle(
-                  color: Colors.black87,
-                  fontSize: 28,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: -1,
-                ),
-              ),
-              Text(
-                widget.area,
-                style: const TextStyle(
-                  color: Colors.black54,
-                  fontSize: 13,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
 
   // ─── TAB BAR ─────────────────────────────────────────────────────────────
   Widget _buildTabBar() {

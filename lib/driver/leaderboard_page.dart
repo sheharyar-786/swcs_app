@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:ui' as ui;
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
+import '../widgets/universal_header.dart';
 
 const Color leafGreen = Color(0xFF0A714E);
 
@@ -82,50 +83,10 @@ class LeaderboardPage extends StatelessWidget {
   }
 
   Widget _buildSliverAppBar(BuildContext context) {
-    return SliverAppBar(
+    return const UniversalHeader(
+      title: "SWCS LEADERBOARD",
+      showBackButton: true,
       expandedHeight: 120.0,
-      pinned: true,
-      elevation: 0,
-      backgroundColor: Colors.white,
-      centerTitle: true,
-      title: const Text(
-        "SWCS LEADERBOARD",
-        style: TextStyle(
-          fontWeight: FontWeight.w900,
-          fontSize: 16,
-          color: Colors.black87,
-        ),
-      ),
-      leading: IconButton(
-        icon: const Icon(Icons.arrow_back, color: Colors.black87),
-        onPressed: () => Navigator.pop(context),
-      ),
-      flexibleSpace: FlexibleSpaceBar(
-        background: Stack(
-          fit: StackFit.expand,
-          children: [
-            ImageFiltered(
-              imageFilter: ui.ImageFilter.blur(sigmaX: 1.5, sigmaY: 1.5),
-              child: Image.asset(
-                'lib/assets/bg.jpeg',
-                fit: BoxFit.cover,
-              ),
-            ),
-            Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.white.withValues(alpha: 0.1),
-                    Colors.white.withValues(alpha: 0.8),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 

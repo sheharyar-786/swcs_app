@@ -1,25 +1,35 @@
 import 'package:flutter/material.dart';
 import 'dart:ui' as ui;
 
-class AdminHeader extends StatelessWidget {
+class UniversalHeader extends StatelessWidget {
   final String title;
+  final String? subtitle;
   final bool showBackButton;
+  final bool showMenuButton;
+  final VoidCallback? onMenuPressed;
   final List<Widget>? actions;
+  final double expandedHeight;
+  final Color baseColor;
 
-  const AdminHeader({
+  const UniversalHeader({
     super.key,
     required this.title,
+    this.subtitle,
     this.showBackButton = false,
+    this.showMenuButton = false,
+    this.onMenuPressed,
     this.actions,
+    this.expandedHeight = 180.0,
+    this.baseColor = const Color(0xFF0A714E), // Default premium green
   });
 
   @override
   Widget build(BuildContext context) {
     return SliverAppBar(
-      expandedHeight: 180.0,
+      expandedHeight: expandedHeight,
       pinned: true,
       stretch: true,
-      backgroundColor: const Color(0xFF0A714E), // Dark Green when collapsed
+      backgroundColor: baseColor,
       elevation: 0,
       automaticallyImplyLeading: false,
       leading: showBackButton
@@ -31,7 +41,16 @@ class AdminHeader extends StatelessWidget {
               ),
               onPressed: () => Navigator.pop(context),
             )
-          : null,
+          : (showMenuButton
+              ? IconButton(
+                  icon: const Icon(
+                    Icons.menu_rounded,
+                    color: Colors.white,
+                    size: 24,
+                  ),
+                  onPressed: onMenuPressed,
+                )
+              : null),
       actions: actions,
       centerTitle: true,
       flexibleSpace: FlexibleSpaceBar(
@@ -54,21 +73,40 @@ class AdminHeader extends StatelessWidget {
             borderRadius: BorderRadius.circular(12),
             child: BackdropFilter(
               filter: ui.ImageFilter.blur(sigmaX: 5, sigmaY: 5),
-              child: Text(
-                title.toUpperCase(),
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 1.5,
-                  shadows: [
-                    Shadow(
-                      color: Colors.black26,
-                      offset: Offset(0, 2),
-                      blurRadius: 4,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    title.toUpperCase(),
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 1.5,
+                      shadows: [
+                        Shadow(
+                          color: Colors.black26,
+                          offset: Offset(0, 2),
+                          blurRadius: 4,
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (subtitle != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle!,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.8),
+                        fontSize: 8,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.5,
+                      ),
                     ),
                   ],
-                ),
+                ],
               ),
             ),
           ),
@@ -76,12 +114,10 @@ class AdminHeader extends StatelessWidget {
         background: Stack(
           fit: StackFit.expand,
           children: [
-            // Base Background Image - NOW CLEAR
             Image.asset(
               'lib/assets/bg.jpeg',
               fit: BoxFit.cover,
             ),
-            // Subtle Gradient Overlay for general contrast
             Container(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
@@ -90,7 +126,7 @@ class AdminHeader extends StatelessWidget {
                   colors: [
                     Colors.black.withValues(alpha: 0.3),
                     Colors.transparent,
-                    const Color(0xFF0A714E).withValues(alpha: 0.4),
+                    baseColor.withValues(alpha: 0.4),
                   ],
                 ),
               ),

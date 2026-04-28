@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:firebase_database/firebase_database.dart';
+import '../widgets/universal_header.dart';
 
 class DriversStatusPage extends StatefulWidget {
   final Map drivers;
@@ -59,150 +60,121 @@ class _DriversStatusPageState extends State<DriversStatusPage> {
             ),
           ),
 
-          CustomScrollView(
-            physics: const BouncingScrollPhysics(),
-            slivers: [
-              _buildSliverAppBar(context),
+          StreamBuilder(
+            stream: FirebaseDatabase.instance.ref('verified_drivers').onValue,
+            builder: (context, snapshot) {
+              if (snapshot.hasData && snapshot.data!.snapshot.value != null) {
+                _localDrivers = snapshot.data!.snapshot.value as Map;
+              }
+              
+              // Analytics Calculations
+              int totalDrivers = _localDrivers.length;
+              int activeNow = _localDrivers.values
+                  .where((d) => d['attendance'] == "Present")
+                  .length;
+              int onLeave = totalDrivers - activeNow;
 
-              // 3. STATS SECTION (Now separated from header)
-              SliverToBoxAdapter(
-                child: Container(
-                  margin: const EdgeInsets.fromLTRB(20, 20, 20, 10),
-                  padding: const EdgeInsets.symmetric(vertical: 20),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(25),
-                    boxShadow: [
-                      BoxShadow(
-                        color: leafGreen.withValues(alpha: 0.05),
-                        blurRadius: 15,
-                        offset: const Offset(0, 10),
+              return CustomScrollView(
+                physics: const BouncingScrollPhysics(),
+                slivers: [
+                  UniversalHeader(
+                    title: "Staff Directory",
+                    showBackButton: true,
+                  ),
+
+                  // 3. STATS SECTION
+                  SliverToBoxAdapter(
+                    child: Container(
+                      margin: const EdgeInsets.fromLTRB(20, 20, 20, 10),
+                      padding: const EdgeInsets.symmetric(vertical: 20),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(25),
+                        boxShadow: [
+                          BoxShadow(
+                            color: leafGreen.withValues(alpha: 0.05),
+                            blurRadius: 15,
+                            offset: const Offset(0, 10),
+                          ),
+                        ],
                       ),
-                    ],
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: [
+                          _headerStat("TOTAL STAFF", totalDrivers.toString(), leafGreen),
+                          _headerStat("ON-DUTY", activeNow.toString(), Colors.blue),
+                          _headerStat("LEAVE", onLeave.toString(), Colors.orange),
+                        ],
+                      ),
+                    ),
                   ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      _headerStat("TOTAL STAFF", totalDrivers.toString(), leafGreen),
-                      _headerStat("ON-DUTY", activeNow.toString(), Colors.blue),
-                      _headerStat("LEAVE", onLeave.toString(), Colors.orange),
-                    ],
-                  ),
-                ),
-              ),
 
-              // 4. Main Content
-              SliverPadding(
-                padding: const EdgeInsets.all(20),
-                sliver: SliverList(
-                  delegate: SliverChildListDelegate([
-                    _sectionLabel("Verified Team Members"),
-                    const SizedBox(height: 15),
+                  // 4. Main Content
+                  SliverPadding(
+                    padding: const EdgeInsets.all(20),
+                    sliver: SliverList(
+                      delegate: SliverChildListDelegate([
+                        _sectionLabel("Verified Team Members"),
+                        const SizedBox(height: 15),
 
-                    // 4. Staggered List of Drivers
-                    AnimationLimiter(
-                      child: Column(
-                        children: _localDrivers.entries.map((entry) {
-                          int index = _localDrivers.keys.toList().indexOf(entry.key);
-                          return AnimationConfiguration.staggeredList(
-                            position: index,
-                            duration: const Duration(milliseconds: 500),
-                            child: SlideAnimation(
-                              verticalOffset: 50.0,
-                              child: FadeInAnimation(
-                                child: _buildDriverCard(
-                                  context,
-                                  entry.key,
-                                  entry.value,
+                        // 4. Staggered List of Drivers
+                        AnimationLimiter(
+                          child: Column(
+                            children: _localDrivers.entries.map((entry) {
+                              int index = _localDrivers.keys.toList().indexOf(entry.key);
+                              return AnimationConfiguration.staggeredList(
+                                position: index,
+                                duration: const Duration(milliseconds: 500),
+                                child: SlideAnimation(
+                                  verticalOffset: 50.0,
+                                  child: FadeInAnimation(
+                                    child: _buildDriverCard(
+                                      context,
+                                      entry.key,
+                                      entry.value,
+                                    ),
+                                  ),
                                 ),
+                              );
+                            }).toList(),
+                          ),
+                        ),
+                        const SizedBox(height: 30),
+                        Center(
+                          child: ElevatedButton.icon(
+                            onPressed: () => _showExportPreview(context),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: premiumNavy,
+                              padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(20),
                               ),
                             ),
-                          );
-                        }).toList(),
-                      ),
-                    ),
-                    const SizedBox(height: 30),
-                    Center(
-                      child: ElevatedButton.icon(
-                        onPressed: () => _showExportPreview(context),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: premiumNavy,
-                          padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(20),
+                            icon: const Icon(Icons.table_view_rounded, color: Colors.white),
+                            label: const Text(
+                              "GENERATE XL REPORT",
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                              ),
+                            ),
                           ),
                         ),
-                        icon: const Icon(Icons.table_view_rounded, color: Colors.white),
-                        label: const Text(
-                          "GENERATE XL REPORT",
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ),
+                        const SizedBox(height: 50),
+                      ]),
                     ),
-                    const SizedBox(height: 50),
-                  ]),
-                ),
-              ),
-            ],
+                  ),
+                ],
+              );
+            },
           ),
         ],
       ),
     );
   }
 
-  Widget _buildSliverAppBar(
-    BuildContext context,
-  ) {
-    return SliverAppBar(
-      expandedHeight: 120.0,
-      pinned: true,
-      elevation: 0,
-      backgroundColor: Colors.white,
-      centerTitle: true,
-      title: const Text(
-        "STAFF DIRECTORY",
-        style: TextStyle(
-          fontWeight: FontWeight.w900,
-          fontSize: 16,
-          color: Colors.black87,
-        ),
-      ),
-      leading: IconButton(
-        icon: const Icon(Icons.arrow_back, color: Colors.black87),
-        onPressed: () => Navigator.pop(context),
-      ),
-      flexibleSpace: FlexibleSpaceBar(
-        background: Stack(
-          fit: StackFit.expand,
-          children: [
-            ImageFiltered(
-              imageFilter: ui.ImageFilter.blur(sigmaX: 1.5, sigmaY: 1.5),
-              child: Image.asset(
-                'lib/assets/bg.jpeg',
-                fit: BoxFit.cover,
-              ),
-            ),
-            Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.white.withValues(alpha: 0.1),
-                    Colors.white.withValues(alpha: 0.8),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+
 
   Widget _headerStat(String label, String val, Color color) => Column(
     children: [
@@ -234,7 +206,7 @@ class _DriversStatusPageState extends State<DriversStatusPage> {
     String leaveStatus = data['leave_status']?.toString() ?? "Pending";
 
     return GestureDetector(
-      onTap: () => _openDriverDetails(context, data),
+      onTap: () => _openDriverDetails(context, uid, data),
       child: Container(
         margin: const EdgeInsets.only(bottom: 15),
         padding: const EdgeInsets.all(15),
@@ -463,75 +435,86 @@ void _updateLeaveStatus(String uid, String status) async {
     ),
   );
 
-  void _openDriverDetails(BuildContext context, dynamic data) {
+  void _openDriverDetails(BuildContext context, String uid, dynamic initialData) {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(30),
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(35)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Colors.grey[300],
-                borderRadius: BorderRadius.circular(10),
-              ),
+      isScrollControlled: true,
+      builder: (context) => StreamBuilder(
+        stream: FirebaseDatabase.instance.ref('verified_drivers/$uid').onValue,
+        builder: (context, snapshot) {
+          var data = initialData;
+          if (snapshot.hasData && snapshot.data!.snapshot.value != null) {
+            data = snapshot.data!.snapshot.value as Map;
+          }
+
+          return Container(
+            padding: const EdgeInsets.all(30),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(35)),
             ),
-            const SizedBox(height: 20),
-            Text(
-              data['name'].toString().toUpperCase(),
-              style: const TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w900,
-                color: deepForest,
-              ),
-            ),
-            const Divider(height: 30),
-            _detailRow(
-              Icons.email_outlined,
-              "Email Address",
-              data['email'] ?? "N/A",
-            ),
-            _detailRow(
-              Icons.local_shipping_outlined,
-              "Assigned Vehicle",
-              data['vehicleId'] ?? "Not Assigned",
-            ),
-            _detailRow(
-              Icons.location_on_outlined,
-              "Assigned Area",
-              data['area'] ?? "Sector Global",
-            ),
-            _detailRow(
-              Icons.analytics_outlined,
-              "Total Collections",
-              "${data['total_collections'] ?? 0} Bins",
-            ),
-            const SizedBox(height: 20),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: leafGreen,
-                shape: const StadiumBorder(),
-                minimumSize: const Size(double.infinity, 50),
-              ),
-              onPressed: () => Navigator.pop(context),
-              child: const Text(
-                "CLOSE PROFILE",
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(10),
+                  ),
                 ),
-              ),
+                const SizedBox(height: 20),
+                Text(
+                  data['name'].toString().toUpperCase(),
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w900,
+                    color: deepForest,
+                  ),
+                ),
+                const Divider(height: 30),
+                _detailRow(
+                  Icons.email_outlined,
+                  "Email Address",
+                  data['email'] ?? "N/A",
+                ),
+                _detailRow(
+                  Icons.local_shipping_outlined,
+                  "Assigned Vehicle",
+                  data['vehicleId'] ?? "Not Assigned",
+                ),
+                _detailRow(
+                  Icons.location_on_outlined,
+                  "Assigned Area",
+                  data['area'] ?? "Sector Global",
+                ),
+                _detailRow(
+                  Icons.analytics_outlined,
+                  "Total Collections",
+                  "${data['total_collections'] ?? 0} Bins",
+                ),
+                const SizedBox(height: 20),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: leafGreen,
+                    shape: const StadiumBorder(),
+                    minimumSize: const Size(double.infinity, 50),
+                  ),
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text(
+                    "CLOSE PROFILE",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }

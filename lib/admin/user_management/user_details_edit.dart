@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:ui' as ui;
 import 'package:firebase_database/firebase_database.dart';
 import 'package:animate_do/animate_do.dart';
-import '../../widgets/admin_header.dart';
+import '../../widgets/universal_header.dart';
 
 class UserDetailsEdit extends StatefulWidget {
   final String uid;
@@ -34,7 +34,7 @@ class _UserDetailsEditState extends State<UserDetailsEdit> {
       backgroundColor: const Color(0xFFF8FAF9),
       body: CustomScrollView(
         slivers: [
-          AdminHeader(
+          UniversalHeader(
             title: "Manage Profile",
             showBackButton: true,
           ),

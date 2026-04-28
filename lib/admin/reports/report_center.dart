@@ -3,7 +3,7 @@ import 'dart:ui' as ui;
 import 'package:firebase_database/firebase_database.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:intl/intl.dart';
-import '../../widgets/admin_header.dart';
+import '../../widgets/universal_header.dart';
 
 class ReportCenter extends StatelessWidget {
   final Stream<DatabaseEvent> globalStream;
@@ -35,7 +35,7 @@ class ReportCenter extends StatelessWidget {
             length: 2,
             child: NestedScrollView(
               headerSliverBuilder: (context, innerBoxIsScrolled) => [
-                AdminHeader(title: "Complaints", showBackButton: true),
+                UniversalHeader(title: "Complaints", showBackButton: true),
                 SliverToBoxAdapter(child: _buildStatementBar()),
                 SliverPersistentHeader(
                   pinned: true,

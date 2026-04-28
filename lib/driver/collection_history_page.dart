@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'dart:ui' as ui;
 import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
+import '../widgets/universal_header.dart';
 
 class CollectionHistoryPage extends StatelessWidget {
   const CollectionHistoryPage({super.key});
@@ -15,24 +15,9 @@ class CollectionHistoryPage extends StatelessWidget {
       backgroundColor: const Color(0xFFF8FAF8),
       body: CustomScrollView(
         slivers: [
-          SliverAppBar(
-            expandedHeight: 80.0,
-            pinned: true,
-            backgroundColor: Colors.white,
-            elevation: 0,
-            centerTitle: true,
-            title: const Text(
-              "COLLECTION LOGS",
-              style: TextStyle(
-                fontWeight: FontWeight.w900,
-                fontSize: 16,
-                color: Color(0xFF0A714E),
-              ),
-            ),
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back, color: Color(0xFF0A714E)),
-              onPressed: () => Navigator.pop(context),
-            ),
+          UniversalHeader(
+            title: "Collection Logs",
+            showBackButton: true,
           ),
           if (uid != null) SliverToBoxAdapter(child: _buildHeaderStats(uid)),
           SliverFillRemaining(

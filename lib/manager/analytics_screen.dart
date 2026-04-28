@@ -1,13 +1,11 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'dart:ui' as ui;
 import 'package:firebase_database/firebase_database.dart';
-import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import 'bin_details.dart';
 import 'bin_utils.dart';
-
 import '../widgets/seven_day_trend_chart.dart';
+import '../widgets/universal_header.dart';
 
 class AnalyticsPage extends StatefulWidget {
   const AnalyticsPage({super.key});
@@ -23,7 +21,9 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
   static const Color softMint = Color(0xFFE8F5E9);
 
   Map<String, dynamic> binData = {};
+  int reportsCount = 0;
   late StreamSubscription _binsSubscription;
+  late StreamSubscription _reportsSubscription;
 
   @override
   void initState() {
@@ -37,11 +37,22 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
         });
       }
     });
+
+    _reportsSubscription = FirebaseDatabase.instance.ref('citizen_reports').onValue.listen((event) {
+      if (event.snapshot.exists) {
+        setState(() {
+          reportsCount = (event.snapshot.value as Map).length;
+        });
+      } else {
+        setState(() => reportsCount = 0);
+      }
+    });
   }
 
   @override
   void dispose() {
     _binsSubscription.cancel();
+    _reportsSubscription.cancel();
     super.dispose();
   }
 
@@ -67,8 +78,10 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
           CustomScrollView(
             physics: const BouncingScrollPhysics(),
             slivers: [
-              // 1. BEAUTIFUL PROFESSIONAL HEADER
-              _buildSliverAppBar(totalBins, criticalBins),
+              UniversalHeader(
+                title: "System Analytics",
+                showBackButton: true,
+              ),
 
               SliverToBoxAdapter(
                 child: AnimationLimiter(
@@ -118,7 +131,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
 
                           // 3. SUMMARY CARDS
                           _sectionLabel("Quick Metrics"),
-                          _buildQuickMetrics(totalBins, criticalBins),
+                          _buildQuickMetrics(totalBins, criticalBins, reportsCount),
 
                           const SizedBox(height: 25),
 
@@ -149,68 +162,30 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
   }
 
 
-  Widget _buildSliverAppBar(int total, int critical) {
-    return SliverAppBar(
-      expandedHeight: 180.0,
-      floating: false,
-      pinned: true,
-      elevation: 0,
-      backgroundColor: Colors.white,
-      centerTitle: true,
-      title: const Text(
-        "SYSTEM ANALYTICS",
-        style: TextStyle(
-          fontWeight: FontWeight.w900,
-          fontSize: 16,
-          color: Colors.black87,
-        ),
-      ),
-      leading: IconButton(
-        icon: const Icon(Icons.arrow_back, color: Colors.black87),
-        onPressed: () => Navigator.pop(context),
-      ),
-      flexibleSpace: FlexibleSpaceBar(
-        background: Stack(
-          fit: StackFit.expand,
-          children: [
-            ImageFiltered(
-              imageFilter: ui.ImageFilter.blur(sigmaX: 1.5, sigmaY: 1.5),
-              child: Image.asset('lib/assets/bg.jpeg', fit: BoxFit.cover),
-            ),
-            Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.white.withValues(alpha: 0.3),
-                    Colors.white.withValues(alpha: 0.1),
-                    Colors.white.withValues(alpha: 0.5),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
-  Widget _buildQuickMetrics(int total, int critical) {
+
+  Widget _buildQuickMetrics(int total, int critical, int reports) {
     return Row(
       children: [
         _buildStatCard(
-          "Total Units",
+          "Total Bins",
           total.toString(),
           Icons.sensors,
           Colors.blue,
         ),
-        const SizedBox(width: 15),
+        const SizedBox(width: 10),
         _buildStatCard(
-          "Action Required",
+          "Critical",
           critical.toString(),
           Icons.warning_rounded,
           alertRed,
+        ),
+        const SizedBox(width: 10),
+        _buildStatCard(
+          "Reports",
+          reports.toString(),
+          Icons.chat_bubble_outline_rounded,
+          Colors.orange,
         ),
       ],
     );
@@ -224,17 +199,17 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
   ) {
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(15),
         decoration: BoxDecoration(
           color: Colors.white.withValues(
             alpha: 0.9,
           ), // Slight transparency for background blend
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
               color: color.withValues(alpha: 0.05),
-              blurRadius: 20,
-              offset: const Offset(0, 10),
+              blurRadius: 15,
+              offset: const Offset(0, 8),
             ),
           ],
         ),
@@ -246,7 +221,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
             Text(
               value,
               style: TextStyle(
-                fontSize: 26,
+                fontSize: 22,
                 fontWeight: FontWeight.w900,
                 color: color,
               ),
@@ -254,7 +229,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
             Text(
               label,
               style: const TextStyle(
-                fontSize: 11,
+                fontSize: 9,
                 fontWeight: FontWeight.bold,
                 color: Colors.grey,
               ),

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:intl/intl.dart';
-import '../../widgets/admin_header.dart';
+import '../../widgets/universal_header.dart';
 
 class SupportInboxView extends StatelessWidget {
   const SupportInboxView({super.key});
@@ -12,7 +12,7 @@ class SupportInboxView extends StatelessWidget {
       backgroundColor: const Color(0xFFF8FAF9),
       body: CustomScrollView(
         slivers: [
-          AdminHeader(
+          UniversalHeader(
             title: "Support Inbox",
             showBackButton: true,
           ),

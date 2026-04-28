@@ -6,7 +6,7 @@ import 'package:firebase_database/firebase_database.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:convert';
-import '../../widgets/admin_header.dart';
+import '../../widgets/universal_header.dart';
 
 class ProfileSettings extends StatefulWidget {
   const ProfileSettings({super.key});
@@ -155,7 +155,7 @@ class _ProfileSettingsState extends State<ProfileSettings> {
       backgroundColor: const Color(0xFFF8FAF9),
       body: CustomScrollView(
         slivers: [
-          AdminHeader(
+          UniversalHeader(
             title: "Profile Settings",
             showBackButton: true,
           ),
@@ -226,31 +226,81 @@ class _ProfileSettingsState extends State<ProfileSettings> {
 
   Widget _buildProfilePicSection() {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 30),
-      child: Column(
-        children: [
-          FadeInDown(
-            child: Center(
-              child: Stack(
-                alignment: Alignment.bottomRight,
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: const BorderRadius.only(
+          bottomLeft: Radius.circular(40),
+          bottomRight: Radius.circular(40),
+        ),
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Colors.white,
+            const Color(0xFF0A714E).withValues(alpha: 0.02),
+            const Color(0xFF0A714E).withValues(alpha: 0.08),
+          ],
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: const BorderRadius.only(
+          bottomLeft: Radius.circular(40),
+          bottomRight: Radius.circular(40),
+        ),
+        child: Stack(
+          children: [
+            Positioned(
+              top: -30,
+              right: -30,
+              child: CircleAvatar(
+                radius: 80,
+                backgroundColor: const Color(0xFF0A714E).withValues(alpha: 0.04),
+              ),
+            ),
+            Positioned(
+              bottom: -20,
+              left: -20,
+              child: CircleAvatar(
+                radius: 60,
+                backgroundColor: const Color(0xFF0A714E).withValues(alpha: 0.03),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 30, 20, 40),
+              child: Column(
                 children: [
-                  GestureDetector(
-                    onTap: _pickImage,
-                    child: Container(
-                      padding: const EdgeInsets.all(4),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(0xFF0A714E).withValues(alpha: 0.1),
-                            blurRadius: 20,
-                          ),
-                        ],
-                      ),
-                      child: CircleAvatar(
-                        radius: 55,
-                        backgroundColor: const Color(0xFF0A714E).withValues(alpha: 0.05),
+                  FadeInDown(
+                    child: Center(
+                      child: Stack(
+                        alignment: Alignment.bottomRight,
+                        children: [
+                          GestureDetector(
+                            onTap: _pickImage,
+                            child: Container(
+                              padding: const EdgeInsets.all(4),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                shape: BoxShape.circle,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: const Color(0xFF0A714E)
+                                        .withValues(alpha: 0.1),
+                                    blurRadius: 20,
+                                  ),
+                                ],
+                              ),
+                              child: CircleAvatar(
+                                radius: 55,
+                                backgroundColor: const Color(0xFF0A714E)
+                                    .withValues(alpha: 0.05),
                         backgroundImage: _base64Image != null
                             ? MemoryImage(base64Decode(_base64Image!))
                             : null,
@@ -290,7 +340,11 @@ class _ProfileSettingsState extends State<ProfileSettings> {
               fontWeight: FontWeight.w900,
             ),
           ),
-        ],
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -299,7 +353,7 @@ class _ProfileSettingsState extends State<ProfileSettings> {
     return FadeInLeft(
       duration: const Duration(milliseconds: 600),
       child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 25, vertical: 15),
+        margin: const EdgeInsets.only(left: 25, right: 25, top: 5, bottom: 15),
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
         decoration: BoxDecoration(
           color: const Color(0xFF0A714E).withValues(alpha: 0.1),

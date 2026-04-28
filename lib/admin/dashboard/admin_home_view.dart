@@ -4,7 +4,7 @@ import 'package:firebase_database/firebase_database.dart';
 import 'package:animate_do/animate_do.dart';
 import 'widgets/stats_card.dart';
 import 'support_inbox_view.dart';
-import '../../widgets/admin_header.dart';
+import '../../widgets/universal_header.dart';
 
 import '../user_management/staff_directory.dart'; // Import navigation target
 
@@ -28,7 +28,7 @@ class AdminHomeView extends StatelessWidget {
       backgroundColor: const Color(0xFFF8FAF9),
       body: CustomScrollView(
         slivers: [
-          AdminHeader(
+          UniversalHeader(
             title: "Hello Admin",
             showBackButton: false,
             actions: [
@@ -149,6 +149,7 @@ class AdminHomeView extends StatelessWidget {
                             MaterialPageRoute(
                               builder: (c) => StaffDirectory(
                                 globalStream: globalStream,
+                                initialData: initialData,
                                 initialTabIndex: 0,
                               ),
                             ),
@@ -167,6 +168,7 @@ class AdminHomeView extends StatelessWidget {
                             MaterialPageRoute(
                               builder: (c) => StaffDirectory(
                                 globalStream: globalStream,
+                                initialData: initialData,
                                 initialTabIndex: 1,
                               ),
                             ),

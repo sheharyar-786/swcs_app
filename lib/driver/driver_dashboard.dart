@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'dart:ui' as ui;
 import 'package:firebase_database/firebase_database.dart';
@@ -9,6 +10,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:confetti/confetti.dart';
 import 'package:geolocator/geolocator.dart';
 import '../manager/bin_utils.dart';
+import '../widgets/universal_header.dart';
 
 // Your existing imports
 import '../auth/login_screen.dart';
@@ -31,8 +33,11 @@ class _DriverDashboardState extends State<DriverDashboard> {
 
   String driverName = "Commander";
   int driverPoints = 0;
+  String? profilePic;
   String attendanceStatus = "Inactive";
   int dutyCount = 0;
+
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   final List<String> _liveMessages = [
     "Dashboard Active: Waiting for system updates...",
@@ -140,6 +145,7 @@ class _DriverDashboardState extends State<DriverDashboard> {
                   user.email?.split('@')[0].toUpperCase() ??
                   "Driver";
               driverPoints = data['points'] ?? 0;
+              profilePic = data['profile_pic'];
               attendanceStatus = data['attendance'] ?? "Inactive";
             });
             if (data['last_rating_received'] == 5.0) {
@@ -209,6 +215,8 @@ class _DriverDashboardState extends State<DriverDashboard> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      key: _scaffoldKey,
+      drawer: _buildDriverDrawer(),
       backgroundColor: const Color(0xFFF9FBF9),
       body: Stack(
         children: [
@@ -289,89 +297,10 @@ class _DriverDashboardState extends State<DriverDashboard> {
 
   // --- UI COMPONENTS ---
 
-  Widget _buildModernHeader() => SliverAppBar(
-    expandedHeight: 180.0,
-    pinned: true,
-    elevation: 0,
-    backgroundColor: Colors.white,
-    centerTitle: true,
-    title: const Text(
-      "DRIVER DASHBOARD",
-      style: TextStyle(
-        fontWeight: FontWeight.w900,
-        fontSize: 16,
-        color: Colors.black87,
-      ),
-    ),
-    actions: [
-      IconButton(
-        icon: const Icon(Icons.logout_rounded, color: Colors.black87),
-        onPressed: _logout,
-      ),
-    ],
-    flexibleSpace: FlexibleSpaceBar(
-      background: Stack(
-        fit: StackFit.expand,
-        children: [
-          ImageFiltered(
-            imageFilter: ui.ImageFilter.blur(sigmaX: 1.5, sigmaY: 1.5),
-            child: Image.asset('lib/assets/bg.jpeg', fit: BoxFit.cover),
-          ),
-          Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Colors.white.withValues(alpha: 0.3),
-                  Colors.white.withValues(alpha: 0.1),
-                  Colors.white.withValues(alpha: 0.5),
-                ],
-              ),
-            ),
-          ),
-          Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const SizedBox(height: 35),
-              Text(
-                "Welcome, $driverName",
-                style: const TextStyle(
-                  color: Colors.black87,
-                  fontWeight: FontWeight.w900,
-                  fontSize: 22,
-                ),
-              ),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Container(
-                    width: 8,
-                    height: 8,
-                    decoration: BoxDecoration(
-                      color: attendanceStatus == "Present"
-                          ? Colors.green
-                          : Colors.orange,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    "STATUS: ${attendanceStatus.toUpperCase()}",
-                    style: const TextStyle(
-                      color: Colors.black54,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 1,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ],
-      ),
-    ),
+  Widget _buildModernHeader() => UniversalHeader(
+    title: "DRIVER DASHBOARD",
+    showMenuButton: true,
+    onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(),
   );
 
   Widget _buildMarqueeBar() => Container(
@@ -792,6 +721,195 @@ class _DriverDashboardState extends State<DriverDashboard> {
   void _msg(String m) => ScaffoldMessenger.of(context).showSnackBar(
     SnackBar(content: Text(m), behavior: SnackBarBehavior.floating),
   );
+  // --- NEW: PREMIUM DRIVER DRAWER ---
+  Widget _buildDriverDrawer() {
+    final user = FirebaseAuth.instance.currentUser;
+    return Drawer(
+      backgroundColor: Colors.white,
+      child: Column(
+        children: [
+          // 1. Header with Profile & Points
+          Container(
+            padding: const EdgeInsets.only(top: 60, left: 20, right: 20, bottom: 30),
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [leafGreen, deepForest],
+              ),
+              borderRadius: BorderRadius.only(bottomRight: Radius.circular(50)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(3),
+                      decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                      child: CircleAvatar(
+                        radius: 35,
+                        backgroundColor: softMint,
+                        backgroundImage: profilePic != null
+                            ? (profilePic!.startsWith('data:image')
+                                ? MemoryImage(base64Decode(profilePic!.split(',').last)) as ImageProvider
+                                : NetworkImage(profilePic!))
+                            : null,
+                        child: profilePic == null
+                            ? Text(driverName.substring(0, 1), style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: leafGreen))
+                            : null,
+                      ),
+                    ),
+                    const SizedBox(width: 15),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            driverName,
+                            style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          Text(
+                            user?.email ?? "driver@swcs.com",
+                            style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 11),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(15),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.stars_rounded, color: Colors.amber, size: 20),
+                      const SizedBox(width: 10),
+                      Text(
+                        "$driverPoints COLLECTOR POINTS",
+                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // 2. Navigation Items
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 20),
+              children: [
+                _drawerItem(
+                  icon: Icons.alternate_email_rounded,
+                  title: "Change Email",
+                  color: Colors.blue,
+                  onTap: () => _showChangeEmailDialog(),
+                ),
+                _drawerItem(
+                  icon: Icons.security_rounded,
+                  title: "Privacy & Security",
+                  color: Colors.purple,
+                  onTap: () => _msg("Security settings coming soon!"),
+                ),
+                _drawerItem(
+                  icon: Icons.help_outline_rounded,
+                  title: "Help & Support",
+                  color: Colors.orange,
+                  onTap: () => _msg("Support ticket system active."),
+                ),
+                const Divider(height: 40, indent: 20, endIndent: 20),
+                _drawerItem(
+                  icon: Icons.logout_rounded,
+                  title: "Log Out",
+                  color: Colors.red,
+                  onTap: () => _showLogoutConfirm(),
+                ),
+              ],
+            ),
+          ),
+          
+          // 3. Footer
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Text(
+              "SWCS DRIVER PRO v2.4.0",
+              style: TextStyle(color: Colors.grey.withValues(alpha: 0.5), fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _drawerItem({required IconData icon, required String title, required Color color, required VoidCallback onTap}) {
+    return ListTile(
+      onTap: onTap,
+      leading: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
+        child: Icon(icon, color: color, size: 20),
+      ),
+      title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.black87)),
+      trailing: const Icon(Icons.chevron_right_rounded, size: 18, color: Colors.grey),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+    );
+  }
+
+  void _showChangeEmailDialog() {
+    final TextEditingController emailController = TextEditingController(text: FirebaseAuth.instance.currentUser?.email);
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text("Change Email", style: TextStyle(fontWeight: FontWeight.bold)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text("Enter your new official email address below.", style: TextStyle(fontSize: 12, color: Colors.grey)),
+            const SizedBox(height: 15),
+            TextField(
+              controller: emailController,
+              decoration: InputDecoration(
+                hintText: "New Email",
+                filled: true,
+                fillColor: Colors.grey.withValues(alpha: 0.1),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                prefixIcon: const Icon(Icons.email_outlined, size: 20),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("CANCEL", style: TextStyle(color: Colors.grey))),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: leafGreen, shape: const StadiumBorder()),
+            onPressed: () async {
+              if (emailController.text.isNotEmpty) {
+                try {
+                  await FirebaseAuth.instance.currentUser?.verifyBeforeUpdateEmail(emailController.text);
+                  Navigator.pop(context);
+                  _msg("Verification email sent to ${emailController.text}!");
+                } catch (e) {
+                  _msg("Error: ${e.toString()}");
+                }
+              }
+            },
+            child: const Text("UPDATE", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _sectionLabel(String t, String e) => Padding(
     padding: const EdgeInsets.only(bottom: 15, top: 10),
     child: Row(
@@ -810,6 +928,28 @@ class _DriverDashboardState extends State<DriverDashboard> {
       ],
     ),
   );
+
+  void _showLogoutConfirm() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text("Logout?", style: TextStyle(fontWeight: FontWeight.bold)),
+        content: const Text("Are you sure you want to exit the driver dashboard?"),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("STAY", style: TextStyle(color: Colors.grey))),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, shape: const StadiumBorder()),
+            onPressed: () {
+              Navigator.pop(context);
+              _logout();
+            },
+            child: const Text("LOGOUT", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 // Attendance Logic Integrated (Saves space in folder structure)
@@ -843,48 +983,9 @@ class _DriverAttendancePageState extends State<DriverAttendancePage> {
       body: CustomScrollView(
         physics: const BouncingScrollPhysics(),
         slivers: [
-          SliverAppBar(
-            expandedHeight: 180.0,
-            pinned: true,
-            elevation: 0,
-            backgroundColor: Colors.white,
-            centerTitle: true,
-            title: const Text(
-              "ATTENDANCE HUB",
-              style: TextStyle(
-                fontWeight: FontWeight.w900,
-                fontSize: 16,
-                color: Colors.black87,
-              ),
-            ),
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back, color: Colors.black87),
-              onPressed: () => Navigator.pop(context),
-            ),
-            flexibleSpace: FlexibleSpaceBar(
-              background: Stack(
-                fit: StackFit.expand,
-                children: [
-                  ImageFiltered(
-                    imageFilter: ui.ImageFilter.blur(sigmaX: 1.5, sigmaY: 1.5),
-                    child: Image.asset('lib/assets/bg.jpeg', fit: BoxFit.cover),
-                  ),
-                  Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Colors.white.withValues(alpha: 0.3),
-                          Colors.white.withValues(alpha: 0.1),
-                          Colors.white.withValues(alpha: 0.5),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+          UniversalHeader(
+            title: "Attendance Hub",
+            showBackButton: true,
           ),
           SliverToBoxAdapter(
             child: Padding(

@@ -3,7 +3,7 @@ import 'dart:ui' as ui;
 import 'package:firebase_database/firebase_database.dart';
 import 'package:animate_do/animate_do.dart';
 import 'user_details_edit.dart';
-import '../../widgets/admin_header.dart';
+import '../../widgets/universal_header.dart';
 
 class StaffDirectory extends StatefulWidget {
   final Stream<DatabaseEvent> globalStream;
@@ -53,15 +53,33 @@ class _StaffDirectoryState extends State<StaffDirectory>
         stream: widget.globalStream,
         initialData: widget.initialData,
         builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
+            return const Center(
+              child: CircularProgressIndicator(color: Color(0xFF0A714E)),
+            );
+          }
+
           final dynamic rawData = snapshot.data?.snapshot.value;
           if (rawData == null || rawData is! Map) {
-            return const Center(child: Text("No data available in database."));
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: const [
+                  Icon(Icons.storage_rounded, size: 50, color: Colors.grey),
+                  SizedBox(height: 10),
+                  Text(
+                    "No data available in database.",
+                    style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+            );
           }
           Map allData = rawData;
 
           return NestedScrollView(
             headerSliverBuilder: (context, innerBoxIsScrolled) => [
-              AdminHeader(
+              UniversalHeader(
                 title: "Staff Directory",
                 showBackButton: true,
               ),

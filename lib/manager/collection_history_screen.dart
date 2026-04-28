@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'dart:ui' as ui;
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import 'bin_utils.dart';
+import '../widgets/universal_header.dart';
 
 class CollectionHistoryPage extends StatelessWidget {
   const CollectionHistoryPage({super.key});
@@ -27,7 +27,10 @@ class CollectionHistoryPage extends StatelessWidget {
           if (!snapshot.hasData || snapshot.data!.snapshot.value == null) {
             return CustomScrollView(
               slivers: [
-                _buildSliverHeader(),
+                UniversalHeader(
+                  title: "Collection Logs",
+                  showBackButton: true,
+                ),
                 SliverToBoxAdapter(child: _buildEmptyState()),
               ],
             );
@@ -46,7 +49,10 @@ class CollectionHistoryPage extends StatelessWidget {
           return CustomScrollView(
             physics: const BouncingScrollPhysics(),
             slivers: [
-              _buildSliverHeader(),
+              UniversalHeader(
+                title: "Collection Logs",
+                showBackButton: true,
+              ),
               SliverPadding(
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
                 sliver: SliverList(
@@ -72,49 +78,7 @@ class CollectionHistoryPage extends StatelessWidget {
     );
   }
 
-  Widget _buildSliverHeader() {
-    return SliverAppBar(
-      expandedHeight: 180.0,
-      pinned: true,
-      backgroundColor: Colors.white,
-      centerTitle: true,
-      title: const Text(
-        "COLLECTION LOGS",
-        style: TextStyle(
-          fontWeight: FontWeight.w900,
-          fontSize: 16,
-          color: Colors.black87,
-        ),
-      ),
-      flexibleSpace: FlexibleSpaceBar(
-        background: Stack(
-          fit: StackFit.expand,
-          children: [
-            ImageFiltered(
-              imageFilter: ui.ImageFilter.blur(sigmaX: 1.5, sigmaY: 1.5),
-              child: Image.asset(
-                'lib/assets/bg.jpeg',
-                fit: BoxFit.cover,
-              ),
-            ),
-            Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.white.withValues(alpha: 0.3),
-                    Colors.white.withValues(alpha: 0.1),
-                    Colors.white.withValues(alpha: 0.5),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+
 
   Widget _buildTimelineCard(BuildContext context, dynamic data) {
     return Container(
@@ -198,7 +162,7 @@ class CollectionHistoryPage extends StatelessWidget {
                    _logRow(
                     Icons.location_on_outlined,
                     "Area",
-                    (data['area_name'] ?? "Unknown Area").toString(),
+                    BinData.area(data),
                   ),
                   _logRow(
                     Icons.analytics_outlined,

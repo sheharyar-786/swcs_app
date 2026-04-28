@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'dart:ui' as ui;
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
+import '../widgets/universal_header.dart';
 
 class SimulationScreen extends StatefulWidget {
   const SimulationScreen({super.key});
@@ -53,7 +53,10 @@ class _SimulationScreenState extends State<SimulationScreen> {
       body: CustomScrollView(
         physics: const BouncingScrollPhysics(),
         slivers: [
-          _buildSliverAppBar(),
+          UniversalHeader(
+            title: "Test Simulator",
+            showBackButton: true,
+          ),
           SliverToBoxAdapter(
             child: StreamBuilder(
               stream: FirebaseDatabase.instance.ref('bins').onValue,
@@ -99,54 +102,7 @@ class _SimulationScreenState extends State<SimulationScreen> {
     );
   }
 
-  Widget _buildSliverAppBar() {
-    return SliverAppBar(
-      expandedHeight: 180.0,
-      pinned: true,
-      elevation: 0,
-      backgroundColor: Colors.white,
-      centerTitle: true,
-      title: const Text(
-        "TEST SIMULATOR",
-        style: TextStyle(
-          fontWeight: FontWeight.w900,
-          fontSize: 16,
-          color: Colors.black87,
-        ),
-      ),
-      leading: IconButton(
-        icon: const Icon(Icons.arrow_back, color: Colors.black87),
-        onPressed: () => Navigator.pop(context),
-      ),
-      flexibleSpace: FlexibleSpaceBar(
-        background: Stack(
-          fit: StackFit.expand,
-          children: [
-            ImageFiltered(
-              imageFilter: ui.ImageFilter.blur(sigmaX: 1.5, sigmaY: 1.5),
-              child: Image.asset(
-                'lib/assets/bg.jpeg',
-                fit: BoxFit.cover,
-              ),
-            ),
-            Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.white.withValues(alpha: 0.3),
-                    Colors.white.withValues(alpha: 0.1),
-                    Colors.white.withValues(alpha: 0.5),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+
 
   Widget _buildControlCard(Map config, Map data) {
     int fill = int.tryParse(data['fill_level'].toString()) ?? 0;

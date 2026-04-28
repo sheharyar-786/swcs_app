@@ -24,6 +24,7 @@ import 'add_bin_page.dart';
 import 'bin_utils.dart';
 import '../auth/login_screen.dart';
 import '../widgets/summary_card.dart';
+import '../widgets/universal_header.dart';
 
 // GLOBAL CONSTANTS FOR COLOR UNIFORMITY
 const Color leafGreen = Color(0xFF0A714E); // Updated to your premium green
@@ -930,53 +931,15 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
   );
 
   Widget _buildCompactHeader(String msg) {
-    return SliverAppBar(
-      expandedHeight: 180.0,
-      pinned: true,
-      elevation: 0,
-      backgroundColor: Colors.white,
-      centerTitle: true,
-      title: const Text(
-        "Welcome back, Manager!",
-        style: TextStyle(
-          fontWeight: FontWeight.w900,
-          fontSize: 16,
-          color: Colors.black87,
+    return UniversalHeader(
+      title: "MANAGER DASHBOARD",
+      showBackButton: false,
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.menu_open_rounded, color: Colors.white, size: 28),
+          onPressed: () => _scaffoldKey.currentState?.openDrawer(),
         ),
-      ),
-      leading: IconButton(
-        icon: const Icon(
-          Icons.menu_open_rounded,
-          color: Colors.black87,
-          size: 28,
-        ),
-        onPressed: () => _scaffoldKey.currentState?.openDrawer(),
-      ),
-      actions: const [],
-      flexibleSpace: FlexibleSpaceBar(
-        background: Stack(
-          fit: StackFit.expand,
-          children: [
-            ImageFiltered(
-              imageFilter: ui.ImageFilter.blur(sigmaX: 1.5, sigmaY: 1.5),
-              child: Image.asset('lib/assets/bg.jpeg', fit: BoxFit.cover),
-            ),
-            Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.white.withValues(alpha: 0.3),
-                    Colors.white.withValues(alpha: 0.1),
-                    Colors.white.withValues(alpha: 0.5),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
+      ],
     );
   }
 
@@ -1335,145 +1298,150 @@ class CitizenReportsPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF9FBF9),
-      appBar: AppBar(
-        title: const Text(
-          "Citizen Inbox",
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        backgroundColor: leafGreen,
-        foregroundColor: Colors.white,
-        centerTitle: true,
-      ),
-      body: reports.isEmpty
-          ? const Center(child: Text("No Pending Complaints. ✨"))
-          : ListView.builder(
-              padding: const EdgeInsets.all(15),
-              itemCount: reports.length,
-              itemBuilder: (context, index) {
-                var r = reports.values.toList()[index];
-                var key = reports.keys.toList()[index];
-                return Card(
-                  margin: const EdgeInsets.only(bottom: 15),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  elevation: 3,
-                  child: Padding(
-                    padding: const EdgeInsets.all(18),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              r['type']?.toString().toUpperCase() ?? "ISSUE",
-                              style: const TextStyle(
-                                color: Colors.red,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 12,
-                              ),
-                            ),
-                            const Icon(
-                              Icons.mark_as_unread,
-                              color: Colors.amber,
-                              size: 18,
-                            ),
-                          ],
-                        ),
-                        const Divider(height: 25),
-                        _reportInfo(
-                          Icons.person,
-                          "Citizen: ",
-                          r['user']?.toString() ?? "Guest",
-                        ),
-                        _reportInfo(
-                          Icons.phone,
-                          "Contact: ",
-                          r['phone']?.toString() ?? "N/A",
-                        ),
-                        _reportInfo(
-                          Icons.location_on,
-                          "Area: ",
-                          r['area']?.toString() ?? "N/A",
-                        ),
-                        const SizedBox(height: 12),
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          width: double.infinity,
-                          decoration: BoxDecoration(
-                            color: Colors.grey.shade100,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: Colors.grey.shade300),
+      body: CustomScrollView(
+        slivers: [
+          UniversalHeader(
+            title: "Citizen Inbox",
+            showBackButton: true,
+          ),
+          reports.isEmpty
+              ? const SliverFillRemaining(
+                  child: Center(child: Text("No Pending Complaints. ✨")),
+                )
+              : SliverPadding(
+                  padding: const EdgeInsets.all(15),
+                  sliver: SliverList(
+                    delegate: SliverChildBuilderDelegate(
+                      (context, index) {
+                        var r = reports.values.toList()[index];
+                        var key = reports.keys.toList()[index];
+                        return Card(
+                          margin: const EdgeInsets.only(bottom: 15),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
                           ),
-                          child: Text(
-                            "\"${r['comment'] ?? 'No comment provided'}\"",
-                            style: const TextStyle(
-                              fontStyle: FontStyle.italic,
-                              color: Colors.black87,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 15),
-                        SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton.icon(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.green,
-                              shape: const StadiumBorder(),
-                            ),
-                            icon: const Icon(
-                              Icons.done_all,
-                              color: Colors.white,
-                              size: 18,
-                            ),
-                            label: const Text(
-                              "RESOLVE",
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            onPressed: () async {
-                              final db = FirebaseDatabase.instance.ref();
-                              
-                              // 1. Move to Resolved Node
-                              await db.child('resolved_reports').child(key).set({
-                                ...r,
-                                'status': 'Resolved',
-                                'resolved_at': ServerValue.timestamp,
-                              });
-
-                              // 2. Notify Citizen (if UID exists)
-                              if (r['uid'] != null) {
-                                await db.child('citizen_notifications/${r['uid']}').push().set({
-                                  'title': 'Report Resolved ✅',
-                                  'message': 'Your report regarding ${r['type']} at ${r['area']} has been resolved.',
-                                  'timestamp': ServerValue.timestamp,
-                                  'status': 'Unread',
-                                });
-                              }
-
-                              // 3. Remove from Active
-                              await db.child('citizen_reports/$key').remove();
-
-                              if (context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text("Case Resolved & Citizen Notified!"),
-                                    backgroundColor: Colors.green,
+                          elevation: 3,
+                          child: Padding(
+                            padding: const EdgeInsets.all(18),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      r['type']?.toString().toUpperCase() ?? "ISSUE",
+                                      style: const TextStyle(
+                                        color: Colors.red,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                    const Icon(
+                                      Icons.mark_as_unread,
+                                      color: Colors.amber,
+                                      size: 18,
+                                    ),
+                                  ],
+                                ),
+                                const Divider(height: 25),
+                                _reportInfo(
+                                  Icons.person,
+                                  "Citizen: ",
+                                  r['user']?.toString() ?? "Guest",
+                                ),
+                                _reportInfo(
+                                  Icons.phone,
+                                  "Contact: ",
+                                  r['phone']?.toString() ?? "N/A",
+                                ),
+                                _reportInfo(
+                                  Icons.location_on,
+                                  "Area: ",
+                                  r['area']?.toString() ?? "N/A",
+                                ),
+                                const SizedBox(height: 12),
+                                Container(
+                                  padding: const EdgeInsets.all(12),
+                                  width: double.infinity,
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey.shade100,
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(color: Colors.grey.shade300),
                                   ),
-                                );
-                              }
-                            },
+                                  child: Text(
+                                    "\"${r['comment'] ?? 'No comment provided'}\"",
+                                    style: const TextStyle(
+                                      fontStyle: FontStyle.italic,
+                                      color: Colors.black87,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 15),
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: ElevatedButton.icon(
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.green,
+                                      shape: const StadiumBorder(),
+                                    ),
+                                    icon: const Icon(
+                                      Icons.done_all,
+                                      color: Colors.white,
+                                      size: 18,
+                                    ),
+                                    label: const Text(
+                                      "RESOLVE",
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    onPressed: () async {
+                                      final db = FirebaseDatabase.instance.ref();
+                                      
+                                      // 1. Move to Resolved Node
+                                      await db.child('resolved_reports').child(key).set({
+                                        ...r,
+                                        'status': 'Resolved',
+                                        'resolved_at': ServerValue.timestamp,
+                                      });
+
+                                      // 2. Notify Citizen (if UID exists)
+                                      if (r['uid'] != null) {
+                                        await db.child('citizen_notifications/${r['uid']}').push().set({
+                                          'title': 'Report Resolved ✅',
+                                          'message': 'Your report regarding ${r['type']} at ${r['area']} has been resolved.',
+                                          'timestamp': ServerValue.timestamp,
+                                          'status': 'Unread',
+                                        });
+                                      }
+
+                                      // 3. Remove from Active
+                                      await db.child('citizen_reports/$key').remove();
+
+                                      if (context.mounted) {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          const SnackBar(
+                                            content: Text("Case Resolved & Citizen Notified!"),
+                                            backgroundColor: Colors.green,
+                                          ),
+                                        );
+                                      }
+                                    },
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
-                      ],
+                        );
+                      },
+                      childCount: reports.length,
                     ),
                   ),
-                );
-              },
-            ),
+                ),
+        ],
+      ),
     );
   }
 
@@ -1506,47 +1474,52 @@ class CollectionStatusPage extends StatelessWidget {
   Widget build(BuildContext context) {
     var list = bins.entries.where((e) => e.value['fill_level'] == 0).toList();
     return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          "Collection Photos",
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        backgroundColor: leafGreen,
-        foregroundColor: Colors.white,
-        elevation: 0,
+      body: CustomScrollView(
+        slivers: [
+          UniversalHeader(
+            title: "Collection Photos",
+            showBackButton: true,
+          ),
+          list.isEmpty
+              ? const SliverFillRemaining(
+                  child: Center(child: Text("No recent collections recorded.")),
+                )
+              : SliverPadding(
+                  padding: const EdgeInsets.all(15),
+                  sliver: SliverList(
+                    delegate: SliverChildBuilderDelegate(
+                      (context, index) {
+                        var bin = list[index].value;
+                        return Card(
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(15),
+                          ),
+                          child: ListTile(
+                            leading: const CircleAvatar(
+                              backgroundColor: softMint,
+                              child: Icon(Icons.photo_library, color: leafGreen),
+                            ),
+                            title: Text(
+                              bin['area']?.toString() ?? "Area",
+                              style: const TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                            subtitle: const Text(
+                              "Verified Cleaned ✅",
+                              style: TextStyle(
+                                color: leafGreen,
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                      childCount: list.length,
+                    ),
+                  ),
+                ),
+        ],
       ),
-      body: list.isEmpty
-          ? const Center(child: Text("No recent collections recorded."))
-          : ListView.builder(
-              padding: const EdgeInsets.all(15),
-              itemCount: list.length,
-              itemBuilder: (context, index) {
-                var bin = list[index].value;
-                return Card(
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(15),
-                  ),
-                  child: ListTile(
-                    leading: const CircleAvatar(
-                      backgroundColor: softMint,
-                      child: Icon(Icons.photo_library, color: leafGreen),
-                    ),
-                    title: Text(
-                      bin['area']?.toString() ?? "Area",
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    subtitle: const Text(
-                      "Verified Cleaned ✅",
-                      style: TextStyle(
-                        color: leafGreen,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                );
-              },
-            ),
     );
   }
 }

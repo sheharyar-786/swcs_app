@@ -6,6 +6,7 @@ import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import 'manager_dashboard.dart';
 import 'bin_record_page.dart';
 import 'bin_utils.dart';
+import '../widgets/universal_header.dart';
 import '../widgets/seven_day_trend_chart.dart';
 
 
@@ -74,12 +75,26 @@ class _BinDetailsPageState extends State<BinDetailsPage>
 
         return Scaffold(
           backgroundColor: const Color(0xFFF4F7F4),
-          body: Column(
-            children: [
-              _buildPremiumHeader(context, area),
-              Expanded(
+          body: CustomScrollView(
+            slivers: [
+              UniversalHeader(
+                title: widget.binId.toUpperCase(),
+                subtitle: area,
+                showBackButton: true,
+                actions: [
+                  IconButton(
+                    icon: const Icon(Icons.edit_location_alt, color: Colors.white),
+                    onPressed: () => updateBinArea(widget.binId, area),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.delete_forever, color: Colors.white),
+                    onPressed: () => deleteBin(widget.binId),
+                  ),
+                ],
+              ),
+              SliverToBoxAdapter(
                 child: AnimationLimiter(
-                  child: SingleChildScrollView(
+                  child: Padding(
                     padding: const EdgeInsets.all(20),
                     child: Column(
                       children: AnimationConfiguration.toStaggeredList(
@@ -579,91 +594,4 @@ class _BinDetailsPageState extends State<BinDetailsPage>
 
 
 
-  Widget _buildPremiumHeader(BuildContext context, String area) {
-    return Container(
-      width: double.infinity,
-      height: 180,
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(bottom: Radius.circular(30)),
-      ),
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          ClipRRect(
-            borderRadius: const BorderRadius.vertical(
-              bottom: Radius.circular(30),
-            ),
-            child: ImageFiltered(
-              imageFilter: ui.ImageFilter.blur(sigmaX: 1.5, sigmaY: 1.5),
-              child: Image.asset('lib/assets/bg.jpeg', fit: BoxFit.cover),
-            ),
-          ),
-          Container(
-            decoration: BoxDecoration(
-              borderRadius: const BorderRadius.vertical(
-                bottom: Radius.circular(30),
-              ),
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Colors.white.withValues(alpha: 0.3),
-                  Colors.white.withValues(alpha: 0.1),
-                  Colors.white.withValues(alpha: 0.5),
-                ],
-              ),
-            ),
-          ),
-          Positioned(
-            top: 40,
-            left: 10,
-            child: IconButton(
-              icon: const Icon(Icons.arrow_back, color: Colors.black87),
-              onPressed: () => Navigator.pop(context),
-            ),
-          ),
-          Positioned(
-            top: 40,
-            right: 10,
-            child: Row(
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.edit_location_alt, color: leafGreen),
-                  onPressed: () => updateBinArea(widget.binId, area),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.delete_forever, color: alertRed),
-                  onPressed: () => deleteBin(widget.binId),
-                ),
-              ],
-            ),
-          ),
-          Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const SizedBox(height: 20),
-              Text(
-                widget.binId.toUpperCase(),
-                style: const TextStyle(
-                  color: Colors.black87,
-                  fontSize: 28,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-              const SizedBox(height: 5),
-              Text(
-                area,
-                style: const TextStyle(
-                  color: Colors.black54,
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
 }
