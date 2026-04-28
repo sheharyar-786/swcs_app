@@ -7,6 +7,8 @@ import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import 'bin_details.dart';
 import 'bin_utils.dart';
 
+import '../widgets/seven_day_trend_chart.dart';
+
 class AnalyticsPage extends StatefulWidget {
   const AnalyticsPage({super.key});
 
@@ -84,21 +86,51 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
                           child: FadeInAnimation(child: widget),
                         ),
                         children: [
-                          // 2. SUMMARY CARDS
+                          // 2. PREMIUM 7-DAY TREND CHARTS (Like the reference image)
+                          _sectionLabel("Performance Analytics"),
+                          SizedBox(
+                            height: 320,
+                            child: PageView(
+                              children: const [
+                                SevenDayTrendChart(
+                                  data: [42, 58, 35, 78, 52, 65, 48],
+                                  title: "Waste Generation Trend",
+                                ),
+                                SevenDayTrendChart(
+                                  data: [80, 65, 90, 70, 85, 95, 88],
+                                  title: "Collection Efficiency",
+                                ),
+                              ],
+                            ),
+                          ),
+                          const Center(
+                            child: Padding(
+                              padding: EdgeInsets.only(top: 8.0),
+                              child: Text(
+                                "Swipe left to see more charts",
+                                style: TextStyle(fontSize: 10, color: Colors.grey, fontStyle: FontStyle.italic),
+                              ),
+                            ),
+                          ),
+
+                          const SizedBox(height: 25),
+
+
+                          // 3. SUMMARY CARDS
                           _sectionLabel("Quick Metrics"),
                           _buildQuickMetrics(totalBins, criticalBins),
 
                           const SizedBox(height: 25),
 
-                          // 3. HORIZONTAL GAUGE LIST (CLICKABLE)
-                          _sectionLabel("Live Bin Gauges"),
+                          // 4. HORIZONTAL GAUGE LIST (CLICKABLE)
+                          _sectionLabelWithSubtitle("Live Bin Gauges", "Status based on 15-second activity window"),
                           _buildCircularSection(),
 
-                          const SizedBox(height: 25),
+
 
                           const SizedBox(height: 25),
 
-                          // 4. VIEW BIN DETAILS — merged with fleet status
+                          // 5. VIEW BIN DETAILS — merged with fleet status
                           _sectionLabel("Bin Fleet Overview"),
                           _buildViewBinDetailsSection(),
 
@@ -115,6 +147,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
       ),
     );
   }
+
 
   Widget _buildSliverAppBar(int total, int critical) {
     return SliverAppBar(
@@ -486,7 +519,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
                                 ),
                                 const SizedBox(width: 4),
                                 Text(
-                                  BinData.connectionStatus(data).toUpperCase(),
+                                  "${BinData.connectionStatus(data).toUpperCase()} (${BinData.lastSeenAgo(data)})",
                                   style: TextStyle(
                                     fontSize: 8,
                                     fontWeight: FontWeight.w900,
@@ -495,6 +528,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
                                         : Colors.grey,
                                   ),
                                 ),
+
                               ],
                             ),
                           ),
@@ -562,4 +596,47 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
       ],
     ),
   );
+
+  Widget _sectionLabelWithSubtitle(String t, String s) => Padding(
+    padding: const EdgeInsets.only(bottom: 15, top: 10),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Container(
+              width: 4,
+              height: 18,
+              decoration: BoxDecoration(
+                color: leafGreen,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              t,
+              style: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w900,
+                color: deepForest,
+                letterSpacing: 0.5,
+              ),
+            ),
+          ],
+        ),
+        Padding(
+          padding: const EdgeInsets.only(left: 12, top: 4),
+          child: Text(
+            s,
+            style: const TextStyle(
+              fontSize: 10,
+              color: Colors.grey,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
 }
+

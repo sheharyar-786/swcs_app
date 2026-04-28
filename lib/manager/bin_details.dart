@@ -6,6 +6,8 @@ import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import 'manager_dashboard.dart';
 import 'bin_record_page.dart';
 import 'bin_utils.dart';
+import '../widgets/seven_day_trend_chart.dart';
+
 
 class BinDetailsPage extends StatefulWidget {
   final String binId;
@@ -126,10 +128,11 @@ class _BinDetailsPageState extends State<BinDetailsPage>
                               ),
                               _infoBox(
                                 "Bin Status",
-                                isOnline ? "Online" : "Offline",
+                                isOnline ? "Online (${BinData.lastSeenAgo(data)})" : "Offline (${BinData.lastSeenAgo(data)})",
                                 isOnline ? Icons.sensors : Icons.sensors_off,
                                 isOnline ? leafGreen : Colors.grey,
                               ),
+
                             ],
                           ),
                           const SizedBox(height: 25),
@@ -560,108 +563,16 @@ class _BinDetailsPageState extends State<BinDetailsPage>
   }
 
   Widget _buildTimeTrendChart(Color color, double currentFill) {
-    return Container(
-      height: 280,
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(30),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            "Weekly Fill Analytics",
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-          ),
-          const SizedBox(height: 25),
-          Expanded(
-            child: LineChart(
-              LineChartData(
-                gridData: const FlGridData(show: true, drawVerticalLine: false),
-                titlesData: FlTitlesData(
-                  rightTitles: const AxisTitles(
-                    sideTitles: SideTitles(showTitles: false),
-                  ),
-                  topTitles: const AxisTitles(
-                    sideTitles: SideTitles(showTitles: false),
-                  ),
-                  bottomTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      reservedSize: 30,
-                      getTitlesWidget: (value, meta) {
-                        const days = [
-                          'Mon',
-                          'Tue',
-                          'Wed',
-                          'Thu',
-                          'Fri',
-                          'Sat',
-                          'Sun',
-                        ];
-                        return SideTitleWidget(
-                          meta: meta,
-                          space: 10,
-                          child: Text(
-                            days[value.toInt() % 7],
-                            style: const TextStyle(
-                              color: Colors.grey,
-                              fontSize: 10,
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                ),
-                borderData: FlBorderData(show: false),
-                lineBarsData: [
-                  LineChartBarData(
-                    spots: [
-                      const FlSpot(0, 45),
-                      const FlSpot(1, 30),
-                      const FlSpot(2, 85),
-                      const FlSpot(3, 20),
-                      const FlSpot(4, 55),
-                      const FlSpot(5, 40),
-                      FlSpot(6, currentFill),
-                    ],
-                    isCurved: true,
-                    color: color,
-                    barWidth: 4,
-                    dotData: const FlDotData(show: true),
-                    belowBarData: BarAreaData(
-                      show: true,
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          color.withValues(alpha: 0.2),
-                          color.withValues(alpha: 0),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const Center(
-            child: Text(
-              "Data updated every 5 seconds",
-              style: TextStyle(
-                fontSize: 9,
-                color: Colors.grey,
-                fontStyle: FontStyle.italic,
-              ),
-            ),
-          ),
-        ],
+    return SizedBox(
+      height: 300,
+      child: SevenDayTrendChart(
+        data: [45, 30, 85, 20, 55, 40, currentFill],
+        title: "Weekly Fill Analytics",
       ),
     );
   }
+
+
 
   Widget _buildPremiumHeader(BuildContext context, String area) {
     return Container(

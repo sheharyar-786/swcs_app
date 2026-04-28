@@ -182,9 +182,12 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
                                 ),
                                 title: Row(
                                   children: [
-                                    Text(
-                                      driver['name'].toString(),
-                                      style: const TextStyle(fontWeight: FontWeight.bold),
+                                    Expanded(
+                                      child: Text(
+                                        driver['name'].toString(),
+                                        style: const TextStyle(fontWeight: FontWeight.bold),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
                                     ),
                                     if (isNearest && (driver['hasLocation'] as bool))
                                       Container(
@@ -201,6 +204,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
                                       ),
                                   ],
                                 ),
+
                                 subtitle: Text(
                                   driver['hasLocation'] == true
                                       ? "${(driver['distance'] as double).toStringAsFixed(2)} km away"
@@ -560,6 +564,43 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
                 ),
 
                 const SizedBox(height: 25),
+                // --- NEW: ADMIN WARNINGS SECTION ---
+                if (userData['warnings'] != null) ...[
+                  _drawerSectionLabel("ADMIN WARNINGS"),
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 15),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.red.withValues(alpha: 0.05),
+                      borderRadius: BorderRadius.circular(15),
+                      border: Border.all(color: Colors.red.withValues(alpha: 0.2)),
+                    ),
+                    child: Column(
+                      children: (userData['warnings'] as Map).values.map((w) {
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 8.0),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Icon(Icons.error_outline_rounded, color: Colors.red, size: 16),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  w['message'] ?? "Requirement not fulfilled",
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    color: Colors.red,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                ],
 
                 // 4. CORE CONTROLS
                 _drawerSectionLabel("SYSTEM TOOLS"),

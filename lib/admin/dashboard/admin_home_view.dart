@@ -5,11 +5,16 @@ import 'package:animate_do/animate_do.dart';
 import 'widgets/stats_card.dart';
 import 'support_inbox_view.dart';
 
+import '../user_management/staff_directory.dart'; // Import navigation target
+
 class AdminHomeView extends StatelessWidget {
   // Receive the broadcast stream from AdminMainShell
   final Stream<DatabaseEvent> globalStream;
 
   const AdminHomeView({super.key, required this.globalStream});
+
+  static const Color leafGreen = Color(0xFF2E7D32);
+  static const Color deepForest = Color(0xFF1B5E20);
 
   @override
   Widget build(BuildContext context) {
@@ -187,8 +192,6 @@ class AdminHomeView extends StatelessWidget {
                         .where((u) => u['role'] == 'civilian')
                         .length;
 
-                    // Safe fetching of metadata
-
                     return GridView.count(
                       padding: const EdgeInsets.symmetric(horizontal: 25),
                       crossAxisCount: 2,
@@ -202,7 +205,7 @@ class AdminHomeView extends StatelessWidget {
                             "TOTAL BINS",
                             "$totalBins",
                             Icons.delete_sweep,
-                            Colors.green,
+                            leafGreen,
                           ),
                         ),
                         FadeInUp(
@@ -211,7 +214,8 @@ class AdminHomeView extends StatelessWidget {
                             "MANAGERS",
                             "$managers",
                             Icons.support_agent,
-                            Colors.blue,
+                            const Color(0xFF0288D1), // Deep Blue
+                            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => StaffDirectory(globalStream: globalStream))),
                           ),
                         ),
                         FadeInUp(
@@ -220,21 +224,24 @@ class AdminHomeView extends StatelessWidget {
                             "DRIVERS",
                             "$drivers",
                             Icons.local_shipping,
-                            Colors.orange,
+                            const Color(0xFFF57C00), // Deep Orange
+                            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => StaffDirectory(globalStream: globalStream))),
                           ),
                         ),
+
                         FadeInUp(
                           delay: const Duration(milliseconds: 400),
                           child: _buildFixedStatsCard(
                             "CIVILIANS",
                             "$citizens",
                             Icons.location_city,
-                            Colors.purple,
+                            const Color(0xFF7B1FA2), // Purple
                           ),
                         ),
                       ],
                     );
                   }
+
 
                   if (snapshot.hasError) {
                     return Center(child: Text("Error: ${snapshot.error}"));
@@ -257,12 +264,20 @@ class AdminHomeView extends StatelessWidget {
     String title,
     String value,
     IconData icon,
-    Color color,
-  ) {
+    Color color, {
+    VoidCallback? onTap,
+  }) {
     return SizedBox(
       // Constraining height to prevent overflow
       height: 120,
-      child: StatsCard(title: title, value: value, icon: icon, color: color),
+      child: StatsCard(
+        title: title,
+        value: value,
+        icon: icon,
+        color: color,
+        onTap: onTap,
+      ),
     );
   }
 }
+

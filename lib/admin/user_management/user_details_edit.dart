@@ -51,9 +51,11 @@ class _UserDetailsEditState extends State<UserDetailsEdit> {
                 children: [
                   _buildEditField(
                     "Full Name",
-                    _nameController,
+                    widget.userData['name'] ?? "Unknown",
                     Icons.person_outline,
                   ),
+                  const SizedBox(height: 20),
+                  _buildWarningCenter(),
                   const SizedBox(height: 20),
                   _buildStatusToggle(),
                   const SizedBox(height: 40),
@@ -61,6 +63,7 @@ class _UserDetailsEditState extends State<UserDetailsEdit> {
                 ],
               ),
             ),
+
           ],
         ),
       ),
@@ -180,7 +183,7 @@ class _UserDetailsEditState extends State<UserDetailsEdit> {
 
   Widget _buildEditField(
     String label,
-    TextEditingController controller,
+    String value,
     IconData icon,
   ) {
     return Column(
@@ -194,21 +197,97 @@ class _UserDetailsEditState extends State<UserDetailsEdit> {
           ),
         ),
         const SizedBox(height: 8),
-        TextField(
-          controller: controller,
-          decoration: InputDecoration(
-            prefixIcon: Icon(icon, color: const Color(0xFF0A714E)),
-            filled: true,
-            fillColor: Colors.white,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(15),
-              borderSide: BorderSide.none,
-            ),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 15),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(15),
+            border: Border.all(color: Colors.grey.withValues(alpha: 0.1)),
+          ),
+          child: Row(
+            children: [
+              Icon(icon, color: const Color(0xFF0A714E), size: 20),
+              const SizedBox(width: 12),
+              Text(
+                value,
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+              ),
+            ],
           ),
         ),
       ],
     );
   }
+
+  Widget _buildWarningCenter() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.orange.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.orange.withValues(alpha: 0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.warning_amber_rounded, color: Colors.orange),
+              SizedBox(width: 10),
+              Text(
+                "WARNING & ACTION CENTER",
+                style: TextStyle(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 12,
+                  color: Colors.orange,
+                  letterSpacing: 1,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 15),
+          const Text(
+            "Send an official warning to this manager/driver regarding pending approvals or complaints.",
+            style: TextStyle(fontSize: 11, color: Colors.blueGrey),
+          ),
+          const SizedBox(height: 15),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              onPressed: () => _sendWarning(),
+              icon: const Icon(Icons.send_rounded, size: 18),
+              label: const Text("SEND OFFICIAL WARNING", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _sendWarning() async {
+    final ref = FirebaseDatabase.instance.ref('$_collection/${widget.uid}/warnings');
+    await ref.push().set({
+      'message': 'Official Warning: Pending approvals/complaints require immediate attention.',
+      'timestamp': ServerValue.timestamp,
+      'type': 'ADMIN_WARNING',
+    });
+    
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text("Warning sent to staff member!"),
+        backgroundColor: Colors.orange,
+      ),
+    );
+  }
+
 
   Widget _buildStatusToggle() {
     return Container(
@@ -254,32 +333,6 @@ class _UserDetailsEditState extends State<UserDetailsEdit> {
   Widget _buildActionButtons() {
     return Column(
       children: [
-        SizedBox(
-          width: double.infinity,
-          height: 55,
-          child: ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF0A714E),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(15),
-              ),
-            ),
-            onPressed: () {
-              FirebaseDatabase.instance
-                  .ref('$_collection/${widget.uid}')
-                  .update({'name': _nameController.text});
-              Navigator.pop(context);
-            },
-            child: const Text(
-              "UPDATE PROFILE",
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(height: 15),
         TextButton.icon(
           onPressed: () => _confirmDelete(),
           icon: const Icon(Icons.delete_forever, color: Colors.red),
@@ -291,6 +344,7 @@ class _UserDetailsEditState extends State<UserDetailsEdit> {
       ],
     );
   }
+
 
   void _confirmDelete() {
     showDialog(

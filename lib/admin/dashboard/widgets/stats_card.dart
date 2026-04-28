@@ -5,6 +5,7 @@ class StatsCard extends StatefulWidget {
   final String value;
   final IconData icon;
   final Color color;
+  final VoidCallback? onTap;
 
   const StatsCard({
     super.key,
@@ -12,6 +13,7 @@ class StatsCard extends StatefulWidget {
     required this.value,
     required this.icon,
     required this.color,
+    this.onTap,
   });
 
   @override
@@ -29,12 +31,15 @@ class _StatsCardState extends State<StatsCard> {
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
-      child: AnimatedScale(
-        scale: _isHovered
-            ? 1.02
-            : 1.0, // Thoda kam scale kiya taake layout break na ho
-        duration: const Duration(milliseconds: 200),
-        child: AnimatedContainer(
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: AnimatedScale(
+          scale: _isHovered
+              ? 1.02
+              : 1.0, // Thoda kam scale kiya taake layout break na ho
+          duration: const Duration(milliseconds: 200),
+          child: AnimatedContainer(
+
           duration: const Duration(milliseconds: 300),
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 15),
           decoration: BoxDecoration(
@@ -43,8 +48,12 @@ class _StatsCardState extends State<StatsCard> {
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [Colors.white, widget.color.withValues(alpha: 0.08)],
+              colors: [
+                Colors.white,
+                const Color(0xFF2E7D32).withValues(alpha: 0.05), // Subtle Green tint
+              ],
             ),
+
             boxShadow: [
               BoxShadow(
                 color: widget.color.withValues(alpha: _isHovered ? 0.15 : 0.05),
@@ -119,7 +128,9 @@ class _StatsCardState extends State<StatsCard> {
             ],
           ),
         ),
+        ),
       ),
     );
   }
 }
+
