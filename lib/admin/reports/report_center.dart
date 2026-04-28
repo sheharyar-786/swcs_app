@@ -97,7 +97,7 @@ class ReportCenter extends StatelessWidget {
                   SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      "Monitor and resolve citizen grievances and public reports.",
+                      "Monitoring citizen reports",
                       style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF0A714E)),
                     ),
                   ),
