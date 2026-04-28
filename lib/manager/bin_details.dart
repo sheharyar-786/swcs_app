@@ -11,7 +11,8 @@ import '../widgets/seven_day_trend_chart.dart';
 
 class BinDetailsPage extends StatefulWidget {
   final String binId;
-  const BinDetailsPage({super.key, required this.binId});
+  final Map? initialData;
+  const BinDetailsPage({super.key, required this.binId, this.initialData});
 
   @override
   State<BinDetailsPage> createState() => _BinDetailsPageState();
@@ -30,15 +31,17 @@ class _BinDetailsPageState extends State<BinDetailsPage>
     return StreamBuilder(
       stream: FirebaseDatabase.instance.ref('bins/${widget.binId}').onValue,
       builder: (context, snapshot) {
-        if (!snapshot.hasData || snapshot.data!.snapshot.value == null) {
+        final rawValue = snapshot.hasData 
+            ? snapshot.data!.snapshot.value 
+            : widget.initialData;
+
+        if (rawValue == null) {
           return const Scaffold(
             body: Center(child: CircularProgressIndicator(color: leafGreen)),
           );
         }
 
-        final data = Map<String, dynamic>.from(
-          snapshot.data!.snapshot.value as Map,
-        );
+        final data = Map<String, dynamic>.from(rawValue as Map);
 
         // --- REAL-TIME DATA MAPPING via BinData utility ---
         double fillLevel  = BinData.fillLevel(data);
@@ -106,7 +109,7 @@ class _BinDetailsPageState extends State<BinDetailsPage>
                             crossAxisCount: 2,
                             crossAxisSpacing: 15,
                             mainAxisSpacing: 15,
-                            childAspectRatio: 1.4,
+                            childAspectRatio: 1.3,
                             children: [
                               _infoBox(
                                 "Gas Level",
@@ -543,9 +546,11 @@ class _BinDetailsPageState extends State<BinDetailsPage>
           const Spacer(),
           Text(
             val,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: const TextStyle(
               fontWeight: FontWeight.w900,
-              fontSize: 15,
+              fontSize: 14, // Slightly reduced from 15 to help with fit
               color: Color(0xFF2D3436),
             ),
           ),

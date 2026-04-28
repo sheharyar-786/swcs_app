@@ -405,7 +405,7 @@ class _ProfileSettingsState extends State<ProfileSettings> {
           ),
           onPressed: _handleLogout, // Finalized Logout
           child: const Text(
-            "LOGOUT SESSION",
+            "LOGOUT",
             style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
           ),
         ),

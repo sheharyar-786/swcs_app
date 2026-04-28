@@ -20,12 +20,16 @@ class _AdminMainShellState extends State<AdminMainShell> {
   // --- FIX: Global Broadcast Stream ---
   // Is se "Stream has already been listened to" wala error khatam ho jayega
   late Stream<DatabaseEvent> _globalStream;
+  DatabaseEvent? _lastEvent;
 
   @override
   void initState() {
     super.initState();
     // Pure database ki aik hi stream banai jo broadcast hai (multiple listeners allowed)
     _globalStream = FirebaseDatabase.instance.ref().onValue.asBroadcastStream();
+    _globalStream.listen((event) {
+      if (mounted) setState(() => _lastEvent = event);
+    });
     
     // Start Monitoring Alerts
     MonitoringService.startMonitoring();
@@ -41,10 +45,10 @@ class _AdminMainShellState extends State<AdminMainShell> {
   Widget build(BuildContext context) {
     // Pages list ko build ke andar rakha hai taake stream pass ho sake
     final List<Widget> pages = [
-      AdminHomeView(globalStream: _globalStream), // Stats Page
-      ManagerApprovals(globalStream: _globalStream), // Approvals
-      StaffDirectory(globalStream: _globalStream), // Users Page
-      ReportCenter(globalStream: _globalStream), // Reports
+      AdminHomeView(globalStream: _globalStream, initialData: _lastEvent), // Stats Page
+      ManagerApprovals(globalStream: _globalStream, initialData: _lastEvent), // Approvals
+      StaffDirectory(globalStream: _globalStream, initialData: _lastEvent), // Users Page
+      ReportCenter(globalStream: _globalStream, initialData: _lastEvent), // Reports
       const ProfileSettings(), // Profile & Config
     ];
 

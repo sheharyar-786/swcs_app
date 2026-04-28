@@ -475,7 +475,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
                             ),
                             const SizedBox(height: 3),
                             Text(
-                              "${binId.toUpperCase()} • Gas: ${data['gas_level'] ?? 0} ppm",
+                              "${binId.toUpperCase()} • Gas: ${BinData.gasLevel(data)} ppm",
                               style: const TextStyle(
                                 fontSize: 11,
                                 color: Colors.grey,

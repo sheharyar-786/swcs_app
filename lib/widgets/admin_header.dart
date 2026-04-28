@@ -40,46 +40,58 @@ class AdminHeader extends StatelessWidget {
           StretchMode.blurBackground,
         ],
         centerTitle: true,
-        title: Text(
-          title.toUpperCase(),
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 15,
-            fontWeight: FontWeight.w900,
-            letterSpacing: 1.5,
-            shadows: [
-              Shadow(
-                color: Colors.black26,
-                offset: Offset(0, 2),
-                blurRadius: 4,
+        title: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.2),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.2),
+              width: 1,
+            ),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: BackdropFilter(
+              filter: ui.ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+              child: Text(
+                title.toUpperCase(),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 1.5,
+                  shadows: [
+                    Shadow(
+                      color: Colors.black26,
+                      offset: Offset(0, 2),
+                      blurRadius: 4,
+                    ),
+                  ],
+                ),
               ),
-            ],
+            ),
           ),
         ),
         background: Stack(
           fit: StackFit.expand,
           children: [
-            // Base Background Image
+            // Base Background Image - NOW CLEAR
             Image.asset(
               'lib/assets/bg.jpeg',
               fit: BoxFit.cover,
             ),
-            // Premium Glassmorphism & Gradient Overlay
-            ClipRRect(
-              child: BackdropFilter(
-                filter: ui.ImageFilter.blur(sigmaX: 3, sigmaY: 3),
-                child: Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        Colors.black.withValues(alpha: 0.4),
-                        const Color(0xFF0A714E).withValues(alpha: 0.3),
-                        const Color(0xFF0A714E).withValues(alpha: 0.6),
-                      ],
-                    ),
-                  ),
+            // Subtle Gradient Overlay for general contrast
+            Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.black.withValues(alpha: 0.3),
+                    Colors.transparent,
+                    const Color(0xFF0A714E).withValues(alpha: 0.4),
+                  ],
                 ),
               ),
             ),

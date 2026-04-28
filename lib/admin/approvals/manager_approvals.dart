@@ -6,8 +6,13 @@ import '../../widgets/admin_header.dart';
 
 class ManagerApprovals extends StatelessWidget {
   final Stream<DatabaseEvent> globalStream;
+  final DatabaseEvent? initialData;
 
-  const ManagerApprovals({super.key, required this.globalStream});
+  const ManagerApprovals({
+    super.key,
+    required this.globalStream,
+    this.initialData,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -22,6 +27,7 @@ class ManagerApprovals extends StatelessWidget {
           SliverToBoxAdapter(child: _buildStatementBar()),
           StreamBuilder(
             stream: globalStream,
+            initialData: initialData,
             builder: (context, snapshot) {
               if (snapshot.hasData && snapshot.data!.snapshot.value != null) {
                 Map allData = snapshot.data!.snapshot.value as Map;

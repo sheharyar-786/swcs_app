@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../services/notification_service.dart';
 
 // Your existing imports
 import 'analytics_screen.dart';
@@ -40,6 +41,7 @@ class AdminPage extends StatefulWidget {
 
 class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
   late Stream<DatabaseEvent> _globalStream;
+  static DatabaseEvent? _cachedEvent;
   final ScrollController _scrollController = ScrollController();
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
@@ -47,6 +49,15 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
   void initState() {
     super.initState();
     _globalStream = FirebaseDatabase.instance.ref().onValue.asBroadcastStream();
+    _globalStream.listen((event) {
+      if (mounted) {
+        setState(() {
+          _cachedEvent = event;
+        });
+      } else {
+        _cachedEvent = event;
+      }
+    });
 
     if (widget.scrollToUrgent) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -61,6 +72,53 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
         });
       });
     }
+
+    _startBackgroundAlerts();
+  }
+
+  void _startBackgroundAlerts() {
+    final db = FirebaseDatabase.instance.ref();
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    // 1. Monitor Pending Drivers for Approval
+    db.child('pending_drivers').onChildAdded.listen((event) {
+      if (event.snapshot.exists && mounted) {
+        String name = (event.snapshot.value as Map)['name'] ?? "New Driver";
+        NotificationService.showNotification(
+          "New Driver Registration 👤",
+          "$name is waiting for your approval."
+        );
+      }
+    });
+
+    // 2. Monitor Critical Bins (90%+ Fill or 450+ Gas)
+    db.child('bins').onValue.listen((event) {
+      if (event.snapshot.exists && mounted) {
+        Map bins = (event.snapshot.value as Map?) ?? {};
+        bins.forEach((id, val) {
+          double fill = BinData.fillLevel(val);
+          int gas = BinData.gasLevel(val);
+          if (fill >= 90 || gas >= 450) {
+            NotificationService.showNotification(
+              "⚠️ Critical Bin Alert: $id",
+              "Bin at ${BinData.area(val)} requires immediate attention ($fill% Fill)."
+            );
+          }
+        });
+      }
+    });
+
+    // 3. Monitor Admin Warnings
+    db.child('users/${user.uid}/warnings').onChildAdded.listen((event) {
+      if (event.snapshot.exists && mounted) {
+        String msg = (event.snapshot.value as Map)['message'] ?? "You have a new message from Admin.";
+        NotificationService.showNotification(
+          "Admin Warning ❗",
+          msg
+        );
+      }
+    });
   }
 
   double _calculateDistance(
@@ -160,7 +218,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
                                           ? Colors.blue
                                           : leafGreen,
                                       child: const Icon(
-                                        Icons.delivery_dining,
+                                        Icons.local_shipping_rounded,
                                         color: Colors.white,
                                       ),
                                     ),
@@ -265,8 +323,9 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
   Widget build(BuildContext context) {
     return StreamBuilder(
       stream: _globalStream,
+      initialData: _cachedEvent,
       builder: (context, AsyncSnapshot<DatabaseEvent> snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
+        if (!snapshot.hasData) {
           return const Scaffold(
             body: Center(child: CircularProgressIndicator(color: leafGreen)),
           );
@@ -992,7 +1051,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     crossAxisSpacing: 15,
     childAspectRatio: 1.3,
     children: [
-      _gridItem("City Map", "📍", Colors.blue, const LiveMapScreen()),
+      _gridItem("City Map", "📍", Colors.blue, const LiveMapScreen(isReadOnly: true)),
       _gridItem("Analytics", "📊", Colors.purple, const AnalyticsPage()),
       _gridItem(
         "Schedule",
@@ -1112,7 +1171,10 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
                 onTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (c) => BinDetailsPage(binId: e.key),
+                    builder: (c) => BinDetailsPage(
+                      binId: e.key,
+                      initialData: e.value as Map?,
+                    ),
                   ),
                 ),
                 leading: const CircleAvatar(
@@ -1372,13 +1434,37 @@ class CitizenReportsPage extends StatelessWidget {
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
-                            onPressed: () {
-                              FirebaseDatabase.instance
-                                  .ref('citizen_reports/$key')
-                                  .remove();
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text("Case Resolved!")),
-                              );
+                            onPressed: () async {
+                              final db = FirebaseDatabase.instance.ref();
+                              
+                              // 1. Move to Resolved Node
+                              await db.child('resolved_reports').child(key).set({
+                                ...r,
+                                'status': 'Resolved',
+                                'resolved_at': ServerValue.timestamp,
+                              });
+
+                              // 2. Notify Citizen (if UID exists)
+                              if (r['uid'] != null) {
+                                await db.child('citizen_notifications/${r['uid']}').push().set({
+                                  'title': 'Report Resolved ✅',
+                                  'message': 'Your report regarding ${r['type']} at ${r['area']} has been resolved.',
+                                  'timestamp': ServerValue.timestamp,
+                                  'status': 'Unread',
+                                });
+                              }
+
+                              // 3. Remove from Active
+                              await db.child('citizen_reports/$key').remove();
+
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text("Case Resolved & Citizen Notified!"),
+                                    backgroundColor: Colors.green,
+                                  ),
+                                );
+                              }
                             },
                           ),
                         ),

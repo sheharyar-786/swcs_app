@@ -11,8 +11,13 @@ import '../user_management/staff_directory.dart'; // Import navigation target
 class AdminHomeView extends StatelessWidget {
   // Receive the broadcast stream from AdminMainShell
   final Stream<DatabaseEvent> globalStream;
+  final DatabaseEvent? initialData;
 
-  const AdminHomeView({super.key, required this.globalStream});
+  const AdminHomeView({
+    super.key,
+    required this.globalStream,
+    this.initialData,
+  });
 
   static const Color leafGreen = Color(0xFF2E7D32);
   static const Color deepForest = Color(0xFF1B5E20);
@@ -24,7 +29,7 @@ class AdminHomeView extends StatelessWidget {
       body: CustomScrollView(
         slivers: [
           AdminHeader(
-            title: "Management Hub",
+            title: "Hello Admin",
             showBackButton: false,
             actions: [
               Padding(
@@ -96,6 +101,7 @@ class AdminHomeView extends StatelessWidget {
           ),
           StreamBuilder(
             stream: globalStream,
+            initialData: initialData,
             builder: (context, snapshot) {
               if (snapshot.hasData && snapshot.data!.snapshot.value != null) {
                 Map data = snapshot.data!.snapshot.value as Map;
@@ -138,7 +144,15 @@ class AdminHomeView extends StatelessWidget {
                           "$managers",
                           Icons.support_agent,
                           const Color(0xFF0288D1),
-                          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => StaffDirectory(globalStream: globalStream))),
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (c) => StaffDirectory(
+                                globalStream: globalStream,
+                                initialTabIndex: 0,
+                              ),
+                            ),
+                          ),
                         ),
                       ),
                       FadeInUp(
@@ -148,7 +162,15 @@ class AdminHomeView extends StatelessWidget {
                           "$drivers",
                           Icons.local_shipping,
                           const Color(0xFFF57C00),
-                          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => StaffDirectory(globalStream: globalStream))),
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (c) => StaffDirectory(
+                                globalStream: globalStream,
+                                initialTabIndex: 1,
+                              ),
+                            ),
+                          ),
                         ),
                       ),
                       FadeInUp(

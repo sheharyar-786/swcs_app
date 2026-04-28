@@ -346,47 +346,10 @@ class _CivillianPageState extends State<CivillianPage> {
     children: [
       InkWell(
         onTap: () async {
-          final u = Uri(scheme: 'tel', path: '1122');
-          if (await canLaunchUrl(u)) await launchUrl(u);
-        },
-        child: Container(
-          padding: const EdgeInsets.all(25),
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(colors: [deepForest, leafGreen]),
-            borderRadius: BorderRadius.circular(25),
-          ),
-          child: const Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    "Emergency Pickup",
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 18,
-                    ),
-                  ),
-                  Text("Call: 1122", style: TextStyle(color: Colors.white70)),
-                ],
-              ),
-              CircleAvatar(
-                backgroundColor: Colors.white24,
-                child: Icon(Icons.phone_enabled, color: Colors.white),
-              ),
-            ],
-          ),
-        ),
-      ),
-      const SizedBox(height: 15),
-      InkWell(
-        onTap: () async {
           final messenger = ScaffoldMessenger.of(context);
           final Uri emailUri = Uri(
             scheme: 'mailto',
-            path: 'adminswcs@gmail.com',
+            path: 'swcsproviders@gmail.com',
             query:
                 'subject=Complaint%20Regarding%20Driver/Manager&body=Dear%20Admin,%0A%0AI%20would%20like%20to%20report%20an%20issue.%0A%0AMy%20Details:%0AName:%0APhone:%0A%0AIssue:%0A',
           );

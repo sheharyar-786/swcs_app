@@ -9,9 +9,9 @@ import 'package:intl/intl.dart';
 import 'bin_utils.dart';
 
 class LiveMapScreen extends StatefulWidget {
-  final String?
-  assignedArea; // UPDATED: Changed targetArea to assignedArea for clarity
-  const LiveMapScreen({super.key, this.assignedArea});
+  final String? assignedArea; 
+  final bool isReadOnly;
+  const LiveMapScreen({super.key, this.assignedArea, this.isReadOnly = false});
 
   @override
   State<LiveMapScreen> createState() => _LiveMapScreenState();
@@ -30,6 +30,10 @@ class _LiveMapScreenState extends State<LiveMapScreen>
   int _criticalCount = 0;
   bool _isEmergencyActive = false;
   LatLng? _emergencyTargetLocation;
+  String? _emergencyBinId;
+  String? _emergencyBinArea;
+  int? _emergencyBinFill;
+  int? _emergencyBinGas;
 
   late AnimationController _pulseController;
 
@@ -158,10 +162,17 @@ class _LiveMapScreenState extends State<LiveMapScreen>
     final user = FirebaseAuth.instance.currentUser;
 
     String? assignedEmergencyBinId;
+    String? assignedEmergencyBinArea;
+    int? assignedEmergencyBinFill;
+    int? assignedEmergencyBinGas;
+
     bins.forEach((id, val) {
       if (val['assigned_to'] == user?.uid &&
           (BinData.fillLevel(val) >= 90 || BinData.gasLevel(val) > 450)) {
         assignedEmergencyBinId = id;
+        assignedEmergencyBinArea = BinData.area(val);
+        assignedEmergencyBinFill = BinData.fillLevel(val).toInt();
+        assignedEmergencyBinGas = BinData.gasLevel(val);
       }
     });
 
@@ -216,8 +227,8 @@ class _LiveMapScreenState extends State<LiveMapScreen>
             child: GestureDetector(
               onTap: () => _showBinDetails(id, area, fill, gas),
               child: isThisEmergency
-                  ? _buildEmergencyMarker(fill, gas)
-                  : _buildSmartBinMarker(fill, gas, area),
+                  ? _buildEmergencyMarker(fill, gas, id)
+                  : _buildSmartBinMarker(fill, gas, area, id),
             ),
           ),
         );
@@ -232,7 +243,6 @@ class _LiveMapScreenState extends State<LiveMapScreen>
     List<LatLng> emergencyPoints = [_myLiveLocation];
 
     if (assignedEmergencyBinId != null) {
-      _isEmergencyActive = true;
       var eBin = highPriorityBins.firstWhere(
         (element) => element['isEmergency'] == true,
         orElse: () => highPriorityBins.isNotEmpty
@@ -241,7 +251,6 @@ class _LiveMapScreenState extends State<LiveMapScreen>
       );
       if (eBin['pos'] != _myLiveLocation) {
         emergencyPoints.add(eBin['pos']);
-        _emergencyTargetLocation = eBin['pos'];
       }
 
       for (var bin in highPriorityBins) {
@@ -259,8 +268,6 @@ class _LiveMapScreenState extends State<LiveMapScreen>
         Polyline(points: emergencyPoints, strokeWidth: 7.0, color: Colors.red),
       );
     } else {
-      _isEmergencyActive = false;
-      _emergencyTargetLocation = null;
       for (var bin in highPriorityBins) {
         routinePoints.add(bin['pos']);
       }
@@ -278,6 +285,26 @@ class _LiveMapScreenState extends State<LiveMapScreen>
         _markers = newMarkers;
         _criticalCount = critCount;
         _polylines = newPolylines;
+        _isEmergencyActive = assignedEmergencyBinId != null;
+        if (_isEmergencyActive) {
+          var eBin = highPriorityBins.firstWhere(
+            (element) => element['isEmergency'] == true,
+            orElse: () => highPriorityBins.isNotEmpty
+                ? highPriorityBins.first
+                : {'pos': _myLiveLocation},
+          );
+          _emergencyTargetLocation = eBin['pos'];
+          _emergencyBinId = assignedEmergencyBinId;
+          _emergencyBinArea = assignedEmergencyBinArea;
+          _emergencyBinFill = assignedEmergencyBinFill;
+          _emergencyBinGas = assignedEmergencyBinGas;
+        } else {
+          _emergencyTargetLocation = null;
+          _emergencyBinId = null;
+          _emergencyBinArea = null;
+          _emergencyBinFill = null;
+          _emergencyBinGas = null;
+        }
       });
     }
   }
@@ -310,26 +337,35 @@ class _LiveMapScreenState extends State<LiveMapScreen>
               ],
             ),
             const SizedBox(height: 25),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green,
-                  padding: const EdgeInsets.all(15),
-                ),
-                onPressed: () {
-                  Navigator.pop(c);
-                  _markBinAsCollected(id, area);
-                },
-                child: const Text(
-                  "MARK AS COLLECTED",
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
+            if (!widget.isReadOnly) 
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                    padding: const EdgeInsets.all(15),
+                  ),
+                  onPressed: () {
+                    Navigator.pop(c);
+                    _markBinAsCollected(id, area);
+                  },
+                  child: const Text(
+                    "MARK AS COLLECTED",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ),
-            ),
+            if (widget.isReadOnly)
+              const Padding(
+                padding: EdgeInsets.only(top: 10),
+                child: Text(
+                  "Read-only View (Manager Mode)",
+                  style: TextStyle(fontSize: 12, color: Colors.grey, fontStyle: FontStyle.italic),
+                ),
+              ),
           ],
         ),
       ),
@@ -352,7 +388,7 @@ class _LiveMapScreenState extends State<LiveMapScreen>
     );
   }
 
-  Widget _buildEmergencyMarker(int fill, int gas) {
+  Widget _buildEmergencyMarker(int fill, int gas, String id) {
     return FadeTransition(
       opacity: _pulseController,
       child: Column(
@@ -373,12 +409,28 @@ class _LiveMapScreenState extends State<LiveMapScreen>
             ),
           ),
           const Icon(Icons.warning_amber_rounded, color: Colors.red, size: 45),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.9),
+              borderRadius: BorderRadius.circular(4),
+              border: Border.all(color: Colors.red, width: 1),
+            ),
+            child: Text(
+              id.length > 10 ? id.substring(id.length - 8) : id,
+              style: const TextStyle(
+                color: Colors.red,
+                fontSize: 7,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildSmartBinMarker(int fill, int gas, String area) {
+  Widget _buildSmartBinMarker(int fill, int gas, String area, String id) {
     Color col = (gas > 400)
         ? Colors.purple
         : (fill >= 80
@@ -402,6 +454,22 @@ class _LiveMapScreenState extends State<LiveMapScreen>
           ),
         ),
         Icon(Icons.location_on, color: col, size: 35),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.8),
+            borderRadius: BorderRadius.circular(4),
+            border: Border.all(color: col, width: 0.5),
+          ),
+          child: Text(
+            id.length > 10 ? id.substring(id.length - 8) : id,
+            style: TextStyle(
+              color: col,
+              fontSize: 7,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
       ],
     );
   }
@@ -493,7 +561,15 @@ class _LiveMapScreenState extends State<LiveMapScreen>
             ElevatedButton(
               onPressed: () {
                 if (_emergencyTargetLocation != null) {
-                  _mapController.move(_emergencyTargetLocation!, 17);
+                  _mapController.move(_emergencyTargetLocation!, 17.5);
+                  if (_emergencyBinId != null) {
+                    _showBinDetails(
+                      _emergencyBinId!,
+                      _emergencyBinArea ?? "Emergency Location",
+                      _emergencyBinFill ?? 0,
+                      _emergencyBinGas ?? 0,
+                    );
+                  }
                 }
               },
               style: ElevatedButton.styleFrom(

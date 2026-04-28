@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'dart:ui' as ui;
 import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../services/notification_service.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:confetti/confetti.dart';
@@ -150,18 +151,38 @@ class _DriverDashboardState extends State<DriverDashboard> {
           }
         });
 
-    // Real-time task counter sync
+    // Real-time task counter sync & Emergency Alert Logic
     FirebaseDatabase.instance.ref('bins').onValue.listen((event) {
       if (event.snapshot.exists && mounted) {
         Map bins = event.snapshot.value as Map;
-        int activeTasks = bins.entries
-            .where(
-              (e) =>
-                  e.value['assigned_to'] == user.uid &&
-                  BinData.fillLevel(e.value) > 0,
-            )
-            .length;
+        int activeTasks = 0;
+        bool hasNewEmergency = false;
+        String emergencyArea = "";
+
+        bins.forEach((id, val) {
+          if (val['assigned_to'] == user.uid) {
+            double fill = BinData.fillLevel(val);
+            int gas = BinData.gasLevel(val);
+            
+            if (fill > 0) activeTasks++;
+
+            // CHECK FOR EMERGENCY (90% fill or 450+ gas)
+            if (fill >= 90 || gas >= 450) {
+              hasNewEmergency = true;
+              emergencyArea = BinData.area(val);
+            }
+          }
+        });
+
         setState(() => dutyCount = activeTasks);
+
+        // TRIGGER LOUD ALERT IF EMERGENCY DETECTED
+        if (hasNewEmergency) {
+          NotificationService.showNotification(
+            "🚨 EMERGENCY ASSIGNMENT",
+            "Urgent pickup required at $emergencyArea! Check your mission list immediately."
+          );
+        }
       }
     });
   }

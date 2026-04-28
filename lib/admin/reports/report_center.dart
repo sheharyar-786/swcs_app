@@ -7,8 +7,13 @@ import '../../widgets/admin_header.dart';
 
 class ReportCenter extends StatelessWidget {
   final Stream<DatabaseEvent> globalStream;
+  final DatabaseEvent? initialData;
 
-  const ReportCenter({super.key, required this.globalStream});
+  const ReportCenter({
+    super.key,
+    required this.globalStream,
+    this.initialData,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -16,6 +21,7 @@ class ReportCenter extends StatelessWidget {
       backgroundColor: const Color(0xFFF8FAF9),
       body: StreamBuilder(
         stream: globalStream,
+        initialData: initialData,
         builder: (context, snapshot) {
           if (!snapshot.hasData || snapshot.data!.snapshot.value == null) {
             return const Center(

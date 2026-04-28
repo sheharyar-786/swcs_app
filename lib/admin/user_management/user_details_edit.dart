@@ -55,9 +55,13 @@ class _UserDetailsEditState extends State<UserDetailsEdit> {
                       const SizedBox(height: 20),
                       _buildWarningCenter(),
                       const SizedBox(height: 20),
-                      _buildStatusToggle(),
-                      const SizedBox(height: 40),
-                      _buildActionButtons(),
+                      if (_isVerified()) ...[
+                        _buildStatusToggle(),
+                        const SizedBox(height: 40),
+                        _buildActionButtons(),
+                      ] else ...[
+                        _buildUnverifiedWarning(),
+                      ],
                     ],
                   ),
                 ),
@@ -248,6 +252,36 @@ class _UserDetailsEditState extends State<UserDetailsEdit> {
     );
   }
 
+  bool _isVerified() {
+    if (widget.userData['role'] == 'driver') {
+      return _collection == 'verified_drivers';
+    } else {
+      return widget.userData['isApproved'] ?? false;
+    }
+  }
+
+  Widget _buildUnverifiedWarning() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.blue.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(color: Colors.blue.withValues(alpha: 0.2)),
+      ),
+      child: const Row(
+        children: [
+          Icon(Icons.info_outline, color: Colors.blue),
+          SizedBox(width: 15),
+          Expanded(
+            child: Text(
+              "Management controls (Suspend/Delete) are only available for Verified staff members.",
+              style: TextStyle(fontSize: 12, color: Colors.blueGrey, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _buildStatusToggle() {
     return Container(
