@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 import 'package:firebase_database/firebase_database.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:intl/intl.dart';
+import '../../widgets/admin_header.dart';
 
 class ReportCenter extends StatelessWidget {
   final Stream<DatabaseEvent> globalStream;
@@ -11,117 +12,49 @@ class ReportCenter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder(
-      stream: globalStream,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(
-            body: Center(
+    return Scaffold(
+      backgroundColor: const Color(0xFFF8FAF9),
+      body: StreamBuilder(
+        stream: globalStream,
+        builder: (context, snapshot) {
+          if (!snapshot.hasData || snapshot.data!.snapshot.value == null) {
+            return const Center(
               child: CircularProgressIndicator(color: Color(0xFF0A714E)),
-            ),
-          );
-        }
-        if (snapshot.hasError) {
-          return Scaffold(
-            body: Center(child: Text("Error: ${snapshot.error}")),
-          );
-        }
-        if (!snapshot.hasData || snapshot.data!.snapshot.value == null) {
-          return const Scaffold(
-            body: Center(
-              child: CircularProgressIndicator(color: Color(0xFF0A714E)),
-            ),
-          );
-        }
+            );
+          }
 
-        Map allData = snapshot.data!.snapshot.value as Map;
+          Map allData = snapshot.data!.snapshot.value as Map;
 
-        return DefaultTabController(
-          length: 2,
-          child: Scaffold(
-            backgroundColor: const Color(0xFFF8FAF9),
-            body: Container(
-              color: const Color(0xFFF8FAF9),
-              child: Column(
-                children: [
-                  _buildPremiumHeader(),
-                  _buildStatementBar(),
-                  _buildTabBar(),
-                  Expanded(
-                    child: TabBarView(
-                      children: [
-                        _buildReportList('Pending', allData),
-                        _buildReportList('Resolved', allData),
-                      ],
+          return DefaultTabController(
+            length: 2,
+            child: NestedScrollView(
+              headerSliverBuilder: (context, innerBoxIsScrolled) => [
+                AdminHeader(title: "Complaints", showBackButton: true),
+                SliverToBoxAdapter(child: _buildStatementBar()),
+                SliverPersistentHeader(
+                  pinned: true,
+                  delegate: _SliverAppBarDelegate(
+                    child: Container(
+                      color: const Color(0xFFF8FAF9),
+                      child: _buildTabBar(),
                     ),
                   ),
+                ),
+              ],
+              body: TabBarView(
+                children: [
+                  _buildReportList('Pending', allData),
+                  _buildReportList('Resolved', allData),
                 ],
               ),
             ),
-          ),
-        );
-      },
+          );
+        },
+      ),
     );
   }
 
   // --- UI Components ---
-
-  Widget _buildPremiumHeader() {
-    return Container(
-      width: double.infinity,
-      height: 180,
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(bottom: Radius.circular(30)),
-      ),
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          ClipRRect(
-            borderRadius: const BorderRadius.vertical(bottom: Radius.circular(30)),
-            child: ImageFiltered(
-              imageFilter: ui.ImageFilter.blur(sigmaX: 0.0, sigmaY: 0.0),
-              child: Image.asset(
-                'lib/assets/bg.jpeg',
-                fit: BoxFit.cover,
-              ),
-            ),
-          ),
-          Container(
-            decoration: BoxDecoration(
-              borderRadius: const BorderRadius.vertical(bottom: Radius.circular(30)),
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Colors.white.withValues(alpha: 0.3),
-                  Colors.white.withValues(alpha: 0.1),
-                  Colors.white.withValues(alpha: 0.5),
-                ],
-              ),
-            ),
-          ),
-          const Padding(
-            padding: EdgeInsets.only(left: 25, right: 25, bottom: 25),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.end,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  "Complaints",
-                  style: TextStyle(
-                    color: Colors.black,
-                    fontSize: 28,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
   Widget _buildStatementBar() {
     return FadeInLeft(
@@ -132,7 +65,9 @@ class ReportCenter extends StatelessWidget {
         decoration: BoxDecoration(
           color: const Color(0xFF0A714E).withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(15),
-          border: Border.all(color: const Color(0xFF0A714E).withValues(alpha: 0.2)),
+          border: Border.all(
+            color: const Color(0xFF0A714E).withValues(alpha: 0.2),
+          ),
         ),
         child: const Row(
           children: [
@@ -169,10 +104,7 @@ class ReportCenter extends StatelessWidget {
         indicatorWeight: 3,
         tabs: [
           Tab(
-            child: Text(
-              "PENDING",
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
+            child: Text("PENDING", style: TextStyle(fontWeight: FontWeight.bold)),
           ),
           Tab(
             child: Text(
@@ -252,7 +184,6 @@ class ReportCenter extends StatelessWidget {
               title: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  // SCREENSHOT FIX: Field 'type' used as title
                   Text(
                     report['type'] ?? "General",
                     style: const TextStyle(
@@ -270,7 +201,6 @@ class ReportCenter extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const SizedBox(height: 8),
-                  // SCREENSHOT FIX: Field 'comment' used as description
                   Text(
                     report['comment'] ?? "No details provided.",
                     maxLines: 2,
@@ -328,10 +258,7 @@ class ReportCenter extends StatelessWidget {
             color: Colors.grey[300],
           ),
           const SizedBox(height: 10),
-          Text(
-            "No $status reports",
-            style: const TextStyle(color: Colors.grey),
-          ),
+          Text("No $status reports", style: const TextStyle(color: Colors.grey)),
         ],
       ),
     );
@@ -355,5 +282,29 @@ class ReportCenter extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class _SliverAppBarDelegate extends SliverPersistentHeaderDelegate {
+  _SliverAppBarDelegate({required this.child});
+  final Widget child;
+
+  @override
+  double get minExtent => 100.0;
+  @override
+  double get maxExtent => 100.0;
+
+  @override
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
+    return child;
+  }
+
+  @override
+  bool shouldRebuild(_SliverAppBarDelegate oldDelegate) {
+    return false;
   }
 }

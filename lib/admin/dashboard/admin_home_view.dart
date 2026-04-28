@@ -4,6 +4,7 @@ import 'package:firebase_database/firebase_database.dart';
 import 'package:animate_do/animate_do.dart';
 import 'widgets/stats_card.dart';
 import 'support_inbox_view.dart';
+import '../../widgets/admin_header.dart';
 
 import '../user_management/staff_directory.dart'; // Import navigation target
 
@@ -20,109 +21,39 @@ class AdminHomeView extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAF9),
-      body: Container(
-        color: const Color(0xFFF8FAF9), // Clean light background
-        child: Column(
-          children: [
-            // --- Premium Unified Header ---
-            Container(
-              width: double.infinity,
-              height: 180,
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.vertical(
-                  bottom: Radius.circular(35),
+      body: CustomScrollView(
+        slivers: [
+          AdminHeader(
+            title: "Management Hub",
+            showBackButton: false,
+            actions: [
+              Padding(
+                padding: const EdgeInsets.only(right: 15),
+                child: GestureDetector(
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (c) => const SupportInboxView(),
+                    ),
+                  ),
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.15),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.support_agent_rounded,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                  ),
                 ),
               ),
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  ClipRRect(
-                    borderRadius: const BorderRadius.vertical(
-                      bottom: Radius.circular(35),
-                    ),
-                    child: ImageFiltered(
-                      imageFilter: ui.ImageFilter.blur(
-                        sigmaX: 0.0,
-                        sigmaY: 0.0,
-                      ),
-                      child: Image.asset(
-                        'lib/assets/bg.jpeg',
-                        fit: BoxFit.cover,
-                      ),
-                    ),
-                  ),
-                  Container(
-                    decoration: BoxDecoration(
-                      borderRadius: const BorderRadius.vertical(
-                        bottom: Radius.circular(35),
-                      ),
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Colors.white.withValues(alpha: 0.3),
-                          Colors.white.withValues(alpha: 0.1),
-                          Colors.white.withValues(alpha: 0.5),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const Padding(
-                    padding: EdgeInsets.only(left: 25, right: 25, bottom: 25),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          "MANAGEMENT HUB",
-                          style: TextStyle(
-                            color: Colors.black,
-                            fontSize: 28,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: -0.5,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  // --- SUPPORT INBOX ACCESS ---
-                  Positioned(
-                    top: 50,
-                    right: 20,
-                    child: GestureDetector(
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (c) => const SupportInboxView(),
-                        ),
-                      ),
-                      child: Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.8),
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.1),
-                              blurRadius: 10,
-                            ),
-                          ],
-                        ),
-                        child: const Icon(
-                          Icons.support_agent_rounded,
-                          color: Color(0xFF0A714E),
-                          size: 24,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // --- Styled Statement Bar ---
-            FadeInLeft(
+            ],
+          ),
+          SliverToBoxAdapter(
+            child: FadeInLeft(
               duration: const Duration(milliseconds: 600),
               child: Container(
                 margin: const EdgeInsets.symmetric(
@@ -162,99 +93,93 @@ class AdminHomeView extends StatelessWidget {
                 ),
               ),
             ),
+          ),
+          StreamBuilder(
+            stream: globalStream,
+            builder: (context, snapshot) {
+              if (snapshot.hasData && snapshot.data!.snapshot.value != null) {
+                Map data = snapshot.data!.snapshot.value as Map;
+                int totalBins = (data['bins'] as Map?)?.length ?? 0;
+                Map users = data['users'] ?? {};
+                Map verifiedDrivers = data['verified_drivers'] ?? {};
 
-            Expanded(
-              child: StreamBuilder(
-                // Using the broadcast stream to avoid "Bad State" error
-                stream: globalStream,
-                builder: (context, snapshot) {
-                  if (snapshot.hasData &&
-                      snapshot.data!.snapshot.value != null) {
-                    Map data = snapshot.data!.snapshot.value as Map;
+                int managers = users.values
+                    .where((u) => u['role'] == 'manager')
+                    .length;
+                int drivers = users.values
+                        .where((u) => u['role'] == 'driver')
+                        .length +
+                    verifiedDrivers.length;
+                int citizens = users.values
+                    .where((u) => u['role'] == 'civilian')
+                    .length;
 
-                    // Real-time counting of actual bins in the system
-                    int totalBins = (data['bins'] as Map?)?.length ?? 0;
-
-                    // --- Logic: Safe Data Fetching ---
-                    Map users = data['users'] ?? {};
-                    Map verifiedDrivers = data['verified_drivers'] ?? {};
-
-                    // Counting based on roles
-                    int managers = users.values
-                        .where((u) => u['role'] == 'manager')
-                        .length;
-                    int drivers =
-                        users.values
-                            .where((u) => u['role'] == 'driver')
-                            .length +
-                        verifiedDrivers.length;
-                    int citizens = users.values
-                        .where((u) => u['role'] == 'civilian')
-                        .length;
-
-                    return GridView.count(
-                      padding: const EdgeInsets.symmetric(horizontal: 25),
-                      crossAxisCount: 2,
-                      crossAxisSpacing: 15,
-                      mainAxisSpacing: 15,
-                      childAspectRatio: 0.95,
-                      children: [
-                        FadeInUp(
-                          delay: const Duration(milliseconds: 100),
-                          child: _buildFixedStatsCard(
-                            "TOTAL BINS",
-                            "$totalBins",
-                            Icons.delete_sweep,
-                            leafGreen,
-                          ),
+                return SliverPadding(
+                  padding: const EdgeInsets.symmetric(horizontal: 25),
+                  sliver: SliverGrid.count(
+                    crossAxisCount: 2,
+                    crossAxisSpacing: 15,
+                    mainAxisSpacing: 15,
+                    childAspectRatio: 0.95,
+                    children: [
+                      FadeInUp(
+                        delay: const Duration(milliseconds: 100),
+                        child: _buildFixedStatsCard(
+                          "TOTAL BINS",
+                          "$totalBins",
+                          Icons.delete_sweep,
+                          leafGreen,
                         ),
-                        FadeInUp(
-                          delay: const Duration(milliseconds: 200),
-                          child: _buildFixedStatsCard(
-                            "MANAGERS",
-                            "$managers",
-                            Icons.support_agent,
-                            const Color(0xFF0288D1), // Deep Blue
-                            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => StaffDirectory(globalStream: globalStream))),
-                          ),
+                      ),
+                      FadeInUp(
+                        delay: const Duration(milliseconds: 200),
+                        child: _buildFixedStatsCard(
+                          "MANAGERS",
+                          "$managers",
+                          Icons.support_agent,
+                          const Color(0xFF0288D1),
+                          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => StaffDirectory(globalStream: globalStream))),
                         ),
-                        FadeInUp(
-                          delay: const Duration(milliseconds: 300),
-                          child: _buildFixedStatsCard(
-                            "DRIVERS",
-                            "$drivers",
-                            Icons.local_shipping,
-                            const Color(0xFFF57C00), // Deep Orange
-                            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => StaffDirectory(globalStream: globalStream))),
-                          ),
+                      ),
+                      FadeInUp(
+                        delay: const Duration(milliseconds: 300),
+                        child: _buildFixedStatsCard(
+                          "DRIVERS",
+                          "$drivers",
+                          Icons.local_shipping,
+                          const Color(0xFFF57C00),
+                          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => StaffDirectory(globalStream: globalStream))),
                         ),
-
-                        FadeInUp(
-                          delay: const Duration(milliseconds: 400),
-                          child: _buildFixedStatsCard(
-                            "CIVILIANS",
-                            "$citizens",
-                            Icons.location_city,
-                            const Color(0xFF7B1FA2), // Purple
-                          ),
+                      ),
+                      FadeInUp(
+                        delay: const Duration(milliseconds: 400),
+                        child: _buildFixedStatsCard(
+                          "CIVILIANS",
+                          "$citizens",
+                          Icons.location_city,
+                          const Color(0xFF7B1FA2),
                         ),
-                      ],
-                    );
-                  }
+                      ),
+                    ],
+                  ),
+                );
+              }
 
+              if (snapshot.hasError) {
+                return SliverFillRemaining(
+                  child: Center(child: Text("Error: ${snapshot.error}")),
+                );
+              }
 
-                  if (snapshot.hasError) {
-                    return Center(child: Text("Error: ${snapshot.error}"));
-                  }
-
-                  return const Center(
-                    child: CircularProgressIndicator(color: Color(0xFF0A714E)),
-                  );
-                },
-              ),
-            ),
-          ],
-        ),
+              return const SliverFillRemaining(
+                child: Center(
+                  child: CircularProgressIndicator(color: Color(0xFF0A714E)),
+                ),
+              );
+            },
+          ),
+          const SliverToBoxAdapter(child: SizedBox(height: 50)),
+        ],
       ),
     );
   }

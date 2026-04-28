@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:ui' as ui;
 import 'package:firebase_database/firebase_database.dart';
 import 'package:animate_do/animate_do.dart';
+import '../../widgets/admin_header.dart';
 
 class ManagerApprovals extends StatelessWidget {
   final Stream<DatabaseEvent> globalStream;
@@ -12,33 +13,31 @@ class ManagerApprovals extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAF9),
-      body: Container(
-        color: const Color(0xFFF8FAF9),
-        child: Column(
-          children: [
-            _buildPremiumHeader(),
-            _buildStatementBar(),
-            Expanded(
-              child: StreamBuilder(
-                stream: globalStream,
-                builder: (context, snapshot) {
-                  if (snapshot.hasData &&
-                      snapshot.data!.snapshot.value != null) {
-                    Map allData = snapshot.data!.snapshot.value as Map;
+      body: CustomScrollView(
+        slivers: [
+          AdminHeader(
+            title: "Approvals",
+            showBackButton: true,
+          ),
+          SliverToBoxAdapter(child: _buildStatementBar()),
+          StreamBuilder(
+            stream: globalStream,
+            builder: (context, snapshot) {
+              if (snapshot.hasData && snapshot.data!.snapshot.value != null) {
+                Map allData = snapshot.data!.snapshot.value as Map;
+                Map? pendingManagers = allData['pending_managers'] as Map?;
 
-                    // SCREENSHOT FIX: Fetching from 'pending_managers' node
-                    Map? pendingManagers = allData['pending_managers'] as Map?;
+                if (pendingManagers == null || pendingManagers.isEmpty) {
+                  return SliverFillRemaining(child: _buildEmptyState());
+                }
 
-                    if (pendingManagers == null || pendingManagers.isEmpty) {
-                      return _buildEmptyState();
-                    }
+                var pendingList = pendingManagers.entries.toList();
 
-                    var pendingList = pendingManagers.entries.toList();
-
-                    return ListView.builder(
-                      padding: const EdgeInsets.all(20),
-                      itemCount: pendingList.length,
-                      itemBuilder: (context, index) {
+                return SliverPadding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                  sliver: SliverList(
+                    delegate: SliverChildBuilderDelegate(
+                      (context, index) {
                         var uid = pendingList[index].key;
                         var data = pendingList[index].value as Map;
 
@@ -48,78 +47,26 @@ class ManagerApprovals extends StatelessWidget {
                           child: _buildApprovalCard(context, uid, data),
                         );
                       },
-                    );
-                  }
-                  return const Center(
-                    child: CircularProgressIndicator(color: Color(0xFF0A714E)),
-                  );
-                },
-              ),
-            ),
-          ],
-        ),
+                      childCount: pendingList.length,
+                    ),
+                  ),
+                );
+              }
+
+              return const SliverFillRemaining(
+                child: Center(
+                  child: CircularProgressIndicator(color: Color(0xFF0A714E)),
+                ),
+              );
+            },
+          ),
+          const SliverToBoxAdapter(child: SizedBox(height: 50)),
+        ],
       ),
     );
   }
 
   // --- UI Components ---
-
-  Widget _buildPremiumHeader() {
-    return Container(
-      width: double.infinity,
-      height: 180,
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(bottom: Radius.circular(35)),
-      ),
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          ClipRRect(
-            borderRadius: const BorderRadius.vertical(bottom: Radius.circular(35)),
-            child: ImageFiltered(
-              imageFilter: ui.ImageFilter.blur(sigmaX: 0.0, sigmaY: 0.0),
-              child: Image.asset(
-                'lib/assets/bg.jpeg',
-                fit: BoxFit.cover,
-              ),
-            ),
-          ),
-          Container(
-            decoration: BoxDecoration(
-              borderRadius: const BorderRadius.vertical(bottom: Radius.circular(35)),
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Colors.white.withValues(alpha: 0.3),
-                  Colors.white.withValues(alpha: 0.1),
-                  Colors.white.withValues(alpha: 0.5),
-                ],
-              ),
-            ),
-          ),
-          const Padding(
-            padding: EdgeInsets.only(left: 25, right: 25, bottom: 25),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.end,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  "Approvals",
-                  style: TextStyle(
-                    color: Colors.black,
-                    fontSize: 28,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
   Widget _buildStatementBar() {
     return FadeInLeft(

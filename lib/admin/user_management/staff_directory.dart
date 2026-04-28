@@ -3,9 +3,9 @@ import 'dart:ui' as ui;
 import 'package:firebase_database/firebase_database.dart';
 import 'package:animate_do/animate_do.dart';
 import 'user_details_edit.dart';
+import '../../widgets/admin_header.dart';
 
 class StaffDirectory extends StatefulWidget {
-  // Receive broadcast stream from AdminMainShell
   final Stream<DatabaseEvent> globalStream;
 
   const StaffDirectory({super.key, required this.globalStream});
@@ -37,109 +37,50 @@ class _StaffDirectoryState extends State<StaffDirectory>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAF9),
-      // BouncingScrollPhysics adds a premium feel to the whole column if needed
-      body: Container(
-        color: const Color(0xFFF8FAF9),
-        child: StreamBuilder(
-          stream: widget.globalStream,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(
-                child: CircularProgressIndicator(color: Color(0xFF0A714E)),
-              );
-            }
-            if (snapshot.hasError) {
-              return Center(child: Text("Error: ${snapshot.error}"));
-            }
-            if (!snapshot.hasData || snapshot.data!.snapshot.value == null) {
-              return const Center(
-                child: CircularProgressIndicator(color: Color(0xFF0A714E)),
-              );
-            }
+      body: StreamBuilder(
+        stream: widget.globalStream,
+        builder: (context, snapshot) {
+          if (!snapshot.hasData || snapshot.data!.snapshot.value == null) {
+            return const Center(
+              child: CircularProgressIndicator(color: Color(0xFF0A714E)),
+            );
+          }
 
-            Map allData = snapshot.data!.snapshot.value as Map;
+          Map allData = snapshot.data!.snapshot.value as Map;
 
-            return Column(
-              children: [
-                _buildPremiumHeader(),
-                _buildStatementBar(),
-                _buildSearchBar(),
-                _buildTabBar(),
-                Expanded(
-                  child: TabBarView(
-                    controller: _tabController,
-                    children: [
-                      _buildUserList('manager', allData),
-                      _buildUserList('driver', allData),
-                    ],
+          return NestedScrollView(
+            headerSliverBuilder: (context, innerBoxIsScrolled) => [
+              AdminHeader(
+                title: "Staff Directory",
+                showBackButton: true,
+              ),
+              SliverToBoxAdapter(child: _buildStatementBar()),
+              SliverToBoxAdapter(child: _buildSearchBar()),
+              SliverPersistentHeader(
+                pinned: true,
+                delegate: _SliverAppBarDelegate(
+                  child: Container(
+                    color: const Color(0xFFF8FAF9),
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: _buildTabBar(),
                   ),
                 ),
+              ),
+            ],
+            body: TabBarView(
+              controller: _tabController,
+              children: [
+                _buildUserList('manager', allData),
+                _buildUserList('driver', allData),
               ],
-            );
-          },
-        ),
+            ),
+          );
+        },
       ),
     );
   }
 
   // --- UI Components ---
-
-  Widget _buildPremiumHeader() {
-    return Container(
-      width: double.infinity,
-      height: 180,
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(bottom: Radius.circular(30)),
-      ),
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          ClipRRect(
-            borderRadius: const BorderRadius.vertical(bottom: Radius.circular(30)),
-            child: ImageFiltered(
-              imageFilter: ui.ImageFilter.blur(sigmaX: 0.0, sigmaY: 0.0),
-              child: Image.asset(
-                'lib/assets/bg.jpeg',
-                fit: BoxFit.cover,
-              ),
-            ),
-          ),
-          Container(
-            decoration: BoxDecoration(
-              borderRadius: const BorderRadius.vertical(bottom: Radius.circular(30)),
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Colors.white.withValues(alpha: 0.3),
-                  Colors.white.withValues(alpha: 0.1),
-                  Colors.white.withValues(alpha: 0.5),
-                ],
-              ),
-            ),
-          ),
-          const Padding(
-            padding: EdgeInsets.only(left: 25, right: 25, bottom: 20),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.end,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  "Staff List",
-                  style: TextStyle(
-                    color: Colors.black,
-                    fontSize: 28,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
   Widget _buildStatementBar() {
     return FadeInLeft(
@@ -204,8 +145,7 @@ class _StaffDirectoryState extends State<StaffDirectory>
         controller: _tabController,
         labelColor: Colors.white,
         unselectedLabelColor: Colors.grey,
-        indicatorSize:
-            TabBarIndicatorSize.tab, // Ensures indicator covers full tab
+        indicatorSize: TabBarIndicatorSize.tab,
         indicator: BoxDecoration(
           borderRadius: BorderRadius.circular(12),
           color: const Color(0xFF0A714E),
@@ -332,5 +272,25 @@ class _StaffDirectoryState extends State<StaffDirectory>
         ],
       ),
     );
+  }
+}
+
+class _SliverAppBarDelegate extends SliverPersistentHeaderDelegate {
+  _SliverAppBarDelegate({required this.child});
+  final Widget child;
+
+  @override
+  double get minExtent => 60.0;
+  @override
+  double get maxExtent => 60.0;
+
+  @override
+  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
+    return child;
+  }
+
+  @override
+  bool shouldRebuild(_SliverAppBarDelegate oldDelegate) {
+    return false;
   }
 }

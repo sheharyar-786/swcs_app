@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:ui' as ui;
 import 'package:firebase_database/firebase_database.dart';
 import 'package:animate_do/animate_do.dart';
+import '../../widgets/admin_header.dart';
 
 class UserDetailsEdit extends StatefulWidget {
   final String uid;
@@ -31,124 +32,83 @@ class _UserDetailsEditState extends State<UserDetailsEdit> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAF9),
-      appBar: AppBar(
-        title: const Text(
-          "Manage Profile",
-          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black87),
-        ),
-        backgroundColor: Colors.white,
-        elevation: 0,
-        iconTheme: const IconThemeData(color: Colors.black87),
-      ),
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
-            _buildHeaderSection(),
-            _buildStatementBar(),
-            Padding(
-              padding: const EdgeInsets.all(25),
-              child: Column(
-                children: [
-                  _buildEditField(
-                    "Full Name",
-                    widget.userData['name'] ?? "Unknown",
-                    Icons.person_outline,
+      body: CustomScrollView(
+        slivers: [
+          AdminHeader(
+            title: "Manage Profile",
+            showBackButton: true,
+          ),
+          SliverToBoxAdapter(
+            child: Column(
+              children: [
+                _buildAvatarSection(),
+                _buildStatementBar(),
+                Padding(
+                  padding: const EdgeInsets.all(25),
+                  child: Column(
+                    children: [
+                      _buildEditField(
+                        "Full Name",
+                        widget.userData['name'] ?? "Unknown",
+                        Icons.person_outline,
+                      ),
+                      const SizedBox(height: 20),
+                      _buildWarningCenter(),
+                      const SizedBox(height: 20),
+                      _buildStatusToggle(),
+                      const SizedBox(height: 40),
+                      _buildActionButtons(),
+                    ],
                   ),
-                  const SizedBox(height: 20),
-                  _buildWarningCenter(),
-                  const SizedBox(height: 20),
-                  _buildStatusToggle(),
-                  const SizedBox(height: 40),
-                  _buildActionButtons(),
-                ],
-              ),
+                ),
+              ],
             ),
-
-          ],
-        ),
+          ),
+          const SliverToBoxAdapter(child: SizedBox(height: 50)),
+        ],
       ),
     );
   }
 
-  Widget _buildHeaderSection() {
+  Widget _buildAvatarSection() {
     return Container(
-      width: double.infinity,
-      height: 180,
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(bottom: Radius.circular(40)),
-      ),
-      child: Stack(
-        fit: StackFit.expand,
+      padding: const EdgeInsets.symmetric(vertical: 30),
+      child: Column(
         children: [
-          ClipRRect(
-            borderRadius: const BorderRadius.vertical(
-              bottom: Radius.circular(40),
-            ),
-            child: ImageFiltered(
-              imageFilter: ui.ImageFilter.blur(sigmaX: 0.0, sigmaY: 0.0),
-              child: Image.asset('lib/assets/bg.jpeg', fit: BoxFit.cover),
-            ),
-          ),
-          Container(
-            decoration: BoxDecoration(
-              borderRadius: const BorderRadius.vertical(
-                bottom: Radius.circular(40),
-              ),
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Colors.white.withValues(alpha: 0.3),
-                  Colors.white.withValues(alpha: 0.1),
-                  Colors.white.withValues(alpha: 0.5),
-                ],
-              ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 25),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                const SizedBox(height: 10),
-                FadeInDown(
-                  child: Center(
-                    child: CircleAvatar(
-                      radius: 45,
-                      backgroundColor: const Color(0xFF0A714E).withValues(alpha: 0.1),
-                      child: Text(
-                        (widget.userData['name']?.toString().isNotEmpty == true
-                                ? widget.userData['name'][0]
-                                : "U")
-                            .toUpperCase(),
-                        style: const TextStyle(
-                          fontSize: 40,
-                          color: Color(0xFF0A714E),
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 15),
-                Text(
-                  (widget.userData['name']?.toString() ?? "User Profile").toUpperCase(),
-                  textAlign: TextAlign.center,
+          FadeInDown(
+            child: Center(
+              child: CircleAvatar(
+                radius: 50,
+                backgroundColor: const Color(0xFF0A714E).withValues(alpha: 0.1),
+                child: Text(
+                  (widget.userData['name']?.toString().isNotEmpty == true
+                          ? widget.userData['name'][0]
+                          : "U")
+                      .toUpperCase(),
                   style: const TextStyle(
-                    color: Colors.black,
-                    fontSize: 24,
-                    fontWeight: FontWeight.w900,
+                    fontSize: 45,
+                    color: Color(0xFF0A714E),
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
-              ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 15),
+          Text(
+            (widget.userData['name']?.toString() ?? "User Profile").toUpperCase(),
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: Colors.black,
+              fontSize: 22,
+              fontWeight: FontWeight.w900,
             ),
           ),
         ],
       ),
     );
   }
+
 
   Widget _buildStatementBar() {
     return FadeInLeft(

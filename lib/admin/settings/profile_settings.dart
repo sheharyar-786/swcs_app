@@ -6,6 +6,7 @@ import 'package:firebase_database/firebase_database.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:convert';
+import '../../widgets/admin_header.dart';
 
 class ProfileSettings extends StatefulWidget {
   const ProfileSettings({super.key});
@@ -152,176 +153,141 @@ class _ProfileSettingsState extends State<ProfileSettings> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAF9),
-      body: Container(
-        color: const Color(0xFFF8FAF9),
-        child: SingleChildScrollView(
-          child: Column(
-            children: [
-              _buildPremiumHeader(),
-              _buildStatementBar(),
-              Padding(
-                padding: const EdgeInsets.all(25),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildSectionTitle("Account Security"),
-                    FadeInLeft(
-                      duration: const Duration(milliseconds: 400),
-                      delay: const Duration(milliseconds: 100),
-                      child: _buildSettingTile(
-                        "Change Password",
-                        Icons.lock_outline,
-                        () => _showPasswordChangeDialog(),
-                      ),
-                    ),
-                    FadeInLeft(
-                      duration: const Duration(milliseconds: 400),
-                      delay: const Duration(milliseconds: 200),
-                      child: _buildSettingTile(
-                        "Update Email",
-                        Icons.alternate_email_rounded,
-                        () => _showEmailChangeDialog(),
-                      ),
-                    ),
-                    const SizedBox(height: 30),
-                    _buildSectionTitle("System Configuration"),
-                    FadeInLeft(
-                      duration: const Duration(milliseconds: 400),
-                      delay: const Duration(milliseconds: 300),
-                      child: _buildSettingTile(
-                        "Alert Thresholds",
-                        Icons.notifications_active_outlined,
-                        _showThresholdDialog,
-                      ),
-                    ),
-                    FadeInLeft(
-                      duration: const Duration(milliseconds: 400),
-                      delay: const Duration(milliseconds: 400),
-                      child: _buildSettingTile(
-                        "About the App",
-                        Icons.info_outline_rounded,
-                        _showAboutApp,
-                      ),
-                    ),
-                    const SizedBox(height: 50),
-                    _buildLogoutButton(),
-                  ],
-                ),
-              ),
-            ],
+      body: CustomScrollView(
+        slivers: [
+          AdminHeader(
+            title: "Profile Settings",
+            showBackButton: true,
           ),
-        ),
+          SliverToBoxAdapter(
+            child: Column(
+              children: [
+                _buildProfilePicSection(),
+                _buildStatementBar(),
+                Padding(
+                  padding: const EdgeInsets.all(25),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildSectionTitle("Account Security"),
+                      FadeInLeft(
+                        duration: const Duration(milliseconds: 400),
+                        delay: const Duration(milliseconds: 100),
+                        child: _buildSettingTile(
+                          "Change Password",
+                          Icons.lock_outline,
+                          () => _showPasswordChangeDialog(),
+                        ),
+                      ),
+                      FadeInLeft(
+                        duration: const Duration(milliseconds: 400),
+                        delay: const Duration(milliseconds: 200),
+                        child: _buildSettingTile(
+                          "Update Email",
+                          Icons.alternate_email_rounded,
+                          () => _showEmailChangeDialog(),
+                        ),
+                      ),
+                      const SizedBox(height: 30),
+                      _buildSectionTitle("System Configuration"),
+                      FadeInLeft(
+                        duration: const Duration(milliseconds: 400),
+                        delay: const Duration(milliseconds: 300),
+                        child: _buildSettingTile(
+                          "Alert Thresholds",
+                          Icons.notifications_active_outlined,
+                          _showThresholdDialog,
+                        ),
+                      ),
+                      FadeInLeft(
+                        duration: const Duration(milliseconds: 400),
+                        delay: const Duration(milliseconds: 400),
+                        child: _buildSettingTile(
+                          "About the App",
+                          Icons.info_outline_rounded,
+                          _showAboutApp,
+                        ),
+                      ),
+                      const SizedBox(height: 50),
+                      _buildLogoutButton(),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SliverToBoxAdapter(child: SizedBox(height: 50)),
+        ],
       ),
     );
   }
 
   // --- UI Components ---
 
-  Widget _buildPremiumHeader() {
+  Widget _buildProfilePicSection() {
     return Container(
-      width: double.infinity,
-      height: 180,
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(bottom: Radius.circular(40)),
-      ),
-      child: Stack(
-        fit: StackFit.expand,
+      padding: const EdgeInsets.symmetric(vertical: 30),
+      child: Column(
         children: [
-          ClipRRect(
-            borderRadius: const BorderRadius.vertical(
-              bottom: Radius.circular(40),
-            ),
-            child: ImageFiltered(
-              imageFilter: ui.ImageFilter.blur(sigmaX: 0.0, sigmaY: 0.0),
-              child: Image.asset('lib/assets/bg.jpeg', fit: BoxFit.cover),
-            ),
-          ),
-          Container(
-            decoration: BoxDecoration(
-              borderRadius: const BorderRadius.vertical(
-                bottom: Radius.circular(40),
-              ),
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Colors.white.withValues(alpha: 0.3),
-                  Colors.white.withValues(alpha: 0.1),
-                  Colors.white.withValues(alpha: 0.5),
+          FadeInDown(
+            child: Center(
+              child: Stack(
+                alignment: Alignment.bottomRight,
+                children: [
+                  GestureDetector(
+                    onTap: _pickImage,
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF0A714E).withValues(alpha: 0.1),
+                            blurRadius: 20,
+                          ),
+                        ],
+                      ),
+                      child: CircleAvatar(
+                        radius: 55,
+                        backgroundColor: const Color(0xFF0A714E).withValues(alpha: 0.05),
+                        backgroundImage: _base64Image != null
+                            ? MemoryImage(base64Decode(_base64Image!))
+                            : null,
+                        child: _base64Image == null
+                            ? const Icon(
+                                Icons.person_rounded,
+                                size: 60,
+                                color: Color(0xFF0A714E),
+                              )
+                            : null,
+                      ),
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: _pickImage,
+                    child: const CircleAvatar(
+                      radius: 18,
+                      backgroundColor: Color(0xFF0A714E),
+                      child: Icon(
+                        Icons.camera_alt_rounded,
+                        size: 16,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 25),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                const Text(
-                  "PROFILE SETTING",
-                  style: TextStyle(
-                    color: Colors.black54,
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 2,
-                  ),
-                ),
-                const SizedBox(height: 20),
-                FadeInDown(
-                  child: Center(
-                    child: Stack(
-                      alignment: Alignment.bottomRight,
-                      children: [
-                        GestureDetector(
-                          onTap: _pickImage,
-                          child: CircleAvatar(
-                            radius: 45,
-                            backgroundColor: const Color(
-                              0xFF0A714E,
-                            ).withValues(alpha: 0.1),
-                            backgroundImage: _base64Image != null
-                                ? MemoryImage(base64Decode(_base64Image!))
-                                : null,
-                            child: _base64Image == null
-                                ? const Icon(
-                                    Icons.person,
-                                    size: 50,
-                                    color: Color(0xFF0A714E),
-                                  )
-                                : null,
-                          ),
-                        ),
-                        GestureDetector(
-                          onTap: _pickImage,
-                          child: const CircleAvatar(
-                            radius: 14,
-                            backgroundColor: Color(0xFF0A714E),
-                            child: Icon(
-                              Icons.camera_alt,
-                              size: 14,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 15),
-                Text(
-                  (_userData?['name'] ?? "Admin Account")
-                      .toString()
-                      .toUpperCase(),
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: Colors.black,
-                    fontSize: 24,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ],
+          const SizedBox(height: 15),
+          Text(
+            (_userData?['name'] ?? "Admin Account").toString().toUpperCase(),
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: Colors.black,
+              fontSize: 22,
+              fontWeight: FontWeight.w900,
             ),
           ),
         ],
