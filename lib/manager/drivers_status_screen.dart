@@ -417,15 +417,38 @@ class _DriversStatusPageState extends State<DriversStatusPage> {
 );
 }
 
-void _updateLeaveStatus(String uid, String status) {
-  FirebaseDatabase.instance.ref('verified_drivers/$uid').update({
+void _updateLeaveStatus(String uid, String status) async {
+  final db = FirebaseDatabase.instance.ref();
+  
+  // 1. Update Leave Status
+  await db.child('verified_drivers/$uid').update({
     'leave_status': status,
   });
-  setState(() {
-    if (_localDrivers[uid] != null) {
-      _localDrivers[uid]['leave_status'] = status;
-    }
+
+  // 2. Notify Driver
+  await db.child('driver_notifications/$uid').push().set({
+    'title': 'Leave Request $status',
+    'message': status == "Approved" 
+        ? "Your leave request has been accepted. Enjoy your day! ✅"
+        : "Your leave request was not approved. Please contact management for details. ❌",
+    'timestamp': ServerValue.timestamp,
+    'status': 'Unread',
+    'type': 'leave_alert'
   });
+
+  if (mounted) {
+    setState(() {
+      if (_localDrivers[uid] != null) {
+        _localDrivers[uid]['leave_status'] = status;
+      }
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text("Leave $status & Driver Notified!"),
+        backgroundColor: status == "Approved" ? Colors.green : Colors.red,
+      ),
+    );
+  }
 }
 
   Widget _statusChip(String label, Color color) => Container(

@@ -53,13 +53,11 @@ class _StaffDirectoryState extends State<StaffDirectory>
         stream: widget.globalStream,
         initialData: widget.initialData,
         builder: (context, snapshot) {
-          if (!snapshot.hasData || snapshot.data!.snapshot.value == null) {
-            return const Center(
-              child: CircularProgressIndicator(color: Color(0xFF0A714E)),
-            );
+          final dynamic rawData = snapshot.data?.snapshot.value;
+          if (rawData == null || rawData is! Map) {
+            return const Center(child: Text("No data available in database."));
           }
-
-          Map allData = snapshot.data!.snapshot.value as Map;
+          Map allData = rawData;
 
           return NestedScrollView(
             headerSliverBuilder: (context, innerBoxIsScrolled) => [
@@ -244,6 +242,7 @@ class _StaffDirectoryState extends State<StaffDirectory>
       // Managers
       if (users != null) {
         var managerList = users.entries.where((e) {
+          if (e.value is! Map) return false;
           var userMap = e.value as Map;
           return userMap['role'] == 'manager';
         });
@@ -253,6 +252,7 @@ class _StaffDirectoryState extends State<StaffDirectory>
 
     // 3. Filter by search query & Status Filter
     staffList = staffList.where((e) {
+      if (e.value is! Map) return false;
       var userMap = e.value as Map;
       String name = userMap['name']?.toString().toLowerCase() ?? "";
       bool matchesSearch = name.contains(_searchQuery);
@@ -294,12 +294,16 @@ class _StaffDirectoryState extends State<StaffDirectory>
       padding: const EdgeInsets.all(20),
       itemCount: staffList.length,
       itemBuilder: (context, index) {
-        var userMapRaw = staffList[index].value as Map;
+        if (index >= staffList.length) return const SizedBox();
+        var entry = staffList[index];
+        if (entry.value is! Map) return const SizedBox();
+        
+        Map userMapRaw = entry.value as Map;
         Map user = Map.from(userMapRaw);
-        if (role == 'driver' && !user.containsKey('role')) {
+        if (role == 'driver' && user['role'] == null) {
           user['role'] = 'driver';
         }
-        var uid = staffList[index].key;
+        var uid = entry.key;
 
         return FadeInLeft(
           duration: const Duration(milliseconds: 400),

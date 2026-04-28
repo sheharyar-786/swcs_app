@@ -151,6 +151,25 @@ class _DriverDashboardState extends State<DriverDashboard> {
           }
         });
 
+    final db = FirebaseDatabase.instance.ref();
+    // --- NEW: Leave Approval & General Notification Listener ---
+    db.child('driver_notifications/${user.uid}').onChildAdded.listen((event) {
+      if (event.snapshot.exists && mounted) {
+        var data = event.snapshot.value as Map;
+        // Only notify for fresh notifications (status: Unread)
+        if (data['status'] == 'Unread') {
+          NotificationService.showNotification(
+            data['title'] ?? "New Update",
+            data['message'] ?? "You have a new message from management."
+          );
+          // Mark as Read so we don't notify again on app restart
+          db.child('driver_notifications/${user.uid}/${event.snapshot.key}').update({
+            'status': 'Read'
+          });
+        }
+      }
+    });
+
     // Real-time task counter sync & Emergency Alert Logic
     FirebaseDatabase.instance.ref('bins').onValue.listen((event) {
       if (event.snapshot.exists && mounted) {

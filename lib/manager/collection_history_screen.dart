@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'dart:ui' as ui;
+import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import 'bin_utils.dart';
 
 class CollectionHistoryPage extends StatelessWidget {
-  final Map bins;
-  const CollectionHistoryPage({super.key, required this.bins});
+  const CollectionHistoryPage({super.key});
 
   // Theme Constants
   static const Color leafGreen = Color(0xFF4CAF50);
@@ -15,45 +15,59 @@ class CollectionHistoryPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // LOGIC: Filter for bins that have a "last_cleaned_by" entry
-    var historyList = bins.entries
-        .where(
-          (e) =>
-              e.value['last_cleaned_by'] != null ||
-              BinData.fillLevel(e.value) == 0,
-        )
-        .toList();
-
-    // Sort by most recent
-    historyList = historyList.reversed.toList();
-
     return Scaffold(
       backgroundColor: Colors.white,
-      body: CustomScrollView(
-        physics: const BouncingScrollPhysics(),
-        slivers: [
-          _buildSliverHeader(),
-          SliverPadding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
-            sliver: historyList.isEmpty
-                ? SliverToBoxAdapter(child: _buildEmptyState())
-                : SliverList(
-                    delegate: SliverChildBuilderDelegate((context, index) {
-                      var data = historyList[index].value;
-                      return AnimationConfiguration.staggeredList(
-                        position: index,
-                        duration: const Duration(milliseconds: 500),
-                        child: SlideAnimation(
-                          verticalOffset: 50.0,
-                          child: FadeInAnimation(
-                            child: _buildTimelineCard(context, data),
-                          ),
+      body: StreamBuilder(
+        stream: FirebaseDatabase.instance.ref('history').onValue,
+        builder: (context, AsyncSnapshot<DatabaseEvent> snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator(color: leafGreen));
+          }
+
+          if (!snapshot.hasData || snapshot.data!.snapshot.value == null) {
+            return CustomScrollView(
+              slivers: [
+                _buildSliverHeader(),
+                SliverToBoxAdapter(child: _buildEmptyState()),
+              ],
+            );
+          }
+
+          Map data = snapshot.data!.snapshot.value as Map;
+          List<MapEntry> historyList = data.entries.toList();
+
+          // Sort by timestamp (cleaned_at) descending
+          historyList.sort((a, b) {
+            var timeA = (a.value as Map)['cleaned_at'] ?? 0;
+            var timeB = (b.value as Map)['cleaned_at'] ?? 0;
+            return timeB.compareTo(timeA);
+          });
+
+          return CustomScrollView(
+            physics: const BouncingScrollPhysics(),
+            slivers: [
+              _buildSliverHeader(),
+              SliverPadding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+                sliver: SliverList(
+                  delegate: SliverChildBuilderDelegate((context, index) {
+                    var logData = historyList[index].value;
+                    return AnimationConfiguration.staggeredList(
+                      position: index,
+                      duration: const Duration(milliseconds: 500),
+                      child: SlideAnimation(
+                        verticalOffset: 50.0,
+                        child: FadeInAnimation(
+                          child: _buildTimelineCard(context, logData),
                         ),
-                      );
-                    }, childCount: historyList.length),
-                  ),
-          ),
-        ],
+                      ),
+                    );
+                  }, childCount: historyList.length),
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -174,17 +188,22 @@ class CollectionHistoryPage extends StatelessWidget {
                   _logRow(
                     Icons.person_outline,
                     "Driver",
-                    (data['last_cleaned_by'] ?? "System Auto").toString(),
+                    (data['collected_by'] ?? "System Auto").toString(),
                   ),
                    _logRow(
                     Icons.access_time_rounded,
                     "Time",
-                    (data['last_cleaned_time'] ?? "Recently").toString(),
+                    (data['time'] ?? "Recently").toString(),
+                  ),
+                   _logRow(
+                    Icons.location_on_outlined,
+                    "Area",
+                    (data['area_name'] ?? "Unknown Area").toString(),
                   ),
                   _logRow(
                     Icons.analytics_outlined,
                     "Sensor Confirmation",
-                    "Cleaned at ${data['last_fill_level'] ?? 0}% Fill",
+                    "Cleaned at ${data['fill_before'] ?? 0}% Fill",
                   ),
                   const SizedBox(height: 10),
                   Text(

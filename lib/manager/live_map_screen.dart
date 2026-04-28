@@ -228,7 +228,7 @@ class _LiveMapScreenState extends State<LiveMapScreen>
               onTap: () => _showBinDetails(id, area, fill, gas),
               child: isThisEmergency
                   ? _buildEmergencyMarker(fill, gas, id)
-                  : _buildSmartBinMarker(fill, gas, area, id),
+                  : _buildSmartBinMarker(fill, gas, area, id, isGreyedOut: assignedEmergencyBinId != null),
             ),
           ),
         );
@@ -430,12 +430,14 @@ class _LiveMapScreenState extends State<LiveMapScreen>
     );
   }
 
-  Widget _buildSmartBinMarker(int fill, int gas, String area, String id) {
-    Color col = (gas > 400)
-        ? Colors.purple
-        : (fill >= 80
-              ? Colors.red
-              : (fill >= 50 ? Colors.orange : Colors.green));
+  Widget _buildSmartBinMarker(int fill, int gas, String area, String id, {bool isGreyedOut = false}) {
+    Color col = isGreyedOut 
+        ? Colors.grey.shade400 
+        : ((gas > 400)
+            ? Colors.purple
+            : (fill >= 80
+                  ? Colors.red
+                  : (fill >= 50 ? Colors.orange : Colors.green)));
     return Column(
       children: [
         Container(

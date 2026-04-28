@@ -150,7 +150,7 @@ class LeaderboardPage extends StatelessWidget {
               "2",
               const Color(0xFFC0C0C0), // Silver
               second['points'] ?? 0,
-              120,
+              145,
             ),
 
           // 1st Place
@@ -160,7 +160,7 @@ class LeaderboardPage extends StatelessWidget {
               "1",
               const Color(0xFFFFD700), // Gold
               first['points'] ?? 0,
-              150,
+              175,
             ),
 
           // 3rd Place
@@ -170,7 +170,7 @@ class LeaderboardPage extends StatelessWidget {
               "3",
               const Color(0xFFCD7F32), // Bronze
               third['points'] ?? 0,
-              110,
+              135,
             ),
         ],
       ),

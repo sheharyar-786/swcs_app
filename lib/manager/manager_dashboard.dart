@@ -1070,7 +1070,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
         "History",
         "📂",
         Colors.indigo,
-        CollectionHistoryPage(bins: bins),
+        const CollectionHistoryPage(),
       ),
       _gridItem(
         "Drivers",
