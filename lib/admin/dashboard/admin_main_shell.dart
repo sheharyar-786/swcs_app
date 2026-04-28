@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_database/firebase_database.dart'; // Added for Global Stream
+import 'package:firebase_database/firebase_database.dart';
 import 'admin_home_view.dart';
 import '../approvals/manager_approvals.dart';
 import '../user_management/staff_directory.dart';
 import '../reports/report_center.dart';
 import '../settings/profile_settings.dart';
 import '../../services/monitoring_service.dart';
+import 'dart:async';
 
 class AdminMainShell extends StatefulWidget {
   const AdminMainShell({super.key});
@@ -17,19 +18,13 @@ class AdminMainShell extends StatefulWidget {
 class _AdminMainShellState extends State<AdminMainShell> {
   int _currentIndex = 0;
 
-  // --- FIX: Global Broadcast Stream ---
-  // Is se "Stream has already been listened to" wala error khatam ho jayega
-  DatabaseEvent? _lastEvent;
+  void _onTabRequested(int index) {
+    setState(() => _currentIndex = index);
+  }
 
   @override
   void initState() {
     super.initState();
-    // Pure database ki stream jo har page ko initial data provide karegi
-    FirebaseDatabase.instance.ref().onValue.listen((event) {
-      if (mounted) setState(() => _lastEvent = event);
-    });
-    
-    // Start Monitoring Alerts
     MonitoringService.startMonitoring();
   }
 
@@ -41,18 +36,26 @@ class _AdminMainShellState extends State<AdminMainShell> {
 
   @override
   Widget build(BuildContext context) {
-    // Pages list ko build ke andar rakha hai taake stream pass ho sake
+    final rootStream = FirebaseDatabase.instance.ref().onValue;
+
     final List<Widget> pages = [
-      AdminHomeView(globalStream: FirebaseDatabase.instance.ref().onValue, initialData: _lastEvent), // Stats Page
-      ManagerApprovals(globalStream: FirebaseDatabase.instance.ref().onValue, initialData: _lastEvent), // Approvals
-      StaffDirectory(globalStream: FirebaseDatabase.instance.ref().onValue, initialData: _lastEvent), // Users Page
-      ReportCenter(globalStream: FirebaseDatabase.instance.ref().onValue, initialData: _lastEvent), // Reports
-      const ProfileSettings(), // Profile & Config
+      AdminHomeView(globalStream: rootStream, onTabRequested: _onTabRequested),
+
+      ManagerApprovals(
+        globalStream: FirebaseDatabase.instance.ref('pending_managers').onValue,
+      ),
+
+      StaffDirectory(globalStream: rootStream),
+
+      /// FIXED REPORT PAGE
+      ReportCenter(globalStream: rootStream),
+
+      const ProfileSettings(),
     ];
 
     return Scaffold(
-      // IndexedStack use karne se state maintain rehti hai
       body: IndexedStack(index: _currentIndex, children: pages),
+
       bottomNavigationBar: Container(
         decoration: const BoxDecoration(
           boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10)],
@@ -64,12 +67,20 @@ class _AdminMainShellState extends State<AdminMainShell> {
           showUnselectedLabels: true,
           elevation: 20,
           type: BottomNavigationBarType.fixed,
+
           selectedLabelStyle: const TextStyle(
             fontWeight: FontWeight.bold,
             fontSize: 12,
           ),
+
           unselectedLabelStyle: const TextStyle(fontSize: 11),
-          onTap: (index) => setState(() => _currentIndex = index),
+
+          onTap: (index) {
+            setState(() {
+              _currentIndex = index;
+            });
+          },
+
           items: const [
             BottomNavigationBarItem(
               icon: Icon(Icons.analytics_rounded),

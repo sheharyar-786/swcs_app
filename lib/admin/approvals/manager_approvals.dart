@@ -18,56 +18,77 @@ class ManagerApprovals extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAF9),
-      body: CustomScrollView(
-        slivers: [
-          UniversalHeader(
-            title: "Approvals",
-            showBackButton: true,
-          ),
-          SliverToBoxAdapter(child: _buildStatementBar()),
-          StreamBuilder(
-            stream: globalStream,
-            initialData: initialData,
-            builder: (context, snapshot) {
-              if (snapshot.hasData && snapshot.data!.snapshot.value != null) {
-                Map allData = snapshot.data!.snapshot.value as Map;
-                Map? pendingManagers = allData['pending_managers'] as Map?;
-
-                if (pendingManagers == null || pendingManagers.isEmpty) {
-                  return SliverFillRemaining(child: _buildEmptyState());
-                }
-
-                var pendingList = pendingManagers.entries.toList();
-
-                return SliverPadding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                  sliver: SliverList(
-                    delegate: SliverChildBuilderDelegate(
-                      (context, index) {
-                        var uid = pendingList[index].key;
-                        var data = pendingList[index].value as Map;
-
-                        return FadeInUp(
-                          duration: const Duration(milliseconds: 400),
-                          delay: Duration(milliseconds: 100 * index),
-                          child: _buildApprovalCard(context, uid, data),
-                        );
-                      },
-                      childCount: pendingList.length,
-                    ),
+      body: StreamBuilder<DatabaseEvent>(
+        stream: globalStream,
+        builder: (context, snapshot) {
+          final raw = snapshot.data?.snapshot.value;
+          Map pendingManagers = {};
+          if (raw is Map) {
+            pendingManagers = Map<String, dynamic>.from(raw);
+          }
+          final Map allData = {'pending_managers': pendingManagers};
+          
+          return CustomScrollView(
+            slivers: [
+              UniversalHeader(
+                title: "Approvals",
+                showBackButton: true,
+              ),
+              SliverToBoxAdapter(child: _buildStatementBar()),
+              if (snapshot.hasError) ...[
+                SliverFillRemaining(
+                  child: Center(
+                    child: Text("Error: ${snapshot.error}", style: const TextStyle(color: Colors.red)),
                   ),
-                );
-              }
-
-              return const SliverFillRemaining(
-                child: Center(
-                  child: CircularProgressIndicator(color: Color(0xFF0A714E)),
                 ),
-              );
-            },
-          ),
-          const SliverToBoxAdapter(child: SizedBox(height: 50)),
-        ],
+              ] else if (snapshot.connectionState == ConnectionState.waiting) ...[
+                const SliverFillRemaining(
+                  child: Center(
+                    child: CircularProgressIndicator(color: Color(0xFF0A714E)),
+                  ),
+                ),
+              ] else if (pendingManagers.isNotEmpty) ...[
+                _buildSliverList(context, allData),
+              ] else ...[
+                const SliverFillRemaining(
+                  child: Center(
+                    child: Text("System Online: No pending approvals.", style: TextStyle(color: Colors.grey)),
+                  ),
+                ),
+              ],
+              const SliverToBoxAdapter(child: SizedBox(height: 50)),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildSliverList(BuildContext context, Map allData) {
+    Map? pendingManagers = allData['pending_managers'] as Map?;
+
+    if (pendingManagers == null || pendingManagers.isEmpty) {
+      return SliverFillRemaining(child: _buildEmptyState());
+    }
+
+    var pendingList = pendingManagers.entries.toList();
+
+    return SliverPadding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      sliver: SliverList(
+        delegate: SliverChildBuilderDelegate(
+          (context, index) {
+            var uid = pendingList[index].key;
+            var data = pendingList[index].value as Map;
+
+            return FadeInUp(
+              duration: const Duration(milliseconds: 400),
+              delay: Duration(milliseconds: 100 * index),
+              child: _buildApprovalCard(context, uid, data),
+            );
+          },
+          childCount: pendingList.length,
+        ),
       ),
     );
   }

@@ -1,140 +1,173 @@
 import 'package:flutter/material.dart';
-import 'dart:ui' as ui;
 import 'package:firebase_database/firebase_database.dart';
-import 'package:animate_do/animate_do.dart';
 import 'user_details_edit.dart';
-import '../../widgets/universal_header.dart';
 
 class StaffDirectory extends StatefulWidget {
-  final Stream<DatabaseEvent> globalStream;
-  final int initialTabIndex;
-  final DatabaseEvent? initialData;
-
-  const StaffDirectory({
-    super.key,
-    required this.globalStream,
-    this.initialTabIndex = 0,
-    this.initialData,
-  });
+  const StaffDirectory({super.key, this.globalStream});
+  final Stream<DatabaseEvent>? globalStream;
 
   @override
   State<StaffDirectory> createState() => _StaffDirectoryState();
 }
 
-class _StaffDirectoryState extends State<StaffDirectory>
-    with SingleTickerProviderStateMixin {
-  late TabController _tabController;
-  final TextEditingController _searchController = TextEditingController();
-  String _searchQuery = "";
-  String _selectedFilter = "All"; // All, Verified, Pending
-
-  @override
-  void initState() {
-    super.initState();
-    _tabController = TabController(
-      length: 2,
-      vsync: this,
-      initialIndex: widget.initialTabIndex,
-    );
-  }
-
-  @override
-  void dispose() {
-    _tabController.dispose();
-    _searchController.dispose();
-    super.dispose();
-  }
+class _StaffDirectoryState extends State<StaffDirectory> {
+  String _statusFilter = 'All'; // 'All', 'Active', 'Pending'
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8FAF9),
-      body: StreamBuilder(
-        stream: widget.globalStream,
-        initialData: widget.initialData,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
-            return const Center(
-              child: CircularProgressIndicator(color: Color(0xFF0A714E)),
-            );
-          }
-
-          final dynamic rawData = snapshot.data?.snapshot.value;
-          if (rawData == null || rawData is! Map) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: const [
-                  Icon(Icons.storage_rounded, size: 50, color: Colors.grey),
-                  SizedBox(height: 10),
-                  Text(
-                    "No data available in database.",
-                    style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold),
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF8FAF9),
+        body: Column(
+          children: [
+            /// Premium Header (Safe Design - Square)
+            Container(
+              height: 180,
+              width: double.infinity,
+              child: Stack(
+                children: [
+                  Positioned.fill(
+                    child: Image.asset(
+                      'lib/assets/bg.jpeg',
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) => Container(color: const Color(0xFF0A714E)),
+                    ),
+                  ),
+                  Positioned.fill(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.black.withOpacity(0.3),
+                            Colors.transparent,
+                            const Color(0xFF0A714E).withOpacity(0.4),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(10, 40, 10, 0),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Row(
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
+                              onPressed: () => Navigator.pop(context),
+                            ),
+                          ],
+                        ),
+                        const Spacer(),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.white.withOpacity(0.2)),
+                          ),
+                          child: const Text(
+                            "STAFF DETAILS",
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 1.5,
+                              shadows: [Shadow(color: Colors.black26, offset: Offset(0, 2), blurRadius: 4)],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 40),
+                      ],
+                    ),
                   ),
                 ],
               ),
-            );
-          }
-          Map allData = rawData;
-
-          return NestedScrollView(
-            headerSliverBuilder: (context, innerBoxIsScrolled) => [
-              UniversalHeader(
-                title: "Staff Directory",
-                showBackButton: true,
-              ),
-              SliverToBoxAdapter(child: _buildStatementBar()),
-              SliverToBoxAdapter(child: _buildSearchBar()),
-              SliverToBoxAdapter(child: _buildFilterSection()),
-              SliverPersistentHeader(
-                pinned: true,
-                delegate: _SliverAppBarDelegate(
-                  child: Container(
-                    color: const Color(0xFFF8FAF9),
-                    padding: const EdgeInsets.only(bottom: 10),
-                    child: _buildTabBar(),
-                  ),
-                ),
-              ),
-            ],
-            body: TabBarView(
-              controller: _tabController,
-              children: [
-                _buildUserList('manager', allData),
-                _buildUserList('driver', allData),
-              ],
             ),
-          );
-        },
-      ),
-    );
-  }
 
-  // --- UI Components ---
+            /// Info Bar (Statement Bar)
+            Container(
+              margin: const EdgeInsets.fromLTRB(20, 15, 20, 0),
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: const Color(0xFF0A714E).withOpacity(0.08),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.people_outline, color: Color(0xFF0A714E), size: 18),
+                  SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      "Manage and view details of managers and field staff.",
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF0A714E)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
 
-  Widget _buildStatementBar() {
-    return FadeInLeft(
-      duration: const Duration(milliseconds: 600),
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 25, vertical: 15),
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-        decoration: BoxDecoration(
-          color: const Color(0xFF0A714E).withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(15),
-          border: Border.all(color: const Color(0xFF0A714E).withValues(alpha: 0.2)),
-        ),
-        child: const Row(
-          children: [
-            Icon(Icons.people_outline, size: 18, color: Color(0xFF0A714E)),
-            SizedBox(width: 10),
+            /// Status Filter Chips
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 15, 20, 0),
+              child: Row(
+                children: [
+                  _filterChip("All"),
+                  const SizedBox(width: 10),
+                  _filterChip("Active"),
+                  const SizedBox(width: 10),
+                  _filterChip("Pending"),
+                ],
+              ),
+            ),
+
+            /// Tabs
+            Container(
+              margin: const EdgeInsets.fromLTRB(20, 15, 20, 10),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(15),
+                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)],
+              ),
+              child: const TabBar(
+                labelColor: Color(0xFF0A714E),
+                unselectedLabelColor: Colors.grey,
+                indicatorColor: Color(0xFF0A714E),
+                indicatorWeight: 3,
+                labelStyle: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                tabs: [
+                  Tab(text: "MANAGERS"),
+                  Tab(text: "DRIVERS"),
+                ],
+              ),
+            ),
+
+            /// Data Content
             Expanded(
-              child: Text(
-                "Complete directory of all registered system personnel and managers.",
-                style: TextStyle(
-                  color: Color(0xFF0A714E),
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                ),
+              child: StreamBuilder<DatabaseEvent>(
+                stream: FirebaseDatabase.instance.ref().onValue,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator(color: Color(0xFF0A714E)));
+                  }
+                  
+                  final data = Map<String, dynamic>.from(snapshot.data?.snapshot.value as Map? ?? {});
+                  final users = Map<String, dynamic>.from(data['users'] as Map? ?? {});
+                  final verified = Map<String, dynamic>.from(data['verified_drivers'] as Map? ?? {});
+                  final pending = Map<String, dynamic>.from(data['pending_drivers'] as Map? ?? {});
+
+                  return TabBarView(
+                    children: [
+                      _buildStaffList('manager', users, {}, {}),
+                      _buildStaffList('driver', users, verified, pending),
+                    ],
+                  );
+                },
               ),
             ),
           ],
@@ -143,246 +176,114 @@ class _StaffDirectoryState extends State<StaffDirectory>
     );
   }
 
-  Widget _buildFilterSection() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 5),
-      child: Row(
-        children: [
-          _filterChip("All"),
-          const SizedBox(width: 10),
-          _filterChip("Verified"),
-          const SizedBox(width: 10),
-          _filterChip("Pending"),
-        ],
-      ),
-    );
-  }
-
   Widget _filterChip(String label) {
-    bool isSelected = _selectedFilter == label;
+    bool isSelected = _statusFilter == label;
     return GestureDetector(
-      onTap: () => setState(() => _selectedFilter = label),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 300),
+      onTap: () => setState(() => _statusFilter = label),
+      child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
           color: isSelected ? const Color(0xFF0A714E) : Colors.white,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: isSelected ? const Color(0xFF0A714E) : Colors.grey.withValues(alpha: 0.2),
-          ),
-          boxShadow: isSelected ? [
-            BoxShadow(
-              color: const Color(0xFF0A714E).withValues(alpha: 0.3),
-              blurRadius: 8,
-              offset: const Offset(0, 4),
-            )
-          ] : [],
+          border: Border.all(color: isSelected ? const Color(0xFF0A714E) : Colors.grey.shade300),
+          boxShadow: isSelected ? [BoxShadow(color: const Color(0xFF0A714E).withOpacity(0.3), blurRadius: 8)] : null,
         ),
         child: Text(
           label,
           style: TextStyle(
-            color: isSelected ? Colors.white : Colors.grey[700],
-            fontSize: 12,
-            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+            color: isSelected ? Colors.white : Colors.grey.shade700,
+            fontSize: 11,
+            fontWeight: FontWeight.bold,
           ),
         ),
       ),
     );
   }
 
-  Widget _buildSearchBar() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 15),
-      child: TextField(
-        controller: _searchController,
-        onChanged: (val) => setState(() => _searchQuery = val.toLowerCase()),
-        decoration: InputDecoration(
-          hintText: "Search staff by name...",
-          prefixIcon: const Icon(Icons.search, color: Color(0xFF0A714E)),
-          filled: true,
-          fillColor: Colors.white,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(15),
-            borderSide: BorderSide.none,
-          ),
-          contentPadding: const EdgeInsets.symmetric(vertical: 0),
-        ),
-      ),
-    );
-  }
+  Widget _buildStaffList(String role, Map<String, dynamic> users, Map<String, dynamic> verified, Map<String, dynamic> pending) {
+    List<Map<String, dynamic>> list = [];
 
-  Widget _buildTabBar() {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 25),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: TabBar(
-        controller: _tabController,
-        labelColor: Colors.white,
-        unselectedLabelColor: Colors.grey,
-        indicatorSize: TabBarIndicatorSize.tab,
-        indicator: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
-          color: const Color(0xFF0A714E),
-        ),
-        tabs: const [
-          Tab(text: "MANAGERS"),
-          Tab(text: "DRIVERS"),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildUserList(String role, Map allData) {
-    Map? users = allData['users'] as Map?;
-    Map? verifiedDrivers = allData['verified_drivers'] as Map?;
-
-    List<MapEntry> staffList = [];
-
-    if (role == 'driver') {
-      // 1. Get drivers from verified_drivers node
-      if (verifiedDrivers != null) {
-        staffList.addAll(verifiedDrivers.entries);
+    users.forEach((key, value) {
+      final user = Map<String, dynamic>.from(value as Map);
+      if (user['role'] == role) {
+        list.add(user..['uid'] = key);
       }
-      
-      // 2. Get drivers from users node (that might not be in verified_drivers yet)
-      if (users != null) {
-        var userDrivers = users.entries.where((e) {
-          var u = e.value as Map;
-          return u['role'] == 'driver' && !staffList.any((existing) => existing.key == e.key);
-        });
-        staffList.addAll(userDrivers);
-      }
-    } else {
-      // Managers
-      if (users != null) {
-        var managerList = users.entries.where((e) {
-          if (e.value is! Map) return false;
-          var userMap = e.value as Map;
-          return userMap['role'] == 'manager';
-        });
-        staffList.addAll(managerList);
-      }
-    }
-
-    // 3. Filter by search query & Status Filter
-    staffList = staffList.where((e) {
-      if (e.value is! Map) return false;
-      var userMap = e.value as Map;
-      String name = userMap['name']?.toString().toLowerCase() ?? "";
-      bool matchesSearch = name.contains(_searchQuery);
-
-      bool isVerified = false;
-      if (role == 'driver') {
-        isVerified = (verifiedDrivers ?? {}).containsKey(e.key);
-      } else {
-        isVerified = userMap['isApproved'] ?? false;
-      }
-
-      bool matchesFilter = true;
-      if (_selectedFilter == "Verified") matchesFilter = isVerified;
-      if (_selectedFilter == "Pending") matchesFilter = !isVerified;
-
-      return matchesSearch && matchesFilter;
-    }).toList();
-
-    // --- SORTING: Pending/Unverified staff at the top ---
-    staffList.sort((a, b) {
-      bool isAApproved = false;
-      bool isBApproved = false;
-
-      if (role == 'driver') {
-        isAApproved = (verifiedDrivers ?? {}).containsKey(a.key);
-        isBApproved = (verifiedDrivers ?? {}).containsKey(b.key);
-      } else {
-        isAApproved = (a.value as Map)['isApproved'] ?? false;
-        isBApproved = (b.value as Map)['isApproved'] ?? false;
-      }
-
-      if (isAApproved == isBApproved) return 0;
-      return isAApproved ? 1 : -1; // Unverified first
     });
 
-    if (staffList.isEmpty) return _buildEmptyState(role);
+    if (role == 'driver') {
+      verified.forEach((key, value) {
+        if (!list.any((e) => e['uid'] == key)) {
+          list.add(Map<String, dynamic>.from(value as Map)..['uid'] = key);
+        }
+      });
+      pending.forEach((key, value) {
+        if (!list.any((e) => e['uid'] == key)) {
+          list.add(Map<String, dynamic>.from(value as Map)..['uid'] = key);
+        }
+      });
+    }
+
+    // Apply Status Filter
+    if (_statusFilter != 'All') {
+      list = list.where((staff) {
+        final status = (staff['status'] ?? (staff['isApproved'] == true ? "Active" : "Pending")).toString().toLowerCase();
+        return status == _statusFilter.toLowerCase();
+      }).toList();
+    }
+
+    if (list.isEmpty) {
+      return Center(
+        child: Text(
+          "No $_statusFilter staff found in this category.",
+          style: const TextStyle(color: Colors.grey),
+        ),
+      );
+    }
 
     return ListView.builder(
-      padding: const EdgeInsets.all(20),
-      itemCount: staffList.length,
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      itemCount: list.length,
       itemBuilder: (context, index) {
-        if (index >= staffList.length) return const SizedBox();
-        var entry = staffList[index];
-        if (entry.value is! Map) return const SizedBox();
-        
-        Map userMapRaw = entry.value as Map;
-        Map user = Map.from(userMapRaw);
-        if (role == 'driver' && user['role'] == null) {
-          user['role'] = 'driver';
-        }
-        var uid = entry.key;
+        final staff = list[index];
+        final status = staff['status'] ?? (staff['isApproved'] == true ? "Active" : "Pending");
 
-        return FadeInLeft(
-          duration: const Duration(milliseconds: 400),
-          delay: Duration(milliseconds: 50 * index),
+        return InkWell(
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => UserDetailsEdit(
+                uid: staff['uid'],
+                userData: staff,
+              ),
+            ),
+          ),
           child: Container(
             margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(18),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.03),
-                  blurRadius: 10,
-                ),
-              ],
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10)],
             ),
-            child: ListTile(
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 15,
-                vertical: 8,
-              ),
-              leading: CircleAvatar(
-                radius: 25,
-                backgroundColor: const Color(0xFF0A714E).withValues(alpha: 0.1),
-                child: Text(
-                  (user['name']?.toString().isNotEmpty == true ? user['name'][0] : "U").toUpperCase(),
-                  style: const TextStyle(
-                    color: Color(0xFF0A714E),
-                    fontWeight: FontWeight.bold,
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: 25,
+                  backgroundColor: const Color(0xFF0A714E).withOpacity(0.1),
+                  child: Icon(role == 'manager' ? Icons.support_agent : Icons.local_shipping, color: const Color(0xFF0A714E)),
+                ),
+                const SizedBox(width: 15),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(staff['name'] ?? "Unknown", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                      Text(staff['email'] ?? "No Email", style: const TextStyle(color: Colors.grey, fontSize: 11)),
+                    ],
                   ),
                 ),
-              ),
-              title: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      user['name'] ?? "Unknown",
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                  _buildStatusBadge(role, user, uid, verifiedDrivers ?? {}),
-                ],
-              ),
-              subtitle: Text(
-                user['email'] ?? "No email",
-                style: const TextStyle(fontSize: 12, color: Colors.grey),
-              ),
-              trailing: const Icon(
-                Icons.arrow_forward_ios,
-                size: 14,
-                color: Colors.grey,
-              ),
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) =>
-                        UserDetailsEdit(uid: uid, userData: user),
-                  ),
-                );
-              },
+                _statusChip(status),
+              ],
             ),
           ),
         );
@@ -390,68 +291,18 @@ class _StaffDirectoryState extends State<StaffDirectory>
     );
   }
 
-  Widget _buildEmptyState(String role) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.person_search_rounded, size: 50, color: Colors.grey[300]),
-          const SizedBox(height: 10),
-          Text(
-            "No active $role found",
-            style: const TextStyle(color: Colors.grey),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatusBadge(String role, Map user, String uid, Map verifiedDrivers) {
-    bool isVerified = false;
-    if (role == 'driver') {
-      isVerified = verifiedDrivers.containsKey(uid);
-    } else {
-      isVerified = user['isApproved'] ?? false;
-    }
-
+  Widget _statusChip(String status) {
+    bool isActive = status.toLowerCase() == 'active' || status.toLowerCase() == 'true' || status == 'Active';
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: isVerified ? Colors.green.withValues(alpha: 0.1) : Colors.orange.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(
-          color: isVerified ? Colors.green.withValues(alpha: 0.2) : Colors.orange.withValues(alpha: 0.2),
-        ),
+        color: isActive ? Colors.green.withOpacity(0.1) : Colors.orange.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
       ),
       child: Text(
-        isVerified ? "VERIFIED" : "PENDING",
-        style: TextStyle(
-          fontSize: 8,
-          fontWeight: FontWeight.w900,
-          color: isVerified ? Colors.green[700] : Colors.orange[700],
-          letterSpacing: 0.5,
-        ),
+        status.toUpperCase(),
+        style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: isActive ? Colors.green : Colors.orange),
       ),
     );
-  }
-}
-
-class _SliverAppBarDelegate extends SliverPersistentHeaderDelegate {
-  _SliverAppBarDelegate({required this.child});
-  final Widget child;
-
-  @override
-  double get minExtent => 60.0;
-  @override
-  double get maxExtent => 60.0;
-
-  @override
-  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
-    return child;
-  }
-
-  @override
-  bool shouldRebuild(_SliverAppBarDelegate oldDelegate) {
-    return false;
   }
 }

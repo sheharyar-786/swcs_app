@@ -1,92 +1,151 @@
 import 'package:flutter/material.dart';
-import 'dart:ui' as ui;
 import 'package:firebase_database/firebase_database.dart';
-import 'package:animate_do/animate_do.dart';
 import 'package:intl/intl.dart';
-import '../../widgets/universal_header.dart';
 
 class ReportCenter extends StatelessWidget {
-  final Stream<DatabaseEvent> globalStream;
-  final DatabaseEvent? initialData;
-
-  const ReportCenter({
-    super.key,
-    required this.globalStream,
-    this.initialData,
-  });
+  const ReportCenter({super.key, this.globalStream});
+  final Stream<DatabaseEvent>? globalStream;
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8FAF9),
-      body: StreamBuilder(
-        stream: globalStream,
-        initialData: initialData,
-        builder: (context, snapshot) {
-          if (!snapshot.hasData || snapshot.data!.snapshot.value == null) {
-            return const Center(
-              child: CircularProgressIndicator(color: Color(0xFF0A714E)),
-            );
-          }
-
-          Map allData = snapshot.data!.snapshot.value as Map;
-
-          return DefaultTabController(
-            length: 2,
-            child: NestedScrollView(
-              headerSliverBuilder: (context, innerBoxIsScrolled) => [
-                UniversalHeader(title: "Complaints", showBackButton: true),
-                SliverToBoxAdapter(child: _buildStatementBar()),
-                SliverPersistentHeader(
-                  pinned: true,
-                  delegate: _SliverAppBarDelegate(
-                    child: Container(
-                      color: const Color(0xFFF8FAF9),
-                      child: _buildTabBar(),
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF8FAF9),
+        body: Column(
+          children: [
+            /// Premium Header (Safe Design - Square)
+            Container(
+              height: 180,
+              width: double.infinity,
+              child: Stack(
+                children: [
+                  Positioned.fill(
+                    child: Image.asset(
+                      'lib/assets/bg.jpeg',
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) => Container(color: const Color(0xFF0A714E)),
                     ),
                   ),
-                ),
-              ],
-              body: TabBarView(
-                children: [
-                  _buildReportList('Pending', allData),
-                  _buildReportList('Resolved', allData),
+                  Positioned.fill(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.black.withOpacity(0.3),
+                            Colors.transparent,
+                            const Color(0xFF0A714E).withOpacity(0.4),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(10, 40, 10, 0),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Row(
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
+                              onPressed: () => Navigator.pop(context),
+                            ),
+                          ],
+                        ),
+                        const Spacer(),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.white.withOpacity(0.2)),
+                          ),
+                          child: const Text(
+                            "REPORT CENTER",
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 1.5,
+                              shadows: [Shadow(color: Colors.black26, offset: Offset(0, 2), blurRadius: 4)],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 40),
+                      ],
+                    ),
+                  ),
                 ],
               ),
             ),
-          );
-        },
-      ),
-    );
-  }
 
-  // --- UI Components ---
+            /// Info Bar (Statement Bar)
+            Container(
+              margin: const EdgeInsets.fromLTRB(20, 15, 20, 0),
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: const Color(0xFF0A714E).withOpacity(0.08),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.assignment_outlined, color: Color(0xFF0A714E), size: 18),
+                  SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      "Monitor and resolve citizen grievances and public reports.",
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF0A714E)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
 
-  Widget _buildStatementBar() {
-    return FadeInLeft(
-      duration: const Duration(milliseconds: 600),
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 25, vertical: 15),
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-        decoration: BoxDecoration(
-          color: const Color(0xFF0A714E).withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(15),
-          border: Border.all(
-            color: const Color(0xFF0A714E).withValues(alpha: 0.2),
-          ),
-        ),
-        child: const Row(
-          children: [
-            Icon(Icons.assignment_outlined, size: 18, color: Color(0xFF0A714E)),
-            SizedBox(width: 10),
+            /// Tabs
+            Container(
+              margin: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(15),
+                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)],
+              ),
+              child: const TabBar(
+                labelColor: Color(0xFF0A714E),
+                unselectedLabelColor: Colors.grey,
+                indicatorColor: Color(0xFF0A714E),
+                indicatorWeight: 3,
+                labelStyle: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                tabs: [
+                  Tab(text: "PENDING"),
+                  Tab(text: "RESOLVED"),
+                ],
+              ),
+            ),
+
+            /// Data Content
             Expanded(
-              child: Text(
-                "Monitor and resolve public reports and citizen grievances.",
-                style: TextStyle(
-                  color: Color(0xFF0A714E),
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                ),
+              child: StreamBuilder<DatabaseEvent>(
+                stream: FirebaseDatabase.instance.ref().onValue,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator(color: Color(0xFF0A714E)));
+                  }
+                  
+                  final data = Map<String, dynamic>.from(snapshot.data?.snapshot.value as Map? ?? {});
+                  final pending = Map<String, dynamic>.from(data['citizen_reports'] as Map? ?? {});
+                  final resolved = Map<String, dynamic>.from(data['resolved_reports'] as Map? ?? {});
+
+                  return TabBarView(
+                    children: [
+                      _buildReportList(pending, false),
+                      _buildReportList(resolved, true),
+                    ],
+                  );
+                },
               ),
             ),
           ],
@@ -95,222 +154,81 @@ class ReportCenter extends StatelessWidget {
     );
   }
 
-  Widget _buildTabBar() {
-    return Container(
-      margin: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(15),
-      ),
-      child: const TabBar(
-        labelColor: Color(0xFF0A714E),
-        unselectedLabelColor: Colors.grey,
-        indicatorPadding: EdgeInsets.symmetric(horizontal: 20),
-        indicatorColor: Color(0xFF0A714E),
-        indicatorWeight: 3,
-        tabs: [
-          Tab(
-            child: Text("PENDING", style: TextStyle(fontWeight: FontWeight.bold)),
-          ),
-          Tab(
-            child: Text(
-              "RESOLVED",
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildReportList(String filterTab, Map allData) {
-    Map? reportsData;
-    if (filterTab == 'Pending') {
-      reportsData = allData['citizen_reports'] as Map?;
-    } else {
-      reportsData = allData['resolved_reports'] as Map?;
+  Widget _buildReportList(Map<String, dynamic> reports, bool isResolved) {
+    if (reports.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.assignment_turned_in_outlined, size: 50, color: Colors.grey.shade300),
+            const SizedBox(height: 10),
+            Text("No ${isResolved ? 'resolved' : 'pending'} reports", style: const TextStyle(color: Colors.grey)),
+          ],
+        ),
+      );
     }
 
-    if (reportsData == null) return _buildEmptyState(filterTab);
-
-    var filteredList = reportsData.entries.toList();
-    if (filterTab == 'Pending') {
-      filteredList = filteredList.where((e) {
-        var val = e.value as Map;
-        return val['status'] == 'Pending' || val['status'] == null;
-      }).toList();
-    }
-
-    // Sorting latest first
-    filteredList.sort((a, b) {
-      int timeA =
-          (a.value as Map)['timestamp'] ?? int.tryParse(a.key.toString()) ?? 0;
-      int timeB =
-          (b.value as Map)['timestamp'] ?? int.tryParse(b.key.toString()) ?? 0;
-      return timeB.compareTo(timeA);
-    });
-
-    if (filteredList.isEmpty) return _buildEmptyState(filterTab);
+    final list = reports.entries.toList();
+    list.sort((a, b) => (b.value['timestamp'] ?? 0).compareTo(a.value['timestamp'] ?? 0));
 
     return ListView.builder(
       padding: const EdgeInsets.symmetric(horizontal: 20),
-      itemCount: filteredList.length,
+      itemCount: list.length,
       itemBuilder: (context, index) {
-        var report = filteredList[index].value as Map;
-
-        // Formatting Timestamp
-        int ts =
-            report['timestamp'] ??
-            int.tryParse(filteredList[index].key.toString()) ??
-            0;
-        DateTime date = DateTime.fromMillisecondsSinceEpoch(
-          ts > 0 ? ts : DateTime.now().millisecondsSinceEpoch,
+        final report = Map<String, dynamic>.from(list[index].value as Map);
+        final date = DateFormat("dd MMM, hh:mm a").format(
+          DateTime.fromMillisecondsSinceEpoch(report['timestamp'] ?? 0),
         );
-        String formattedDate = DateFormat('dd MMM, hh:mm a').format(date);
 
-        String uiStatus = filterTab == 'Resolved' ? 'Resolved' : 'Pending';
-
-        return FadeInUp(
-          duration: const Duration(milliseconds: 400),
-          delay: Duration(milliseconds: 50 * index),
-          child: Container(
-            margin: const EdgeInsets.only(bottom: 15),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(18),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.02),
-                  blurRadius: 10,
-                ),
-              ],
-            ),
-            child: ListTile(
-              contentPadding: const EdgeInsets.all(18),
-              title: Row(
+        return Container(
+          margin: const EdgeInsets.only(bottom: 15),
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 4))],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    report['type'] ?? "General",
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF1A1A1A),
-                    ),
-                  ),
-                  Text(
-                    formattedDate,
-                    style: const TextStyle(fontSize: 10, color: Colors.grey),
-                  ),
+                  Text(report['type'] ?? "General", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                  _statusChip(isResolved),
                 ],
               ),
-              subtitle: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              const SizedBox(height: 10),
+              Text(report['comment'] ?? "No details provided.", style: TextStyle(color: Colors.grey[700], fontSize: 13)),
+              const Divider(height: 30),
+              Row(
                 children: [
-                  const SizedBox(height: 8),
-                  Text(
-                    report['comment'] ?? "No details provided.",
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(color: Colors.grey[700], fontSize: 13),
-                  ),
-                  const SizedBox(height: 15),
-                  Row(
-                    children: [
-                      const Icon(
-                        Icons.location_on,
-                        size: 14,
-                        color: Color(0xFF0A714E),
-                      ),
-                      const SizedBox(width: 4),
-                      Expanded(
-                        child: Text(
-                          report['area'] ?? "Unknown Area",
-                          style: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      _buildStatusChip(uiStatus),
-                    ],
-                  ),
-                  const SizedBox(height: 5),
-                  Text(
-                    "Reported by: ${report['user'] ?? report['phone'] ?? 'N/A'}",
-                    style: const TextStyle(
-                      fontSize: 10,
-                      color: Colors.blueGrey,
-                      fontStyle: FontStyle.italic,
-                    ),
-                  ),
+                  const Icon(Icons.location_on, size: 14, color: Color(0xFF0A714E)),
+                  const SizedBox(width: 5),
+                  Expanded(child: Text(report['area'] ?? "Unknown", style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600))),
+                  Text(date, style: const TextStyle(fontSize: 10, color: Colors.grey)),
                 ],
               ),
-            ),
+              const SizedBox(height: 8),
+              Text("Reported by: ${report['user'] ?? 'Anonymous'}", style: const TextStyle(fontSize: 10, color: Colors.blueGrey, fontStyle: FontStyle.italic)),
+            ],
           ),
         );
       },
     );
   }
 
-  Widget _buildEmptyState(String status) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.assignment_turned_in_outlined,
-            size: 60,
-            color: Colors.grey[300],
-          ),
-          const SizedBox(height: 10),
-          Text("No $status reports", style: const TextStyle(color: Colors.grey)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatusChip(String status) {
+  Widget _statusChip(bool resolved) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: status == 'Pending'
-            ? Colors.red.withValues(alpha: 0.1)
-            : Colors.green.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(6),
+        color: resolved ? Colors.green.withOpacity(0.1) : Colors.red.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
       ),
       child: Text(
-        status.toUpperCase(),
-        style: TextStyle(
-          fontSize: 8,
-          fontWeight: FontWeight.bold,
-          color: status == 'Pending' ? Colors.red : Colors.green,
-        ),
+        resolved ? "RESOLVED" : "PENDING",
+        style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: resolved ? Colors.green : Colors.red),
       ),
     );
-  }
-}
-
-class _SliverAppBarDelegate extends SliverPersistentHeaderDelegate {
-  _SliverAppBarDelegate({required this.child});
-  final Widget child;
-
-  @override
-  double get minExtent => 100.0;
-  @override
-  double get maxExtent => 100.0;
-
-  @override
-  Widget build(
-    BuildContext context,
-    double shrinkOffset,
-    bool overlapsContent,
-  ) {
-    return child;
-  }
-
-  @override
-  bool shouldRebuild(_SliverAppBarDelegate oldDelegate) {
-    return false;
   }
 }
