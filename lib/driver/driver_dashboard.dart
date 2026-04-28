@@ -52,6 +52,8 @@ class _DriverDashboardState extends State<DriverDashboard> {
 
   Timer? _marqueeTimer;
   Timer? _locationTimer;
+  StreamSubscription? _warningSubscription;
+  List<Map> _warningHistory = [];
 
   @override
   void initState() {
@@ -67,6 +69,58 @@ class _DriverDashboardState extends State<DriverDashboard> {
     _initDriverEngine();
     _startAnnouncementAnimation();
     _startBackgroundLocationUpdates();
+    _listenForWarnings();
+  }
+
+  void _listenForWarnings() {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    _warningSubscription = FirebaseDatabase.instance
+        .ref('verified_drivers/${user.uid}/warnings')
+        .onValue
+        .listen((event) {
+      if (event.snapshot.value != null) {
+        final Map data = event.snapshot.value as Map;
+        List<Map> tempHistory = [];
+        data.forEach((key, value) {
+          tempHistory.add(Map.from(value));
+        });
+        
+        // Sort by timestamp
+        tempHistory.sort((a, b) => (b['timestamp'] ?? 0).compareTo(a['timestamp'] ?? 0));
+
+        // Detect if a NEW warning was added (if length increased)
+        if (tempHistory.length > _warningHistory.length && _warningHistory.isNotEmpty) {
+          _showWarningAlert(tempHistory.first['message'] ?? "New Warning Received!");
+        }
+
+        setState(() => _warningHistory = tempHistory);
+      }
+    });
+  }
+
+  void _showWarningAlert(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.warning_amber_rounded, color: Colors.white),
+            const SizedBox(width: 10),
+            Expanded(child: Text(msg, style: const TextStyle(fontWeight: FontWeight.bold))),
+          ],
+        ),
+        backgroundColor: Colors.redAccent,
+        duration: const Duration(seconds: 8),
+        behavior: SnackBarBehavior.floating,
+        action: SnackBarAction(
+          label: "VIEW",
+          textColor: Colors.white,
+          onPressed: () => _scaffoldKey.currentState?.openDrawer(),
+        ),
+      ),
+    );
   }
 
   @override
@@ -75,6 +129,7 @@ class _DriverDashboardState extends State<DriverDashboard> {
     _announcementController.dispose();
     _marqueeTimer?.cancel();
     _locationTimer?.cancel();
+    _warningSubscription?.cancel();
     super.dispose();
   }
 
@@ -809,6 +864,13 @@ class _DriverDashboardState extends State<DriverDashboard> {
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 20),
               children: [
                 _drawerItem(
+                  icon: Icons.warning_amber_rounded,
+                  title: "Warning Logs",
+                  color: Colors.red,
+                  badge: _warningHistory.length > 0 ? _warningHistory.length.toString() : null,
+                  onTap: () => _showWarningLogs(),
+                ),
+                _drawerItem(
                   icon: Icons.alternate_email_rounded,
                   title: "Change Email",
                   color: Colors.blue,
@@ -850,7 +912,7 @@ class _DriverDashboardState extends State<DriverDashboard> {
     );
   }
 
-  Widget _drawerItem({required IconData icon, required String title, required Color color, required VoidCallback onTap}) {
+  Widget _drawerItem({required IconData icon, required String title, required Color color, required VoidCallback onTap, String? badge}) {
     return ListTile(
       onTap: onTap,
       leading: Container(
@@ -859,8 +921,74 @@ class _DriverDashboardState extends State<DriverDashboard> {
         child: Icon(icon, color: color, size: 20),
       ),
       title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.black87)),
-      trailing: const Icon(Icons.chevron_right_rounded, size: 18, color: Colors.grey),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (badge != null)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(10)),
+              child: Text(badge, style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+            ),
+          const SizedBox(width: 5),
+          const Icon(Icons.chevron_right_rounded, size: 18, color: Colors.grey),
+        ],
+      ),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+    );
+  }
+
+  void _showWarningLogs() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.red),
+            SizedBox(width: 10),
+            Text("Official Warnings", style: TextStyle(fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: _warningHistory.isEmpty
+            ? const Text("No warnings received yet. Keep up the good work!", style: TextStyle(fontSize: 12, color: Colors.grey))
+            : SizedBox(
+                width: double.maxFinite,
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: _warningHistory.length,
+                  itemBuilder: (context, index) {
+                    final w = _warningHistory[index];
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 10),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.red.withValues(alpha: 0.05),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.red.withValues(alpha: 0.1)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            w['message'] ?? "",
+                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.red),
+                          ),
+                          const SizedBox(height: 5),
+                          Text(
+                            "Type: ${w['type'] ?? 'GENERAL'}",
+                            style: const TextStyle(fontSize: 10, color: Colors.grey),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("CLOSE")),
+        ],
+      ),
     );
   }
 

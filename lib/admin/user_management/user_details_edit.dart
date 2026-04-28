@@ -53,9 +53,9 @@ class _UserDetailsEditState extends State<UserDetailsEdit> {
                         Icons.person_outline,
                       ),
                       const SizedBox(height: 20),
-                      _buildWarningCenter(),
-                      const SizedBox(height: 20),
                       if (_isVerified()) ...[
+                        _buildWarningCenter(),
+                        const SizedBox(height: 20),
                         _buildStatusToggle(),
                         const SizedBox(height: 40),
                         _buildActionButtons(),
