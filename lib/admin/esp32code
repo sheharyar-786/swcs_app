@@ -1,0 +1,193 @@
+#define TINY_GSM_MODEM_SIM800
+#include <TinyGsmClient.h>
+#include <WiFi.h>
+#include <FirebaseESP32.h>
+#include <BLEDevice.h>
+#include <BLEServer.h>
+#include <BLEUtils.h>
+#include <BLE2902.h>
+#include <Preferences.h>
+#include <ArduinoJson.h>
+
+// --- 1. Pins & Settings ---
+#define TRIG_PIN     5
+#define ECHO_PIN     18
+#define MQ2_PIN      34
+#define BATTERY_PIN  35
+#define GSM_RX       16
+#define GSM_TX       17
+
+#define API_KEY      "AIzaSyD35XHc6Hb9WJxZKVW1AXBgj5ijhG-Oxr4"
+#define DATABASE_URL "swcs-iot-default-rtdb.firebaseio.com"
+#define USER_EMAIL   "hardware_swcs@gmail.com"
+#define USER_PASSWORD "Sheary#123"
+
+const char apn[] = "internet"; 
+const float voltageDividerRatio = 3.127; 
+
+// --- 2. Objects & Variables ---
+HardwareSerial SerialAT(2);
+TinyGsm modem(SerialAT);
+FirebaseData fbdo;
+FirebaseAuth auth;
+FirebaseConfig config;
+Preferences prefs;
+
+bool deviceProvisioned = false;
+bool bleNewDataReceived = false;
+String saved_ssid, saved_pass, saved_binId;
+BLECharacteristic *pCharacteristic;
+BLEServer *pServer = NULL;
+
+// --- BLE Callback Logic ---
+class MyCallbacks : public BLECharacteristicCallbacks {
+    void onWrite(BLECharacteristic *pChar) {
+        std::string valueRaw = pChar->getValue(); 
+        String value = String(valueRaw.c_str()); 
+
+        if (value.length() > 0) {
+            StaticJsonDocument<200> doc;
+            deserializeJson(doc, value);
+            
+            saved_ssid = doc["ssid"].as<String>();
+            saved_pass = doc["pass"].as<String>();
+            saved_binId = doc["id"].as<String>();
+
+            prefs.begin("swcs_config", false);
+            prefs.putString("ssid", saved_ssid);
+            prefs.putString("pass", saved_pass);
+            prefs.putString("binId", saved_binId);
+            prefs.putBool("provisioned", true);
+            prefs.end();
+
+            bleNewDataReceived = true;
+            deviceProvisioned = true;
+            Serial.println("New Config Received & Saved!");
+        }
+    }
+};
+
+void sendSMS(String msg) {
+    Serial.println("Sending SMS...");
+    modem.sendSMS("+923028775314", msg); 
+}
+
+void setup() {
+    Serial.begin(115200);
+    SerialAT.begin(9600, SERIAL_8N1, GSM_RX, GSM_TX);
+    
+    pinMode(TRIG_PIN, OUTPUT);
+    pinMode(ECHO_PIN, INPUT_PULLUP);
+    pinMode(BATTERY_PIN, INPUT);
+
+    prefs.begin("swcs_config", true);
+    deviceProvisioned = prefs.getBool("provisioned", false);
+    saved_ssid = prefs.getString("ssid", "");
+    saved_pass = prefs.getString("pass", "");
+    saved_binId = prefs.getString("binId", "bin_00");
+    prefs.end();
+
+    // --- STEP 1: Smart BLE Window (60 Seconds) ---
+    Serial.println("Starting BLE Config Window (60s)...");
+    BLEDevice::init("SWCS_CONFIG_MODE");
+    pServer = BLEDevice::createServer();
+    BLEService *pService = pServer->createService("4fafc201-1fb5-459e-8fcc-c5c9c331914b");
+    pCharacteristic = pService->createCharacteristic(
+        "beb5483e-36e1-4688-b7f5-ea07361b26a8",
+        BLECharacteristic::PROPERTY_WRITE
+    );
+    pCharacteristic->setCallbacks(new MyCallbacks());
+    pService->start();
+    BLEDevice::getAdvertising()->start();
+
+    unsigned long startWait = millis();
+    while (millis() - startWait < 60000) {
+        if (bleNewDataReceived) break; 
+        if (!deviceProvisioned) {
+            startWait = millis() - 59000; 
+        }
+        delay(500);
+        Serial.print(".");
+    }
+
+    BLEDevice::deinit(true);
+    Serial.println("\nBLE Window Closed.");
+
+    // --- STEP 2: Connectivity Init ---
+    config.api_key = API_KEY;
+    config.database_url = DATABASE_URL;
+    auth.user.email = USER_EMAIL;
+    auth.user.password = USER_PASSWORD;
+
+    WiFi.begin(saved_ssid.c_str(), saved_pass.c_str());
+    Serial.print("Connecting WiFi");
+    
+    int wifi_attempts = 0;
+    while (WiFi.status() != WL_CONNECTED && wifi_attempts < 20) {
+        delay(500); Serial.print("."); wifi_attempts++;
+    }
+
+    if (WiFi.status() == WL_CONNECTED) {
+        Serial.println("\nWiFi Connected!");
+        Firebase.begin(&config, &auth);
+    } else {
+        Serial.println("\nWiFi Failed. Switching to GPRS...");
+        if (modem.restart() && modem.gprsConnect(apn)) {
+            Serial.println("GPRS Connected!");
+            Firebase.begin(&config, &auth); 
+        } else {
+            Serial.println("GPRS Failed. Running Offline.");
+        }
+    }
+}
+
+void loop() {
+    static unsigned long lastUpdate = 0;
+    if (millis() - lastUpdate > 10000) {
+        lastUpdate = millis();
+
+        // 1. Reading Sensors
+        float distance = readUltrasonic();
+        int fill = 100 - ((distance / 50.0) * 100);
+        fill = constrain(fill, 0, 100);
+
+        int gas = analogRead(MQ2_PIN);
+
+        int adcValue = analogRead(BATTERY_PIN);
+        float batteryVoltage = (adcValue * 3.3 / 4095.0) * voltageDividerRatio;
+        int batteryPercent = map(batteryVoltage * 100, 320, 420, 0, 100);
+        batteryPercent = constrain(batteryPercent, 0, 100);
+
+        // --- UPDATED PATH FOR FLUTTER COMPATIBILITY ---
+        // Data ab "readings" folder ke andar jayega taake App sahi se pick kare
+        String path = "/bins/" + saved_binId + "/readings";
+
+        // 2. Cloud Update
+        if (WiFi.status() == WL_CONNECTED || modem.isGprsConnected()) {
+            Firebase.setInt(fbdo, path + "/fill_level", fill);
+            Firebase.setInt(fbdo, path + "/gas_level", gas);
+            Firebase.setInt(fbdo, path + "/battery_level", batteryPercent);
+            
+            // App ke Status ko Online set karna (Metadata update)
+            Firebase.setTimestamp(fbdo, "/bins/" + saved_binId + "/metadata/last_sync");
+
+            Firebase.setString(fbdo, "/bins/" + saved_binId + "/metadata/status", "Online");
+            
+            Serial.println("Cloud Sync Done for: " + saved_binId + "/readings");
+        }
+
+        // 3. Emergency SMS
+        if (gas > 2500 || fill >= 90) {
+            String msg = "SWCS Alert! Bin: " + saved_binId + (gas > 2500 ? " Gas Detected!" : " Full!");
+            sendSMS(msg);
+        }
+    }
+}
+
+float readUltrasonic() {
+    digitalWrite(TRIG_PIN, LOW); delayMicroseconds(2);
+    digitalWrite(TRIG_PIN, HIGH); delayMicroseconds(10);
+    digitalWrite(TRIG_PIN, LOW);
+    long duration = pulseIn(ECHO_PIN, HIGH, 30000);
+    return (duration == 0) ? 50.0 : duration * 0.0343 / 2;
+}
