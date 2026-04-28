@@ -80,6 +80,8 @@ class _BinDetailsPageState extends State<BinDetailsPage>
               UniversalHeader(
                 title: widget.binId.toUpperCase(),
                 subtitle: area,
+                subtitleSize: 11,
+                verticalPadding: 12,
                 showBackButton: true,
                 actions: [
                   IconButton(

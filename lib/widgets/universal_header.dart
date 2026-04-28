@@ -10,6 +10,9 @@ class UniversalHeader extends StatelessWidget {
   final List<Widget>? actions;
   final double expandedHeight;
   final Color baseColor;
+  final double titleSize;
+  final double subtitleSize;
+  final double verticalPadding;
 
   const UniversalHeader({
     super.key,
@@ -21,6 +24,9 @@ class UniversalHeader extends StatelessWidget {
     this.actions,
     this.expandedHeight = 180.0,
     this.baseColor = const Color(0xFF0A714E), // Default premium green
+    this.titleSize = 12.5,
+    this.subtitleSize = 8.0,
+    this.verticalPadding = 8.0,
   });
 
   @override
@@ -60,7 +66,7 @@ class UniversalHeader extends StatelessWidget {
         ],
         centerTitle: true,
         title: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
+          padding: EdgeInsets.symmetric(horizontal: 15, vertical: verticalPadding),
           decoration: BoxDecoration(
             color: Colors.black.withValues(alpha: 0.2),
             borderRadius: BorderRadius.circular(12),
@@ -79,9 +85,9 @@ class UniversalHeader extends StatelessWidget {
                   Text(
                     title.toUpperCase(),
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: Colors.white,
-                      fontSize: 14,
+                      fontSize: titleSize,
                       fontWeight: FontWeight.w900,
                       letterSpacing: 1.5,
                       shadows: [
@@ -100,7 +106,7 @@ class UniversalHeader extends StatelessWidget {
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         color: Colors.white.withValues(alpha: 0.8),
-                        fontSize: 8,
+                        fontSize: subtitleSize,
                         fontWeight: FontWeight.bold,
                         letterSpacing: 0.5,
                       ),
